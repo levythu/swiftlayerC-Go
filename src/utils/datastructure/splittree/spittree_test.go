@@ -6,7 +6,7 @@ import (
     "testing"
 )
 
-func TestAllFuncs(t *testing.T) {
+func TestSplittreeAllFuncs(t *testing.T) {
 	t.Log(FromNodeToLeaf(0),FromNodeToLeaf(1),FromNodeToLeaf(2))
     t.Log(IsLeaf(1),IsLeaf(3),IsLeaf(4))
     t.Log(FromLeaftoNode(1),FromLeaftoNode(5),FromLeaftoNode(3))
