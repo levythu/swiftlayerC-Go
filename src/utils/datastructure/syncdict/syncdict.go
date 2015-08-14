@@ -4,7 +4,7 @@ package syncdict
 
 import (
     "sync"
-    . "convention"
+    . "definition"
 )
 
 type Syncdict struct {

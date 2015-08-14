@@ -1,6 +1,6 @@
 // define a overall interface
 
-package convention
+package definition
 
 type Tout interface {
     // Nothing
