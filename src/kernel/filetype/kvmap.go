@@ -31,7 +31,8 @@ import (
     "errors"
     "definition/exception"
     "encoding/binary"
-    "fmt"
+    "log"
+    "sort"
 )
 
 const fileMagic="KVMP"
@@ -46,7 +47,10 @@ type KvmapEntry struct {
 type Kvmap struct {
     finishRead bool
     haveRead int
+
     kvm map[string]*KvmapEntry
+    rmed map[string]*KvmapEntry
+
     readData []*KvmapEntry
     dataSource io.Reader
 
@@ -70,6 +74,65 @@ func ParseString(inp io.Reader ,length uint32) (string, error) {
     return string(buf[:n]), nil
 }
 
+func (this *Kvmap)GetTS() ClxTimestamp {
+    return this.fileTS
+}
+func (this *Kvmap)SetTS(val ClxTimestamp) {
+    this.fileTS=val
+}
+func (this *Kvmap)CheckOut() {
+    // Attentez: All the modification will not be stored before executing CheckIn
+    if this.LoadIntoMem()!=nil {
+        return
+    }
+    this.kvm=make(map[string]*KvmapEntry)
+    this.rmed=make(map[string]*KvmapEntry)
+    for _, elem:=range this.readData {
+        if elem.val==REMOVE_SPECIFIED {
+            this.rmed[elem.key]=elem
+        } else {
+            this.kvm[elem.key]=elem
+        }
+    }
+}
+func (this *Kvmap)CheckIn() {
+    if this.kvm==nil {
+        log.Fatal("<Kvmap::CheckIn> Have not checkout yet.")
+    }
+    tRes:=make([]*KvmapEntry, 0)
+    keyArray:=make([]string, 0)
+
+    for key:=range this.kvm {
+        keyArray=append(keyArray,key)
+    }
+    for key:=range this.rmed {
+        if _, ok:=this.kvm[key]; !ok {
+            keyArray=append(keyArray,key)
+        }
+    }
+    sort.Strings(keyArray)
+
+    for _, key:=range keyArray {
+        val4kvm, ok4kvm:=this.kvm[key]
+        val4rm, ok4rm:=this.rmed[key]
+        if ok4kvm && ok4rm {
+            if val4kvm.timestamp<val4rm.timestamp {
+                tRes=append(tRes, val4rm)
+            } else {
+                tRes=append(tRes, val4kvm)
+            }
+        }
+        if ok4kvm && !ok4rm {
+            tRes=append(tRes, val4kvm)
+        }
+        if !ok4kvm && ok4rm {
+            tRes=append(tRes, val4rm)
+        }
+    }
+
+    this.readData=tRes
+}
+
 func (this *Kvmap)WriteBack(dtDes io.Writer) error {
     if err:=this.LoadIntoMem(); err!=nil {
         return err
@@ -87,6 +150,12 @@ func (this *Kvmap)WriteBack(dtDes io.Writer) error {
             return err
         }
         if err:=binary.Write(dtDes, binary.LittleEndian, elem.timestamp); err!=nil {
+            return err
+        }
+        if _,err:=dtDes.Write(K); err!=nil {
+            return err
+        }
+        if _,err:=dtDes.Write(V); err!=nil {
             return err
         }
     }
@@ -128,7 +197,6 @@ func (this *Kvmap)lazyRead(pos int) (*KvmapEntry, error) {
         if binary.Read(this.dataSource, binary.LittleEndian, &n)!=nil {
             return nil, errors.New(exception.EX_WRONG_FILEFORMAT)
         }
-        fmt.Println(n)
         if n==0 {
             this.finishRead=true
             return nil, nil

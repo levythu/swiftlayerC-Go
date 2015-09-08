@@ -10,4 +10,5 @@ type Filetype interface {
     WriteBack(dtDes io.Writer) error
     GetTS() ClxTimestamp
     SetTS(val ClxTimestamp)
+    MergeWith(file2 Filetype) error
 }
