@@ -10,19 +10,19 @@ import (
 
 type ClxTimestamp uint64
 
-func GetVersionNumber(timestamp uint64) uint32 {
+func GetVersionNumber(timestamp ClxTimestamp) uint32 {
     return uint32((timestamp>>36)&0xfffff)
 }
 
-func GetExacttime(timestamp uint64) uint64 {
-    return timestamp&0xfffffffff
+func GetExacttime(timestamp ClxTimestamp) uint64 {
+    return uint64(timestamp)&0xfffffffff
 }
 
-func GetTimestamp(baseTime uint64) uint64 {
-    return (((uint64(GetVersionNumber(baseTime))+1)&0xfffff)<<36)+uint64(time.Now().Unix())
+func GetTimestamp(baseTime ClxTimestamp) ClxTimestamp {
+    return (((ClxTimestamp(GetVersionNumber(baseTime))+1)&0xfffff)<<36)+ClxTimestamp(time.Now().Unix())
 }
 
-func MergeTimestamp(ts1, ts2 uint64) uint64 {
+func MergeTimestamp(ts1, ts2 ClxTimestamp) ClxTimestamp {
     if ts1>ts2 {
         return ts1
     } else {

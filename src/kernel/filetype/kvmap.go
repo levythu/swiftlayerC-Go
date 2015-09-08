@@ -57,6 +57,14 @@ type Kvmap struct {
     fileTS ClxTimestamp
 }
 
+func NewKvMap() *Kvmap {
+    var nkv Kvmap
+    rkv:=&nkv
+
+    rkv.Init(nil, GetTimestamp(0))
+    rkv.finishRead=true
+    return rkv
+}
 func (this *Kvmap)Init(dtSource io.Reader, dtTimestamp ClxTimestamp) {
     this.haveRead=0
     this.readData=make([]*KvmapEntry, 0)

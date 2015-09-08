@@ -18,7 +18,7 @@ func readFile(filename string) ([]byte, error) {
 }
 
 func TestREAD(t *testing.T) {
-    datas, _:=readFile("rootNode.cversion")
+    datas, _:=readFile("noupload/rootNode.cversion")
     datainput:=bytes.NewReader(datas)
     var kvm4test Kvmap
     kvm4test.Init(datainput,5)
@@ -31,7 +31,7 @@ func TestREAD(t *testing.T) {
     t.Log("Finish")
 }
 func TestWRITE(t *testing.T) {
-    datas, _:=readFile("rootNode.cversion")
+    datas, _:=readFile("noupload/rootNode.cversion")
     datainput:=bytes.NewReader(datas)
     var kvm4test Kvmap
     kvm4test.Init(datainput,5)
@@ -41,17 +41,23 @@ func TestWRITE(t *testing.T) {
     p2plc:=&plc
     kvm4test.WriteBack(p2plc)
 
-    oName, _:=GetABSPath("outp.txt")
+    oName, _:=GetABSPath("noupload/outp.txt")
     ioutil.WriteFile(oName,p2plc.Bytes(),os.ModePerm)
 
     t.Log("Finish")
 }
-func TestCHECKIN(t *testing.T) {
-    datas, _:=readFile("rootNode.cversion")
-    datainput:=bytes.NewReader(datas)
-    var kvm4test Kvmap
-    kvm4test.Init(datainput,5)
+func TestCHECKINnOUT(t *testing.T) {
+    kvm4test:=NewKvMap()
+    kvm4test.CheckOut()
+    kvm4test.kvm["asd阿斯顿"]=&KvmapEntry{123321123,"asd阿斯顿","valu1eHu阿萨德撒的"}
     kvm4test.CheckIn()
+
+    var plc bytes.Buffer
+    p2plc:=&plc
+    kvm4test.WriteBack(p2plc)
+
+    oName, _:=GetABSPath("noupload/outp2.txt")
+    ioutil.WriteFile(oName,p2plc.Bytes(),os.ModePerm)
 
     t.Log(kvm4test.kvm)
 }
