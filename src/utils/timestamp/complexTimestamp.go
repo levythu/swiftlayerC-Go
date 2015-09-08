@@ -8,6 +8,8 @@ import (
     "time"
 )
 
+type ClxTimestamp uint64
+
 func GetVersionNumber(timestamp uint64) uint32 {
     return uint32((timestamp>>36)&0xfffff)
 }
