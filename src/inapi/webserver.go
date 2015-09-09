@@ -5,12 +5,14 @@ import (
     //"io/ioutil"
     "fmt"
     "io"
+    "utils/iomidware"
 )
 
 func uploadhandler(w http.ResponseWriter, r *http.Request) {
-    res:=make([]byte, 10)
+    res:=make([]byte, 3)
+    ds:=iomidware.Blockify(r.Body)
     for {
-        n, err:=r.Body.Read(res)
+        n, err:=ds.Read(res)
         fmt.Println(string(res[:n]),n)
         if err==io.EOF {
             break
