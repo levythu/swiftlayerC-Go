@@ -33,6 +33,8 @@ import (
     "encoding/binary"
     "log"
     "sort"
+    "reflect"
+    "fmt"
 )
 
 const fileMagic="KVMP"
@@ -46,7 +48,6 @@ type KvmapEntry struct {
 
 type Kvmap struct {
     finishRead bool
-    haveRead int
 
     kvm map[string]*KvmapEntry
     rmed map[string]*KvmapEntry
@@ -57,6 +58,10 @@ type Kvmap struct {
     fileTS ClxTimestamp
 }
 
+func kvmap_verbose() {
+    // NOUSE, only for crunching the warning.
+    fmt.Print("useless")
+}
 func NewKvMap() *Kvmap {
     var nkv Kvmap
     rkv:=&nkv
@@ -66,7 +71,6 @@ func NewKvMap() *Kvmap {
     return rkv
 }
 func (this *Kvmap)Init(dtSource io.Reader, dtTimestamp ClxTimestamp) {
-    this.haveRead=0
     this.readData=make([]*KvmapEntry, 0)
     this.dataSource=dtSource
     this.fileTS=dtTimestamp
@@ -141,6 +145,56 @@ func (this *Kvmap)CheckIn() {
     this.readData=tRes
 }
 
+func (this *Kvmap)MergeWith(file2 Filetype) error {
+    if reflect.TypeOf(this)!=reflect.TypeOf(file2) {
+        return errors.New(exception.EX_UNMATCHED_MERGE)
+    }
+    tRes:=make([]*KvmapEntry, 0)
+    file2x=Kvmap(file2)
+    i,j:=0,0
+
+    for {
+        if this.lazyRead_NoError(i)==nil {
+            for file2x.lazyRead_NoError(j)!=nil {
+                tRes=append(tRes,file2x.lezyRead_NoError(j))
+                j=j+1
+            }
+            break
+        }
+        if file2x.lazyRead_NoError(j)==nil {
+            for this.lazyRead_NoError(i)!=nil {
+                tRes=append(tRes,this.lazyRead_NoError(i))
+                i=i+1
+            }
+            break
+        }
+        for this.lazyRead_NoError(i)!=nil && file2x.lazyRead_NoError(j)!=nil && this.lazyRead_NoError(i).key<file2x.lazyRead_NoError(j).key {
+            tRes=append(tRes,this.lazyRead_NoError(i))
+            i=i+1
+        }
+        for file2x.lazyRead_NoError(j)!=nil && this.lazyRead_NoError(i)!=nil && this.lazyRead_NoError(i).key>file2x.lazyRead_NoError(j).key {
+            tRes=append(tRes,file2x.lazyRead_NoError(j))
+            j=j+1
+        }
+        for file2x.lazyRead_NoError(j)!=nil && this.lazyRead_NoError(i)!=nil && this.lazyRead_NoError(i).key==file2x.lazyRead_NoError(j).key {
+            if this.lazyRead_NoError(i).timestamp>file2x.lazyRead_NoError(j).timestamp {
+                tRes=append(tRes,this.lazyRead_NoError(i))
+            } else if this.lazyRead_NoError(i).timestamp<file2x.lazyRead_NoError(j).timestamp {
+                tRes=append(tRes,file2x.lazyRead_NoError(j))
+            } else {
+                // Attentez: this conflict resolving strategy may be altered.
+                tRes=append(tRes,this.lazyRead_NoError(i))
+            }
+            i=i+1
+            j=j+1
+        }
+    }
+    this.readData=tRes
+    this.fileTS=MergeTimestamp(this.fileTS,file2x.fileTS)
+
+    return nil
+}
+
 func (this *Kvmap)WriteBack(dtDes io.Writer) error {
     if err:=this.LoadIntoMem(); err!=nil {
         return err
@@ -174,21 +228,28 @@ func (this *Kvmap)WriteBack(dtDes io.Writer) error {
 }
 func (this *Kvmap)LoadIntoMem() error {
     for !this.finishRead {
-        _, err:=this.lazyRead(this.haveRead)
+        _, err:=this.lazyRead(len(this.readData))
         if err!=nil {
             return err
         }
     }
     return nil
 }
+func (this *Kvmap)lazyRead_NoError(pos int) *KvmapEntry {
+    res, err:=this.lazyRead(pos)
+    if err!=nil {
+        return nil
+    }
+    return res
+}
 func (this *Kvmap)lazyRead(pos int) (*KvmapEntry, error) {
-    if pos<this.haveRead {
+    if pos<len(this.readData) {
         return this.readData[pos], nil
     }
     if this.finishRead {
         return nil, nil
     }
-    if this.haveRead==0 {
+    if len(this.readData)==0 {
         // Open the target, check it.
         tmpString, err:=ParseString(this.dataSource, 4)
         if (err!=nil) {
@@ -199,7 +260,7 @@ func (this *Kvmap)lazyRead(pos int) (*KvmapEntry, error) {
         }
     }
 
-    for pos>=this.haveRead {
+    for pos>=len(this.readData) {
         var m, n uint32
         var ts ClxTimestamp
         if binary.Read(this.dataSource, binary.LittleEndian, &n)!=nil {

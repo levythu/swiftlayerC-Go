@@ -61,3 +61,14 @@ func TestCHECKINnOUT(t *testing.T) {
 
     t.Log(kvm4test.kvm)
 }
+
+func TestMERGE(t *testing.T) {
+    kvm4test:=NewKvMap()
+    kvm4test.CheckOut()
+    kvm4test.kvm["asd阿斯顿"]=&KvmapEntry{123321123,"asd阿斯顿","valu1eHu阿萨德撒的"}
+    kvm4test.CheckIn()
+
+    kvm4test.MergeWith(kvm4test)
+
+    t.Log(kvm4test.kvm)
+}
