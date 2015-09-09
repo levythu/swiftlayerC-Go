@@ -150,13 +150,13 @@ func (this *Kvmap)MergeWith(file2 Filetype) error {
         return errors.New(exception.EX_UNMATCHED_MERGE)
     }
     tRes:=make([]*KvmapEntry, 0)
-    file2x=Kvmap(file2)
+    file2x:=file2.(*Kvmap)
     i,j:=0,0
 
     for {
         if this.lazyRead_NoError(i)==nil {
             for file2x.lazyRead_NoError(j)!=nil {
-                tRes=append(tRes,file2x.lezyRead_NoError(j))
+                tRes=append(tRes,file2x.lazyRead_NoError(j))
                 j=j+1
             }
             break
