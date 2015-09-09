@@ -76,6 +76,9 @@ func (this *Kvmap)Init(dtSource io.Reader, dtTimestamp ClxTimestamp) {
     this.fileTS=dtTimestamp
     this.finishRead=false
 }
+func (this *Kvmap)GetType() string {
+    return "key-value map file"
+}
 
 func ParseString(inp io.Reader ,length uint32) (string, error) {
     buf:=make([]byte, length)

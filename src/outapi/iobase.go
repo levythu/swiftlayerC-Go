@@ -5,6 +5,17 @@
 
 package outapi
 
-type Outapi interface {
+import (
+    "kernel/filetype"
+)
 
+type FileMeta map[string]string
+
+type Outapi interface {
+    generateUniqueID() string
+    put(filename string, content filetype.Filetype, info FileMeta) error
+    get(filename string) (FileMeta, filetype.Filetype, error)
+    putinfo(filename string, info FileMeta) error
+    getinfo(filename string) (FileMeta, error)
+    delete(filename string) error
 }

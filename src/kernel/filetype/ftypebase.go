@@ -11,4 +11,6 @@ type Filetype interface {
     GetTS() ClxTimestamp
     SetTS(val ClxTimestamp)
     MergeWith(file2 Filetype) error
+
+    GetType() string
 }
