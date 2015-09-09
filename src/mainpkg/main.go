@@ -1,11 +1,9 @@
-package mainpkg
+package main
 
 import (
-    "fmt"
-    "utils/datastructure"
+    "inapi"
 )
 
 func main() {
-	fmt.Printf("Hello, world.\n")
-    datastructure.Test()
+    inapi.Entry()
 }
