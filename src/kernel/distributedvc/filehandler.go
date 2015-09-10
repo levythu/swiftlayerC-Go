@@ -19,7 +19,7 @@ import (
     "sync"
 )
 
-type fd struct {
+type Fd struct {
     filename string
     io outapi.Outapi
     metadata FileMeta
@@ -46,44 +46,54 @@ INTER_PATCH_METAKEY_SYNCTIME2="sync-time-r"
 
 CANONICAL_VERSION_METAKEY_SYNCTIME="sync-time"
 
-func GetFD(fn string, _io outapi.Outapi) *fd {
-    return global_file_dict.Declare(fn+_io.generateUniqueID(), &fd{
+func GetFD(fn string, _io outapi.Outapi) *Fd {
+    return global_file_dict.Declare(fn+_io.generateUniqueID(), &Fd{
         filename: fn,
         io: _io,
-        latestPatch: -1,
+        latestPatch: -10,
         // The number of locks may be changed here.
         locks: []*sync.Mutex{&sync.Mutex{},&sync.Mutex{},&sync.Mutex{}},
     })
 }
 
-func (this *fd)GetPatchName(patchnumber int, nodenumber int) string {
+func (this *Fd)GetPatchName(patchnumber int, nodenumber int) string {
     if nodenumber<0 {
         nodenumber=configinfo.GetProperty_Node("node_number")
     }
     return this.filename+".proxy"+strconv.Itoa(nodenumber)+".patch"+strconv.Itoa(patchnumber)
 }
 
-func (this *fd)GetGlobalPatchName(splittreeid uint32) string {
+func (this *Fd)GetGlobalPatchName(splittreeid uint32) string {
     return this.filename+".splittree"+strconv.FormatUint(uint64(splittreeid),10)+".patch"
 }
 
-func (this *fd)GetCanonicalVersionName() string {
+func (this *Fd)GetCanonicalVersionName() string {
     return this.filename+".cversion"
 }
 
 // @Sync(0)
-func (this *fd)GetLatestPatch() int {
+func (this *Fd)GetLatestPatch() int {
+    // LatestPatch means the next available PatchID-1
     this.locks[0].Lock()
     defer this.locks[0].Unlock()
 
-    if this.latestPatch==-1 {
+    if this.latestPatch==-10 {
         prg:=0
         prgto, err:=this.io.getinfo(this.GetPatchName(prg))
         if err!=nil {
-            return -1
+            return -10
         }
         for prgto!=nil {
-            // TODO
+            nprg:=strconv.ParseInt(prgto[INTRA_PATCH_METAKEY_NEXT_PATCH])
+            this.intravisor.AnnounceNewTask(prg,nprg)       // Attetez: may announce empty file (nprg)
+            prg=nprg
+            prgto, err:=this.io.getinfo(this.GetPatchName(prg))
+            if err!=nil {
+                return -10
+            }
         }
+        this.latestPatch=prg-1
+        this.intravisor.BatchWorker()
     }
+    return this.latestPatch
 }

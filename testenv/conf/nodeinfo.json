@@ -1,4 +1,6 @@
 {
     "node_number": 0,
-    "node_nums_in_all": 3
+    "node_nums_in_all": 3,
+
+    "auto_commit_per_intramerge": 1
 }
