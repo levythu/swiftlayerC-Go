@@ -7,15 +7,21 @@ package outapi
 
 import (
     "kernel/filetype"
+    . "kernel/distributedvc/filemeta"
 )
-
-type FileMeta map[string]string
 
 type Outapi interface {
     generateUniqueID() string
+    
     put(filename string, content filetype.Filetype, info FileMeta) error
+
+    // If file does not exist, a nil will be returned. No error occurs.
     get(filename string) (FileMeta, filetype.Filetype, error)
+
     putinfo(filename string, info FileMeta) error
+
+    // If file does not exist, a nil will be returned. No error occurs.
     getinfo(filename string) (FileMeta, error)
+
     delete(filename string) error
 }

@@ -18,7 +18,6 @@ func uploadhandler(w http.ResponseWriter, r *http.Request) {
             break
         }
     }
-
 }
 
 func Entry() {
