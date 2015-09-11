@@ -2,5 +2,10 @@
     "node_number": 0,
     "node_nums_in_all": 3,
 
-    "auto_commit_per_intramerge": 1
+    "auto_commit_per_intramerge": 1,
+    "enable_parallel_overhaul": false,
+
+    "swift_auth_url": "http://58.205.208.81:5000/v2.0",
+    "swift_proxy_url": "http://58.205.208.81:8080/v1/"
+
 }
