@@ -3,9 +3,11 @@ package outapi
 import (
     "github.com/ncw/swift"
     "definition/configinfo"
+    "fmt"
+    . "kernel/distributedvc/filemeta"
 )
 
-struct SwiftConnector {
+type SwiftConnector struct {
     c *swift.Connection
 }
 // If auth failed, return nil
@@ -14,14 +16,16 @@ func ConnectbyAuth(username string, passwd string, tenant string) *SwiftConnecto
         UserName: username,
         ApiKey: passwd,
         Tenant: tenant,
-        AuthUrl: configinfo.GetProperty_Node("swift_proxy_url").(string),
+        AuthUrl: configinfo.GetProperty_Node("swift_auth_url").(string),
+        //AuthVersion: 2,
     }
-    if swc.Authenticate()!=nil {
+    if err:=swc.Authenticate();err!=nil {
+        fmt.Println(err.Error())
         return nil
     }
 
     return &SwiftConnector{
-        c: swc
+        c: swc,
     }
 }
 func ConnectbyPreauth(account string, token string) *SwiftConnector {
@@ -29,7 +33,7 @@ func ConnectbyPreauth(account string, token string) *SwiftConnector {
     return nil
 }
 
-struct Swiftio {
+type Swiftio struct {
     conn *SwiftConnector
     container string
 }
@@ -48,6 +52,17 @@ func DupSwiftio(oldio *Swiftio, _container string) *Swiftio {
     }
 }
 
-func (this *Swiftio)generateUniqueID string {
+func (this *Swiftio)GenerateUniqueID() string {
     return "outapi.Swiftio: "+this.container
+}
+func (this *Swiftio)Getinfo(filename string) (FileMeta, error) {
+    _, headers, err:=this.conn.c.Object(this.container, filename)
+    if err!=nil {
+        if err==swift.ObjectNotFound {
+            return nil, nil
+        }
+        return nil, err
+    }
+    fmt.Println(headers.ObjectMetadata())
+    return nil, nil
 }

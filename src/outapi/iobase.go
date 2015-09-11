@@ -11,19 +11,20 @@ import (
 )
 
 type Outapi interface {
-    generateUniqueID() string
 
-    put(filename string, content filetype.Filetype, info FileMeta) error
+    GenerateUniqueID() string
 
-    // If file does not exist, a nil will be returned. No error occurs.
-    get(filename string) (FileMeta, filetype.Filetype, error)
-
-    putinfo(filename string, info FileMeta) error
+    Put(filename string, content filetype.Filetype, info FileMeta) error
 
     // If file does not exist, a nil will be returned. No error occurs.
-    getinfo(filename string) (FileMeta, error)
+    Get(filename string) (FileMeta, filetype.Filetype, error)
 
-    delete(filename string) error
+    Putinfo(filename string, info FileMeta) error
+
+    // If file does not exist, a nil will be returned. No error occurs.
+    Getinfo(filename string) (FileMeta, error)
+
+    Delete(filename string) error
 
     //TODO: Setup streaming api.
 }
