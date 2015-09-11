@@ -49,7 +49,7 @@ type KvmapEntry struct {
 type Kvmap struct {
     finishRead bool
 
-    kvm map[string]*KvmapEntry
+    Kvm map[string]*KvmapEntry
     rmed map[string]*KvmapEntry
 
     readData []*KvmapEntry
@@ -58,7 +58,7 @@ type Kvmap struct {
     fileTS ClxTimestamp
 }
 
-func kvmap_verbose() {
+func Kvmap_verbose() {
     // NOUSE, only for crunching the warning.
     fmt.Print("useless")
 }
@@ -100,35 +100,35 @@ func (this *Kvmap)CheckOut() {
     if this.LoadIntoMem()!=nil {
         return
     }
-    this.kvm=make(map[string]*KvmapEntry)
+    this.Kvm=make(map[string]*KvmapEntry)
     this.rmed=make(map[string]*KvmapEntry)
     for _, elem:=range this.readData {
         if elem.val==REMOVE_SPECIFIED {
             this.rmed[elem.key]=elem
         } else {
-            this.kvm[elem.key]=elem
+            this.Kvm[elem.key]=elem
         }
     }
 }
 func (this *Kvmap)CheckIn() {
-    if this.kvm==nil {
+    if this.Kvm==nil {
         log.Fatal("<Kvmap::CheckIn> Have not checkout yet.")
     }
     tRes:=make([]*KvmapEntry, 0)
     keyArray:=make([]string, 0)
 
-    for key:=range this.kvm {
+    for key:=range this.Kvm {
         keyArray=append(keyArray,key)
     }
     for key:=range this.rmed {
-        if _, ok:=this.kvm[key]; !ok {
+        if _, ok:=this.Kvm[key]; !ok {
             keyArray=append(keyArray,key)
         }
     }
     sort.Strings(keyArray)
 
     for _, key:=range keyArray {
-        val4kvm, ok4kvm:=this.kvm[key]
+        val4kvm, ok4kvm:=this.Kvm[key]
         val4rm, ok4rm:=this.rmed[key]
         if ok4kvm && ok4rm {
             if val4kvm.timestamp<val4rm.timestamp {

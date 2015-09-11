@@ -6,6 +6,8 @@
     "enable_parallel_overhaul": false,
 
     "swift_auth_url": "http://58.205.208.81:5000/v2.0",
-    "swift_proxy_url": "http://58.205.208.81:8080/v1/"
+    "swift_proxy_url": "http://58.205.208.81:8080/v1/",
+
+    "index_file_check_md5": false
 
 }

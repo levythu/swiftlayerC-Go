@@ -6,6 +6,7 @@ package timestamp
 
 import (
     "time"
+    "strconv"
 )
 
 type ClxTimestamp uint64
@@ -20,6 +21,22 @@ func GetExacttime(timestamp ClxTimestamp) uint64 {
 
 func GetTimestamp(baseTime ClxTimestamp) ClxTimestamp {
     return (((ClxTimestamp(GetVersionNumber(baseTime))+1)&0xfffff)<<36)+ClxTimestamp(time.Now().Unix())
+}
+
+func String2ClxTimestamp(val string) ClxTimestamp {
+    res, err:=strconv.ParseUint(val, 10, 64)
+    if err!=nil {
+        return 0
+    }
+    return ClxTimestamp(res)
+}
+func ClxTimestamp2String(val ClxTimestamp) string {
+    return strconv.FormatUint(uint64(val), 10)
+}
+
+// identical to ClxTimestamp2String
+func (this ClxTimestamp)String() string {
+    return ClxTimestamp2String(this)
 }
 
 func MergeTimestamp(ts1, ts2 ClxTimestamp) ClxTimestamp {
