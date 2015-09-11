@@ -118,7 +118,7 @@ func (this *IntramergeSupervisor)ReportDeath(worker *IntramergeWorker, dieof int
     this.taskMap[worker.pinpoint].status=TASKSTATUS_IDLE
     if this.workersAlive==0 & len(this.taskMap)>1 {
         time.Sleep(time.Second)
-        go this.BatchWorker()
+        go this.BatchWorker(-1, -1)
     }
 }
 
@@ -133,4 +133,56 @@ func (this *IntramergeSupervisor)SpawnWorker(pinpoint int) {
     }
     this.taskMap[pinpoint].status=TASKSTATUS_WORKING
     this.workersAlive=this.workersAlive+1
+
+    newWorker:=NewIntramergeWorker(this, pinpoint)
+    go newWorker.run()
+}
+
+// Nextpatch may be nonexist
+// Sync(0)
+func (this *IntramergeSupervisor)AnnounceNewTask(patchnum int, nextpatch int) {
+    this.locks[0].Lock()
+    defer this.locks[0].Unlock()
+
+    this.taskMap[patchnum]=NewtaskLinknode(TASKSTATUS_IDLE,nextpatch)
+}
+
+// Only the two arguments can be specified one, nums indicating the whole number
+// and range indicating the interval. The first one has higher priority, with both
+// absent, nums=1 is the default.
+func max(x1 int, x2 int) int {
+    if x1>x2 {
+        return x1
+    }
+    return x2
+}
+func (this *IntramergeSupervisor)BatchWorker(nums/*=-1*/, ranges/*=-1*/) {
+    if this.workersAlive>0 || len(this.taskMap)<=1 {
+        return
+    }
+    if nums<0 && ranges<0 {
+        nums=1
+    }
+    if nums==1 {
+        this.SpawnWorker(0)
+        return
+    }
+    if nums>0 {
+        ranges=max(len(this.taskMap)/nums, 2)
+    }
+    p=0
+    for {
+        this.SpawnWorker(0)
+        nums=nums-1
+        if nums==0 {
+            return
+        }
+        for i:=0;i<ranges;i++ {
+            elem, err:=this.taskMap[p]
+            if err!=nil {
+                return
+            }
+            p=elem.next
+        }
+    }
 }

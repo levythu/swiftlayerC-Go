@@ -93,7 +93,7 @@ func (this *Fd)GetLatestPatch() int {
             }
         }
         this.latestPatch=prg-1
-        this.intravisor.BatchWorker()
+        this.intravisor.BatchWorker(-1, -1)
     }
     return this.latestPatch
 }
