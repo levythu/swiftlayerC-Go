@@ -8,6 +8,7 @@ package outapi
 import (
     "kernel/filetype"
     . "kernel/distributedvc/filemeta"
+    "io"
 )
 
 type Outapi interface {
@@ -28,5 +29,10 @@ type Outapi interface {
 
     Delete(filename string) error
 
-    //TODO: Setup streaming api.
+    // If file does not exist, a nil will be returned. No error occurs.
+    // Pay attention that io.ReadCloser should be closed.
+    GetStream(filename string) (FileMeta, io.ReadCloser, error)
+
+    PutStream(filename string, info FileMeta) (io.WriteCloser, error)
+
 }

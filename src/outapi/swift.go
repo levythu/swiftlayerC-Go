@@ -10,6 +10,7 @@ import (
     "kernel/filetype"
     . "utils/timestamp"
     "bytes"
+    "io"
 )
 
 type SwiftConnector struct {
@@ -130,4 +131,30 @@ func (this *Swiftio)Put(filename string, content filetype.Filetype, info FileMet
 
     _, err:=this.conn.c.ObjectPut(this.container, filename, buffer, false, "", "", meta.ObjectHeaders())
     return err
+}
+
+func (this *Swiftio)GetStream(filename string) (FileMeta, io.ReadCloser, error) {
+    file, header, err:=this.conn.c.ObjectOpen(this.container, filename, false, nil)
+    if err!=nil {
+        if err==swift.ObjectNotFound {
+            return nil, nil, nil
+        }
+        return nil, nil, err
+    }
+    meta:=header.ObjectMetadata()
+
+    return FileMeta(meta), file, err
+}
+
+func (this *Swiftio)PutStream(filename string, info FileMeta) (io.WriteCloser, error) {
+    if info==nil {
+        info=FileMeta(map[string]string{})
+    }
+    meta:=swift.Metadata(info)
+
+    fileW, err:=this.conn.c.ObjectCreate(this.container, filename, false, "", "", meta.ObjectHeaders())
+    if err!=nil {
+        return nil, err
+    }
+    return fileW, nil
 }
