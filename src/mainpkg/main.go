@@ -5,5 +5,6 @@ import (
 )
 
 func main() {
+    startUp()
     inapi.Entry()
 }

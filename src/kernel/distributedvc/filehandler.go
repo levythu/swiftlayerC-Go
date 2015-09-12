@@ -58,7 +58,7 @@ func GetFD(fn string, _io outapi.Outapi) *Fd {
 
 func (this *Fd)GetPatchName(patchnumber int, nodenumber int) string {
     if nodenumber<0 {
-        nodenumber=configinfo.GetProperty_Node("node_number")
+        nodenumber=int(configinfo.GetProperty_Node("node_number").(float64))
     }
     return this.filename+".proxy"+strconv.Itoa(nodenumber)+".patch"+strconv.Itoa(patchnumber)
 }

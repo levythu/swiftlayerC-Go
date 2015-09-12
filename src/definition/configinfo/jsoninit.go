@@ -5,7 +5,7 @@ import (
     . "definition"
     "encoding/json"
     "bytes"
-    "fmt"
+    _ "fmt"
 )
 
 // Removes the /**/ line from the string
@@ -47,9 +47,9 @@ func ReadFileToJSON(filename string) (map[string]Tout, error) {
         return nil, err
     }
 
-    fmt.Println(string(res))
+    //fmt.Println(string(res))
     res=RemoveSlashCommentLine(res)
-    fmt.Println(string(res))
+    //fmt.Println(string(res))
 
     var ret map[string]Tout
     err=json.Unmarshal(res, &ret)

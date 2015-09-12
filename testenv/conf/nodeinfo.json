@@ -10,32 +10,35 @@
 **/
 
 {
-    /* The number id of this proxy node. Keep unique in the cluster and is numbered
-       in the range [0, node_nums_in_all-1].  */
+    /*  The number id of this proxy node. Keep unique in the cluster and is numbered
+        in the range [0, node_nums_in_all-1].  */
     "node_number": 0,
 
-    /* The total number of proxy nodes in the cluster.  */
+    /*  The total number of proxy nodes in the cluster.  */
     "node_nums_in_all": 3,
 
-    /* For the intramerge worker, after executing merging for this number of times
-       it will commit the merged file to Swift.  */
+    /*  For the intramerge worker, after executing merging for this number of times
+        it will commit the merged file to Swift.  */
     "auto_commit_per_intramerge": 1,
 
-    /* In overhaul mode multiple intermerge worker will be spawned to do things in
+    /*  In overhaul mode multiple intermerge worker will be spawned to do things in
        parallel. Not supported yet so it's always FALSE even if set to TRUE.  */
     "enable_parallel_overhaul": false,
 
-    /* Openstack Keystone authencation server url. Only API v2.0 is supported here.  */
+    /*  Openstack Keystone authencation server url. Only API v2.0 is supported here.  */
     "swift_auth_url": "http://58.205.208.81:5000/v2.0",
 
     /*  Corresponding Openstack Swift proxy API url. One per one proxy node.  */
     "swift_proxy_url": "http://58.205.208.81:8080/v1/",
 
-    /*  If set to TRUE, mem-get operation (like index-io) will check MD5 to ensure integrity  */
+    /*  If set to TRUE, mem-get operation (like index-io) will check MD5 to ensure
+        integrity  */
     "index_file_check_md5": false,
 
-    /* How many threads is used to run the layer. A number approximate to the number
-       of logical cores is recommended to take full advantage of multi-core  */
+    /*  How many threads is used to run the layer. A number approximate to the number
+        of logical cores is recommended to take full advantage of multi-core. If the
+        value is less than or equal to zero, it will be set to the number of logical
+        cores automatically.  */
     "thread_utilised": 1
 
 }
