@@ -41,9 +41,9 @@ const fileMagic="KVMP"
 const REMOVE_SPECIFIED="$@REMOVED@$)*!*"
 
 type KvmapEntry struct {
-    timestamp ClxTimestamp
-    key string
-    val string
+    Timestamp ClxTimestamp
+    Key string
+    Val string
 }
 
 type Kvmap struct {
@@ -103,10 +103,10 @@ func (this *Kvmap)CheckOut() {
     this.Kvm=make(map[string]*KvmapEntry)
     this.rmed=make(map[string]*KvmapEntry)
     for _, elem:=range this.readData {
-        if elem.val==REMOVE_SPECIFIED {
-            this.rmed[elem.key]=elem
+        if elem.Val==REMOVE_SPECIFIED {
+            this.rmed[elem.Key]=elem
         } else {
-            this.Kvm[elem.key]=elem
+            this.Kvm[elem.Key]=elem
         }
     }
 }
@@ -131,7 +131,7 @@ func (this *Kvmap)CheckIn() {
         val4kvm, ok4kvm:=this.Kvm[key]
         val4rm, ok4rm:=this.rmed[key]
         if ok4kvm && ok4rm {
-            if val4kvm.timestamp<val4rm.timestamp {
+            if val4kvm.Timestamp<val4rm.Timestamp {
                 tRes=append(tRes, val4rm)
             } else {
                 tRes=append(tRes, val4kvm)
@@ -171,18 +171,18 @@ func (this *Kvmap)MergeWith(file2 Filetype) error {
             }
             break
         }
-        for this.lazyRead_NoError(i)!=nil && file2x.lazyRead_NoError(j)!=nil && this.lazyRead_NoError(i).key<file2x.lazyRead_NoError(j).key {
+        for this.lazyRead_NoError(i)!=nil && file2x.lazyRead_NoError(j)!=nil && this.lazyRead_NoError(i).Key<file2x.lazyRead_NoError(j).Key {
             tRes=append(tRes,this.lazyRead_NoError(i))
             i=i+1
         }
-        for file2x.lazyRead_NoError(j)!=nil && this.lazyRead_NoError(i)!=nil && this.lazyRead_NoError(i).key>file2x.lazyRead_NoError(j).key {
+        for file2x.lazyRead_NoError(j)!=nil && this.lazyRead_NoError(i)!=nil && this.lazyRead_NoError(i).Key>file2x.lazyRead_NoError(j).Key {
             tRes=append(tRes,file2x.lazyRead_NoError(j))
             j=j+1
         }
-        for file2x.lazyRead_NoError(j)!=nil && this.lazyRead_NoError(i)!=nil && this.lazyRead_NoError(i).key==file2x.lazyRead_NoError(j).key {
-            if this.lazyRead_NoError(i).timestamp>file2x.lazyRead_NoError(j).timestamp {
+        for file2x.lazyRead_NoError(j)!=nil && this.lazyRead_NoError(i)!=nil && this.lazyRead_NoError(i).Key==file2x.lazyRead_NoError(j).Key {
+            if this.lazyRead_NoError(i).Timestamp>file2x.lazyRead_NoError(j).Timestamp {
                 tRes=append(tRes,this.lazyRead_NoError(i))
-            } else if this.lazyRead_NoError(i).timestamp<file2x.lazyRead_NoError(j).timestamp {
+            } else if this.lazyRead_NoError(i).Timestamp<file2x.lazyRead_NoError(j).Timestamp {
                 tRes=append(tRes,file2x.lazyRead_NoError(j))
             } else {
                 // Attentez: this conflict resolving strategy may be altered.
@@ -206,15 +206,15 @@ func (this *Kvmap)WriteBack(dtDes io.Writer) error {
         return err
     }
     for _, elem:=range this.readData {
-        K:=[]byte(elem.key)
-        V:=[]byte(elem.val)
+        K:=[]byte(elem.Key)
+        V:=[]byte(elem.Val)
         if err:=binary.Write(dtDes, binary.LittleEndian, uint32(len(K))); err!=nil {
             return err
         }
         if err:=binary.Write(dtDes, binary.LittleEndian, uint32(len(V))); err!=nil {
             return err
         }
-        if err:=binary.Write(dtDes, binary.LittleEndian, elem.timestamp); err!=nil {
+        if err:=binary.Write(dtDes, binary.LittleEndian, elem.Timestamp); err!=nil {
             return err
         }
         if _,err:=dtDes.Write(K); err!=nil {
@@ -291,9 +291,9 @@ func (this *Kvmap)lazyRead(pos int) (*KvmapEntry, error) {
         }
 
         this.readData=append(this.readData, &KvmapEntry{
-            timestamp: ts,
-            key: K,
-            val: V,
+            Timestamp: ts,
+            Key: K,
+            Val: V,
         })
     }
 

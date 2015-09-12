@@ -14,6 +14,8 @@ type Outapi interface {
 
     GenerateUniqueID() string
 
+    // Need not have timestamp in FileMeta. It will be set according to content's record automatically.
+    // Filemeta could be nil.
     Put(filename string, content filetype.Filetype, info FileMeta) error
 
     // If file does not exist, a nil will be returned. No error occurs.

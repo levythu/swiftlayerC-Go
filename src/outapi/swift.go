@@ -91,7 +91,7 @@ func (this *Swiftio)Delete(filename string) error {
 // Get file and automatically check the MD5
 func (this *Swiftio)Get(filename string) (FileMeta, filetype.Filetype, error) {
     contents:=&bytes.Buffer{}
-    header, err:=this.conn.c. ObjectGet(
+    header, err:=this.conn.c.ObjectGet(
         this.container, filename, contents,
         configinfo.GetProperty_Node("index_file_check_md5").(bool),
         nil)
@@ -113,4 +113,21 @@ func (this *Swiftio)Get(filename string) (FileMeta, filetype.Filetype, error) {
     resFile.Init(contents, String2ClxTimestamp(meta["timestamp"]))
 
     return FileMeta(meta), resFile, nil
+}
+
+func (this *Swiftio)Put(filename string, content filetype.Filetype, info FileMeta) error {
+    if info==nil {
+        info=FileMeta(map[string]string{})
+    }
+    meta:=swift.Metadata(info)
+    //TODO: change the timestamp to the constant in kernel.distributedvc.filehandler
+    meta["timestamp"]=content.GetTS().String()
+    //TODO: change the typestamp to the constant in kernel.distributedvc.filehandler
+    meta["typestamp"]=content.GetType()
+
+    buffer:=&bytes.Buffer{}
+    content.WriteBack(buffer)
+
+    _, err:=this.conn.c.ObjectPut(this.container, filename, buffer, false, "", "", meta.ObjectHeaders())
+    return err
 }
