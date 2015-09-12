@@ -138,7 +138,8 @@ func (this *IntramergeSupervisor)SpawnWorker(pinpoint int) {
     go newWorker.run()
 }
 
-// Nextpatch may be nonexist
+// Nextpatch may be nonexist. Annoucing new task will not cause immediately spawning
+// workers.
 // Sync(0)
 func (this *IntramergeSupervisor)AnnounceNewTask(patchnum int, nextpatch int) {
     this.locks[0].Lock()

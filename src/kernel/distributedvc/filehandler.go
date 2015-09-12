@@ -12,9 +12,11 @@ package distributedvc
 
 import (
     "utils/datastructure/syncdict"
+    "kernel/filetype"
     "outapi"
     "definition/configinfo"
     "strconv"
+    "errors"
     . "kernel/distributedvc/filemeta"
     "sync"
 )
@@ -73,7 +75,7 @@ func (this *Fd)GetCanonicalVersionName() string {
 
 // @Sync(0)
 func (this *Fd)GetLatestPatch() int {
-    // LatestPatch means the next available PatchID-1
+    // LatestPatch means the next available PatchID
     this.locks[0].Lock()
     defer this.locks[0].Unlock()
 
@@ -92,8 +94,48 @@ func (this *Fd)GetLatestPatch() int {
                 return -10
             }
         }
-        this.latestPatch=prg-1
+        this.latestPatch=prg
         this.intravisor.BatchWorker(-1, -1)
     }
     return this.latestPatch
+}
+
+// Pay attention that this commit donot support streaming.
+// Given that it is mostly used for folder patch. If there's need for streaming,
+// it will be added in the future.
+// @Sync(1)
+func (this *Fd)CommitPatch(patchfile filetype.Filetype) err {
+    this.locks[1].Lock()
+    defer this.locks[1].Unlock()
+
+    latestAvailable:=GetLatestPatch()
+    if latestAvailable<0 {
+        return errors.New(exception.EX_FAIL_TO_FETCH_INTRALINK)
+    }
+    mata:=NewMeta()
+    meta[INTRA_PATCH_METAKEY_NEXT_PATCH]=strconv.FormatInt(int64(latestAvailable+1), 10)
+    this.io.Put(this.GetPatchName(latestAvailable), patchfile, meta)
+    this.latestPatch++
+    this.intravisor.AnnounceNewTask(latestAvailable, latestAvailable+1)
+
+    if this.latestPatch==1 {
+        // TODO: start intermerge.
+    } else {
+        this.intravisor.BatchWorker(-1, -1)
+    }
+    return nil
+}
+
+// Get the whole file of latest version. The order is, canonical version, then original
+// file. If neither of them exists, a nil will be returned indicating the file not
+// existing.
+func (this *Fd)GetFile() filetype.Filetype {
+    tFile, _, err:=this.io.Get(this.GetCanonicalVersionName())
+    if tFile==nil || err!=nil {
+        tFile, _, err=this.io.Get(this.filename)
+        if tFile==nil || err!=nil {
+            return nil
+        }
+    }
+    return tFile
 }
