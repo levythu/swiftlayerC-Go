@@ -23,6 +23,12 @@ func NewNonexist(ts ClxTimestamp) *Nonexist {
 var MAX_NONEXIST=NewNonexist()
 var MIN_NONEXIST=NewNonexist(ClxTimestamp(^uint64(0)))
 
+const NONEXIST_TYPESTAMP="Nonexist file"
+
+func IsNonexist(this *NewNonexist) bool {
+    return this.GetType()==NONEXIST_TYPESTAMP
+}
+
 func (this *NewNonexist)Init(_ io.Reader, _ ClxTimestamp) {
     return
 }
@@ -39,7 +45,7 @@ func (this *NewNonexist)MergeWith(file2 Filetype) (Filetype, error) {
     return file2, nil
 }
 func (this *NewNonexist)GetType() string {
-    return "Nonexist file"
+    return NONEXIST_TYPESTAMP
 }
 func (this *NewNonexist)EnsureRead() error {
     return nil

@@ -149,9 +149,13 @@ func (this *Kvmap)CheckIn() {
 }
 
 func (this *Kvmap)MergeWith(file2 Filetype) (Filetype ,error) {
+    if IsNonexist(file2) {
+        return this, nil
+    }
     if reflect.TypeOf(this)!=reflect.TypeOf(file2) {
         return nil, errors.New(exception.EX_UNMATCHED_MERGE)
     }
+    
     tRes:=make([]*KvmapEntry, 0)
     file2x:=file2.(*Kvmap)
     i,j:=0,0
