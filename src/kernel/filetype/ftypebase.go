@@ -10,7 +10,11 @@ type Filetype interface {
     WriteBack(dtDes io.Writer) error
     GetTS() ClxTimestamp
     SetTS(val ClxTimestamp)
-    MergeWith(file2 Filetype) error
+
+    // The ret result is the merged version. However, the invocation of this func
+    // may result in alternation in this*
+    MergeWith(file2 Filetype) (Filetype, error)
 
     GetType() string
+    EnsureRead() error
 }

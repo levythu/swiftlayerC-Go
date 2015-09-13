@@ -148,9 +148,9 @@ func (this *Kvmap)CheckIn() {
     this.readData=tRes
 }
 
-func (this *Kvmap)MergeWith(file2 Filetype) error {
+func (this *Kvmap)MergeWith(file2 Filetype) (Filetype ,error) {
     if reflect.TypeOf(this)!=reflect.TypeOf(file2) {
-        return errors.New(exception.EX_UNMATCHED_MERGE)
+        return nil, errors.New(exception.EX_UNMATCHED_MERGE)
     }
     tRes:=make([]*KvmapEntry, 0)
     file2x:=file2.(*Kvmap)
@@ -195,7 +195,7 @@ func (this *Kvmap)MergeWith(file2 Filetype) error {
     this.readData=tRes
     this.fileTS=MergeTimestamp(this.fileTS,file2x.fileTS)
 
-    return nil
+    return this, nil
 }
 
 func (this *Kvmap)WriteBack(dtDes io.Writer) error {
@@ -237,6 +237,9 @@ func (this *Kvmap)LoadIntoMem() error {
         }
     }
     return nil
+}
+func (this *Kvmap)EnsureRead() error {
+    return this.LoadIntoMem()
 }
 func (this *Kvmap)lazyRead_NoError(pos int) *KvmapEntry {
     res, err:=this.lazyRead(pos)

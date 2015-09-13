@@ -81,7 +81,7 @@ func (this *Fd)GetLatestPatch() int {
 
     if this.latestPatch==-10 {
         prg:=0
-        prgto, err:=this.io.getinfo(this.GetPatchName(prg))
+        prgto, err:=this.io.getinfo(this.GetPatchName(prg, -1))
         if err!=nil {
             return -10
         }
@@ -89,7 +89,7 @@ func (this *Fd)GetLatestPatch() int {
             nprg:=strconv.ParseInt(prgto[INTRA_PATCH_METAKEY_NEXT_PATCH])
             this.intravisor.AnnounceNewTask(prg,nprg)       // Attetez: may announce empty file (nprg)
             prg=nprg
-            prgto, err:=this.io.getinfo(this.GetPatchName(prg))
+            prgto, err:=this.io.getinfo(this.GetPatchName(prg, -1))
             if err!=nil {
                 return -10
             }
@@ -114,7 +114,7 @@ func (this *Fd)CommitPatch(patchfile filetype.Filetype) err {
     }
     mata:=NewMeta()
     meta[INTRA_PATCH_METAKEY_NEXT_PATCH]=strconv.FormatInt(int64(latestAvailable+1), 10)
-    this.io.Put(this.GetPatchName(latestAvailable), patchfile, meta)
+    this.io.Put(this.GetPatchName(latestAvailable, -1), patchfile, meta)
     this.latestPatch++
     this.intravisor.AnnounceNewTask(latestAvailable, latestAvailable+1)
 
@@ -138,4 +138,8 @@ func (this *Fd)GetFile() filetype.Filetype {
         }
     }
     return tFile
+}
+
+func (this *Fd)PutOriginalFile() {
+    //TODO
 }
