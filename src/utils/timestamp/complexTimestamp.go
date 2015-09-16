@@ -19,8 +19,14 @@ func GetExacttime(timestamp ClxTimestamp) uint64 {
     return uint64(timestamp)&0xfffffffff
 }
 
+func processRawTime(unixTime uint64) ClxTimestamp {
+    unixTime=unixTime&0xfffffffff
+    unixTime=0xfffffffff-unixTime
+    return ClxTimestamp(unixTime)
+}
+
 func GetTimestamp(baseTime ClxTimestamp) ClxTimestamp {
-    return (((ClxTimestamp(GetVersionNumber(baseTime))+1)&0xfffff)<<36)+ClxTimestamp(time.Now().Unix())
+    return (((ClxTimestamp(GetVersionNumber(baseTime))+1)&0xfffff)<<36)+processRawTime(time.Now().Unix())
 }
 
 func String2ClxTimestamp(val string) ClxTimestamp {

@@ -42,9 +42,9 @@ func NewIntermergeWorker(_supervisor *IntermergeSupervisor, _pinpoint int/*=-1*/
 
 type FetchRecord struct {
     file filetype.Filetype
-    leftTS ClxTimestamp
-    rightTS ClxTimestamp
+    fetchTime uint64
 }
+
 // Read info in one split-tree node. For leaf nodes, return its intra-node top patch.
 func (this *IntermergeWorker)ReadInfo(nodeid int) (*FetchRecord, error) {
     var filename string
@@ -54,11 +54,32 @@ func (this *IntermergeWorker)ReadInfo(nodeid int) (*FetchRecord, error) {
         filename=this.fd.GetGlobalPatchName(nodeid)
     }
 
+    _, file, err:=this.fd.io.Get(filename)
+    if err!=nil {
+        return nil, err
+    }
+    if file==nil {
+        // The file do not exist, return a nonexist with max timestamp
+        file=filetype.MAX_NONEXIST
+    }
 
-    meta, file, err:=this.fd.io.Get(filename)
-    //if 
+    return &FetchRecord{
+        file: file,
+        fetchTime: GetABSTimestamp(),
+    }, nil
 }
 
 // Glean info from one nodes on splittree. It may be combined from its children
-// or just come from one single child.
-func (this *IntermergeWorker)GleanInfo(nodeid int, cacheDict)
+// or just come from one single child. If nil is returned, some error has happened
+// and merge work should be terminated.
+func (this *IntermergeWorker)GleanInfo(nodeid int, cacheDict map[int]*FetchRecord/*=nil*/) (FetchRecord*, uint64, uint64) {
+    if cacheDict==nil {
+        cacheDict=map[int]*FetchRecord{}
+    }
+    if splittree.IsLeaf(nodeid) {
+        if elem, ok:=cacheDict[nodeid]; ok {
+            return elem, elem.fetchTime, elem.fetchTime
+        }
+        res, err:=this.ReadInfo(nodeid)
+    }
+}

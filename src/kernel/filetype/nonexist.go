@@ -20,8 +20,8 @@ func NewNonexist(ts ClxTimestamp) *Nonexist {
     }
 }
 
-var MAX_NONEXIST=NewNonexist()
-var MIN_NONEXIST=NewNonexist(ClxTimestamp(^uint64(0)))
+var MIN_NONEXIST=NewNonexist()
+var MAX_NONEXIST=NewNonexist(ClxTimestamp(^uint64(0)))
 
 const NONEXIST_TYPESTAMP="Nonexist file"
 
