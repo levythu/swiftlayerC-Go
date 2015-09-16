@@ -25,28 +25,28 @@ var MAX_NONEXIST=NewNonexist(ClxTimestamp(^uint64(0)))
 
 const NONEXIST_TYPESTAMP="Nonexist file"
 
-func IsNonexist(this *NewNonexist) bool {
+func IsNonexist(this FileType) bool {
     return this.GetType()==NONEXIST_TYPESTAMP
 }
 
-func (this *NewNonexist)Init(_ io.Reader, _ ClxTimestamp) {
+func (this *Nonexist)Init(_ io.Reader, _ ClxTimestamp) {
     return
 }
-func (this *NewNonexist)WriteBack(_ io.Writer) error {
+func (this *Nonexist)WriteBack(_ io.Writer) error {
     return nil
 }
-func (this *NewNonexist)GetTS() ClxTimestamp {
+func (this *Nonexist)GetTS() ClxTimestamp {
     return this.fixedTS
 }
-func (this *NewNonexist)SetTS(_ ClxTimestamp) {
+func (this *Nonexist)SetTS(_ ClxTimestamp) {
     return
 }
-func (this *NewNonexist)MergeWith(file2 Filetype) (Filetype, error) {
+func (this *Nonexist)MergeWith(file2 Filetype) (Filetype, error) {
     return file2, nil
 }
-func (this *NewNonexist)GetType() string {
+func (this *Nonexist)GetType() string {
     return NONEXIST_TYPESTAMP
 }
-func (this *NewNonexist)EnsureRead() error {
+func (this *Nonexist)EnsureRead() error {
     return nil
 }
