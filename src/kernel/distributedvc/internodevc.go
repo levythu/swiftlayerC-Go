@@ -19,7 +19,13 @@ import (
 */
 
 var rootnodeid=int(splittree.GetRootLable(uint32(configinfo.GetProperty_Node("node_nums_in_all").(float64))))
-var overhaulOrder=func()
+var overhaulOrder=func() []int {
+    ret=[]int()
+    splittree.Traverse(uint32(configinfo.GetProperty_Node("node_nums_in_all").(float64)), func(nodeid uint32, layer uint32){
+        ret=append(ret, int(nodeid))
+    })
+    return ret
+}()
 
 type IntermergeWorker struct {
     supervisor *IntermergeSupervisor
@@ -249,8 +255,9 @@ func NewIntermergeSupervisor(filed *Fd) *IntermergeSupervisor {
 
 // @Sync
 func (this *IntermergeSupervisor)ReportDeath(worker *IntermergeWorker) {
-    lock.Lock()
-    defer lock.Unlock()
+    this.lock.Lock()
+    defer this.lock.Unlock()
+
     if this.workersAlive==1 && this.needsRefresh {
         go worker.BubbleUp()
         this.needsRefresh=false
@@ -260,8 +267,9 @@ func (this *IntermergeSupervisor)ReportDeath(worker *IntermergeWorker) {
 }
 // @Sync
 func (this *IntermergeSupervisor)PropagateUp(worker *IntermergeWorker) {
-    lock.Lock()
-    defer lock.Unlock()
+    this.lock.Lock()
+    defer this.lock.Unlock()
+
     if this.workersAlive>0 {
         this.needsRefresh=true
         return
@@ -269,4 +277,15 @@ func (this *IntermergeSupervisor)PropagateUp(worker *IntermergeWorker) {
     this.workersAlive=this.workersAlive+1
     worker:=NewIntermergeWorker(this, -1)
     go worker.BubbleUp()
+}
+
+func (this *IntermergeSupervisor)Overhaul() {
+    go this._overhaul()
+}
+
+func (this *IntermergeSupervisor)_overhaul() {
+    worker:=NewIntermergeWorker(this, -1)
+    for _, elem:=range overhaulOrder {
+        worker.GleanAndUpdate(elem, nil)
+    }
 }

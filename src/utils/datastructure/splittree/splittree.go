@@ -55,15 +55,15 @@ func GetRootLable(leafnum uint32) uint32 {
 }
 
 // From bottom to top, executing the function
-func Traverse(leafnum uint, callback func(uint, uint)/*Nodeid, layer*/) {
-	rt:=leafnum
+func Traverse(leafnum uint32, callback func(uint32, uint32)/*Nodeid, layer*/) {
+	rt:=GetRootLable(leafnum)
 	limit:=FromNodeToLeaf(leafnum-1)
 
-	lay:=1
-	layer:=1<<(lay-1)
+	var lay uint32=1
+	var layer uint32=1<<(lay-1)
 	for {
-		i:=0
-		nodeid:=(i<<lay)|layer
+		var i uint32=0
+		var nodeid uint32=(i<<lay)|layer
 		for nodeid<=limit {
 			callback(nodeid, lay)
 			i+=1

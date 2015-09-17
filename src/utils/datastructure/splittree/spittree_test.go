@@ -6,7 +6,7 @@ import (
     "testing"
 )
 
-func TestSplittreeAllFuncs(t *testing.T) {
+func _TestSplittreeAllFuncs(t *testing.T) {
 	t.Log(FromNodeToLeaf(0),FromNodeToLeaf(1),FromNodeToLeaf(2))
     t.Log(IsLeaf(1),IsLeaf(3),IsLeaf(4))
     t.Log(FromLeaftoNode(1),FromLeaftoNode(5),FromLeaftoNode(3))
@@ -18,4 +18,10 @@ func TestSplittreeAllFuncs(t *testing.T) {
         GetRootLable(5),GetRootLable(6),GetRootLable(7),GetRootLable(8),
         GetRootLable(9),GetRootLable(10),GetRootLable(11),GetRootLable(12),
     )
+}
+
+func TestTraverse(t *testing.T) {
+    Traverse(5, func(nodeid uint32, layer uint32) {
+        t.Log(layer,",",nodeid)
+    })
 }
