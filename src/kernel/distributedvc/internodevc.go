@@ -5,6 +5,7 @@ import (
     "definition/configinfo"
     "kernel/filetype"
     . "utils/timestamp"
+    "sync"
 )
 
 /*  Class for inter-node merge's sake. Considering all the nodes and build a segment
@@ -18,6 +19,7 @@ import (
 */
 
 var rootnodeid=int(splittree.GetRootLable(uint32(configinfo.GetProperty_Node("node_nums_in_all").(float64))))
+var overhaulOrder=func()
 
 type IntermergeWorker struct {
     supervisor *IntermergeSupervisor
@@ -214,4 +216,57 @@ func (this *IntermergeWorker)BubbleUp() {
         }
         workNode=int(splittree.Parent(uint32(workNode)))
     }
+    this.MakeCanonicalVersion(cache)
+
+    this.supervisor.ReportDeath(this)
+}
+
+/*
+    Manager of intermerge workers. Comparing to intra-node merge, this process does
+    not have lock and sync mechanism, being much easier.
+    It has only two modes:
+    - BubblePropagate Mode: the proxy has got some modification and it needs to propagate
+    up on the tree.
+    - Overhaul Mode: the content on the tree seems to be out-of-date, all the info should
+    be gleaned another time, layer by layer.
+*/
+
+type IntermergeSupervisor struct {
+    filed *Fd
+    workersAlive bool
+    needsRefresh bool
+
+    lock *sync.Mutex
+}
+func NewIntermergeSupervisor(filed *Fd) *IntermergeSupervisor {
+    return &IntermergeSupervisor {
+        filed: filed,
+        workersAlive: 0,
+        needsRefresh: false,
+        lock: &sync.Mutex{}
+    }
+}
+
+// @Sync
+func (this *IntermergeSupervisor)ReportDeath(worker *IntermergeWorker) {
+    lock.Lock()
+    defer lock.Unlock()
+    if this.workersAlive==1 && this.needsRefresh {
+        go worker.BubbleUp()
+        this.needsRefresh=false
+    } else {
+        this.workersAlive=this.workersAlive-1
+    }
+}
+// @Sync
+func (this *IntermergeSupervisor)PropagateUp(worker *IntermergeWorker) {
+    lock.Lock()
+    defer lock.Unlock()
+    if this.workersAlive>0 {
+        this.needsRefresh=true
+        return
+    }
+    this.workersAlive=this.workersAlive+1
+    worker:=NewIntermergeWorker(this, -1)
+    go worker.BubbleUp()
 }
