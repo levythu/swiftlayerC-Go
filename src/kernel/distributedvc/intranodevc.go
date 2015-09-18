@@ -2,7 +2,7 @@ package distributedvc
 
 import (
     "sync"
-    "definition.configinfo"
+    "definition/configinfo"
     "time"
 )
 
@@ -94,7 +94,7 @@ func (this *IntramergeSupervisor)ReportNewTask(worker *IntramergeWorker, patchnu
     if oldpatch!=-1 {
         // Remove the merged one from the list. May delete it from Swift.
         this.taskMap[worker.pinpoint].next=patchnum
-        delete(this.taskMap.oldpatch)
+        delete(this.taskMap, oldpatch)
     }
     if elem, ok:=this.taskMap[patchnum]; !ok || elem.status==TASKSTATUS_WORKING {
         return REPORT_TASK_RESPONSE_REJECT
@@ -116,7 +116,7 @@ func (this *IntramergeSupervisor)ReportDeath(worker *IntramergeWorker, dieof int
 
     this.workersAlive=this.workersAlive-1
     this.taskMap[worker.pinpoint].status=TASKSTATUS_IDLE
-    if this.workersAlive==0 & len(this.taskMap)>1 {
+    if this.workersAlive==0 && len(this.taskMap)>1 {
         time.Sleep(time.Second)
         go this.BatchWorker(-1, -1)
     }
@@ -157,7 +157,7 @@ func max(x1 int, x2 int) int {
     }
     return x2
 }
-func (this *IntramergeSupervisor)BatchWorker(nums/*=-1*/, ranges/*=-1*/) {
+func (this *IntramergeSupervisor)BatchWorker(nums/*=-1*/ int, ranges/*=-1*/ int) {
     if this.workersAlive>0 || len(this.taskMap)<=1 {
         return
     }
@@ -171,7 +171,7 @@ func (this *IntramergeSupervisor)BatchWorker(nums/*=-1*/, ranges/*=-1*/) {
     if nums>0 {
         ranges=max(len(this.taskMap)/nums, 2)
     }
-    p=0
+    p:=0
     for {
         this.SpawnWorker(0)
         nums=nums-1
@@ -179,8 +179,8 @@ func (this *IntramergeSupervisor)BatchWorker(nums/*=-1*/, ranges/*=-1*/) {
             return
         }
         for i:=0;i<ranges;i++ {
-            elem, err:=this.taskMap[p]
-            if err!=nil {
+            elem, ok:=this.taskMap[p]
+            if !ok {
                 return
             }
             p=elem.next

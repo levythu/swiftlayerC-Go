@@ -5,6 +5,7 @@ import (
     "definition/configinfo"
     "kernel/filetype"
     . "utils/timestamp"
+    . "kernel/distributedvc/filemeta"
     "sync"
 )
 
@@ -20,7 +21,7 @@ import (
 
 var rootnodeid=int(splittree.GetRootLable(uint32(configinfo.GetProperty_Node("node_nums_in_all").(float64))))
 var overhaulOrder=func() []int {
-    ret=[]int()
+    ret:=[]int{}
     splittree.Traverse(uint32(configinfo.GetProperty_Node("node_nums_in_all").(float64)), func(nodeid uint32, layer uint32){
         ret=append(ret, int(nodeid))
     })
@@ -57,7 +58,7 @@ func (this *IntermergeWorker)ReadInfo(nodeid int) (*FetchRecord, error) {
     if splittree.IsLeaf(uint32(nodeid)) {
         filename=this.fd.GetPatchName(0, int(splittree.FromLeaftoNode(uint32(nodeid))))
     } else {
-        filename=this.fd.GetGlobalPatchName(nodeid)
+        filename=this.fd.GetGlobalPatchName(uint32(nodeid))
     }
 
     _, file, err:=this.fd.io.Get(filename)
@@ -78,7 +79,7 @@ func (this *IntermergeWorker)ReadInfo(nodeid int) (*FetchRecord, error) {
 // Glean info from one nodes on splittree. It may be combined from its children
 // or just come from one single child. If nil is returned, some error has happened
 // and merge work should be terminated.
-func (this *IntermergeWorker)GleanInfo(nodeid int, cacheDict map[int]*FetchRecord/*=nil*/) (FetchRecord*, uint64, uint64) {
+func (this *IntermergeWorker)GleanInfo(nodeid int, cacheDict map[int]*FetchRecord/*=nil*/) (*FetchRecord, uint64, uint64) {
     if cacheDict==nil {
         cacheDict=map[int]*FetchRecord{}
     }
@@ -95,7 +96,8 @@ func (this *IntermergeWorker)GleanInfo(nodeid int, cacheDict map[int]*FetchRecor
 
     resl, ok:=cacheDict[int(splittree.Left(uint32(nodeid)))]
     if !ok {
-        resl, errl:=this.ReadInfo([int(splittree.Left(uint32(nodeid))))
+        var errl error
+        resl, errl=this.ReadInfo(int(splittree.Left(uint32(nodeid))))
         if errl!=nil {
             return nil, 0, 0
         }
@@ -103,7 +105,8 @@ func (this *IntermergeWorker)GleanInfo(nodeid int, cacheDict map[int]*FetchRecor
 
     resr, ok:=cacheDict[int(splittree.Right(uint32(nodeid)))]
     if !ok {
-        resr, errr:=this.ReadInfo(int(splittree.Right(uint32(nodeid))))
+        var errr error
+        resr, errr=this.ReadInfo(int(splittree.Right(uint32(nodeid))))
         if errr!=nil {
             return nil, 0, 0
         }
@@ -131,17 +134,21 @@ func (this *IntermergeWorker)MakeCanonicalVersion(cacheDict map[int]*FetchRecord
 
     res, ok:=cacheDict[rootnodeid]
     if !ok {
-        res, err:=this.ReadInfo(rootnodeid)
+        var err error
+        res, err=this.ReadInfo(rootnodeid)
         if err!=nil {
             return
         }
     }
-    if filetype.IsNonexist(res) {
+    if filetype.IsNonexist(res.file) {
         return
     }
     _, oriFile, err:=this.fd.io.Get(this.fd.filename)
     if oriFile!=nil && err==nil {
-        res.file=oriFile.MergeWith(res.file)
+        res.file, err=oriFile.MergeWith(res.file)
+        if err!=nil {
+            return
+        }
     }
 
     uploadMeta:=map[string]string{}
@@ -178,7 +185,9 @@ func (this *IntermergeWorker)GleanAndUpdate(nodeid int, cacheDict map[int]*Fetch
 
         onlineMeta, err:=this.fd.io.Getinfo(this.fd.GetGlobalPatchName(uint32(nodeid)))
         if err==nil {
-            if onlt, ok1:=onlineMeta[INTER_PATCH_METAKEY_SYNCTIME1]; onrt, ok2:=onlineMeta[INTER_PATCH_METAKEY_SYNCTIME2]; ok1 && ok2 {
+            onlt, ok1:=onlineMeta[INTER_PATCH_METAKEY_SYNCTIME1]
+            onrt, ok2:=onlineMeta[INTER_PATCH_METAKEY_SYNCTIME2]
+            if ok1 && ok2 {
                 ltOnline:=String2ABSTimestamp(onlt)
                 rtOnline:=String2ABSTimestamp(onrt)
                 if ltOnline>=lt && rtOnline>=rt {
@@ -211,7 +220,7 @@ func (this *IntermergeWorker)BubbleUp() {
     cache:=map[int]*FetchRecord{}
     workNode:=this.pinpoint
     for {
-        tmpRes:=GleanAndUpdate(workNode, cache)
+        tmpRes:=this.GleanAndUpdate(workNode, cache)
         if tmpRes==nil {
             return
         }
@@ -239,7 +248,7 @@ func (this *IntermergeWorker)BubbleUp() {
 
 type IntermergeSupervisor struct {
     filed *Fd
-    workersAlive bool
+    workersAlive int
     needsRefresh bool
 
     lock *sync.Mutex
@@ -249,7 +258,7 @@ func NewIntermergeSupervisor(filed *Fd) *IntermergeSupervisor {
         filed: filed,
         workersAlive: 0,
         needsRefresh: false,
-        lock: &sync.Mutex{}
+        lock: &sync.Mutex{},
     }
 }
 
@@ -266,7 +275,7 @@ func (this *IntermergeSupervisor)ReportDeath(worker *IntermergeWorker) {
     }
 }
 // @Sync
-func (this *IntermergeSupervisor)PropagateUp(worker *IntermergeWorker) {
+func (this *IntermergeSupervisor)PropagateUp() {
     this.lock.Lock()
     defer this.lock.Unlock()
 

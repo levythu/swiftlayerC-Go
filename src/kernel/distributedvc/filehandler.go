@@ -19,6 +19,7 @@ import (
     "errors"
     . "kernel/distributedvc/filemeta"
     "sync"
+    "definition/exception"
 )
 
 type Fd struct {
@@ -32,30 +33,30 @@ type Fd struct {
     locks []*sync.Mutex
 }
 
-global_file_dict:=NewSyncdict()
+var global_file_dict=syncdict.NewSyncdict()
 
 // METADATA must not contain "_" and only lowercase is permitted
 // ============Constants in the mainfile's metadata=============
-METAKEY_TIMESTAMP="timestamp"
-METAKEY_TYPE="typestamp"
+const METAKEY_TIMESTAMP="timestamp"
+const METAKEY_TYPE="typestamp"
 
 // ============Constants in the intra-patch's metadata=============
-INTRA_PATCH_METAKEY_NEXT_PATCH="next-patch"
+const INTRA_PATCH_METAKEY_NEXT_PATCH="next-patch"
 
 // ============Constants in the inter-patch's metadata=============
-INTER_PATCH_METAKEY_SYNCTIME1="sync-time-l"
-INTER_PATCH_METAKEY_SYNCTIME2="sync-time-r"
+const INTER_PATCH_METAKEY_SYNCTIME1="sync-time-l"
+const INTER_PATCH_METAKEY_SYNCTIME2="sync-time-r"
 
-CANONICAL_VERSION_METAKEY_SYNCTIME="sync-time"
+const CANONICAL_VERSION_METAKEY_SYNCTIME="sync-time"
 
 func GetFD(fn string, _io outapi.Outapi) *Fd {
-    return global_file_dict.Declare(fn+_io.generateUniqueID(), &Fd{
+    return global_file_dict.Declare(fn+_io.GenerateUniqueID(), &Fd{
         filename: fn,
         io: _io,
         latestPatch: -10,
         // The number of locks may be changed here.
         locks: []*sync.Mutex{&sync.Mutex{},&sync.Mutex{},&sync.Mutex{}},
-    })
+    }).(*Fd)
 }
 
 func (this *Fd)GetPatchName(patchnumber int, nodenumber int) string {
@@ -81,15 +82,15 @@ func (this *Fd)GetLatestPatch() int {
 
     if this.latestPatch==-10 {
         prg:=0
-        prgto, err:=this.io.getinfo(this.GetPatchName(prg, -1))
+        prgto, err:=this.io.Getinfo(this.GetPatchName(prg, -1))
         if err!=nil {
             return -10
         }
         for prgto!=nil {
-            nprg:=strconv.ParseInt(prgto[INTRA_PATCH_METAKEY_NEXT_PATCH])
+            nprg, _:=strconv.Atoi(prgto[INTRA_PATCH_METAKEY_NEXT_PATCH])
             this.intravisor.AnnounceNewTask(prg,nprg)       // Attetez: may announce empty file (nprg)
             prg=nprg
-            prgto, err:=this.io.getinfo(this.GetPatchName(prg, -1))
+            prgto, err=this.io.Getinfo(this.GetPatchName(prg, -1))
             if err!=nil {
                 return -10
             }
@@ -104,15 +105,15 @@ func (this *Fd)GetLatestPatch() int {
 // Given that it is mostly used for folder patch. If there's need for streaming,
 // it will be added in the future.
 // @Sync(1)
-func (this *Fd)CommitPatch(patchfile filetype.Filetype) err {
+func (this *Fd)CommitPatch(patchfile filetype.Filetype) error {
     this.locks[1].Lock()
     defer this.locks[1].Unlock()
 
-    latestAvailable:=GetLatestPatch()
+    latestAvailable:=this.GetLatestPatch()
     if latestAvailable<0 {
         return errors.New(exception.EX_FAIL_TO_FETCH_INTRALINK)
     }
-    mata:=NewMeta()
+    meta:=NewMeta()
     meta[INTRA_PATCH_METAKEY_NEXT_PATCH]=strconv.FormatInt(int64(latestAvailable+1), 10)
     this.io.Put(this.GetPatchName(latestAvailable, -1), patchfile, meta)
     this.latestPatch++
@@ -130,9 +131,9 @@ func (this *Fd)CommitPatch(patchfile filetype.Filetype) err {
 // file. If neither of them exists, a nil will be returned indicating the file not
 // existing.
 func (this *Fd)GetFile() filetype.Filetype {
-    tFile, _, err:=this.io.Get(this.GetCanonicalVersionName())
+    _, tFile, err:=this.io.Get(this.GetCanonicalVersionName())
     if tFile==nil || err!=nil {
-        tFile, _, err=this.io.Get(this.filename)
+        _, tFile, err=this.io.Get(this.filename)
         if tFile==nil || err!=nil {
             return nil
         }

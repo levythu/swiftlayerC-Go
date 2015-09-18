@@ -26,7 +26,7 @@ func processRawTime(unixTime uint64) ClxTimestamp {
 }
 
 func GetTimestamp(baseTime ClxTimestamp) ClxTimestamp {
-    return (((ClxTimestamp(GetVersionNumber(baseTime))+1)&0xfffff)<<36)+processRawTime(time.Now().Unix())
+    return (((ClxTimestamp(GetVersionNumber(baseTime))+1)&0xfffff)<<36)+processRawTime(uint64(time.Now().Unix()))
 }
 
 func String2ClxTimestamp(val string) ClxTimestamp {

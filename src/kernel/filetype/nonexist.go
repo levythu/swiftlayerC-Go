@@ -4,6 +4,7 @@
 // when constructed.
 //
 // If merged with any other kind of filetype q, q will be the result.
+package filetype
 
 import (
     . "utils/timestamp"
@@ -16,16 +17,16 @@ type Nonexist struct {
 
 func NewNonexist(ts ClxTimestamp) *Nonexist {
     return &Nonexist {
-        fixedTS: ts
+        fixedTS: ts,
     }
 }
 
-var MIN_NONEXIST=NewNonexist()
+var MIN_NONEXIST=NewNonexist(0)
 var MAX_NONEXIST=NewNonexist(ClxTimestamp(^uint64(0)))
 
 const NONEXIST_TYPESTAMP="Nonexist file"
 
-func IsNonexist(this FileType) bool {
+func IsNonexist(this Filetype) bool {
     return this.GetType()==NONEXIST_TYPESTAMP
 }
 
