@@ -72,7 +72,7 @@ func (this *Swiftio)Getinfo(filename string) (FileMeta, error) {
         }
         return nil, err
     }
-    fmt.Println(headers)
+    //fmt.Println(headers)
     return FileMeta(headers.ObjectMetadata()), nil
 }
 

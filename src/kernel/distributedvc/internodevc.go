@@ -224,11 +224,11 @@ func (this *IntermergeWorker)BubbleUp() {
         if tmpRes==nil {
             return
         }
-        cache=map[int]*FetchRecord{}
-        cache[workNode]=tmpRes
         if workNode==rootnodeid {
             break
         }
+        cache=map[int]*FetchRecord{}
+        cache[workNode]=tmpRes
         workNode=int(splittree.Parent(uint32(workNode)))
     }
     this.MakeCanonicalVersion(cache)

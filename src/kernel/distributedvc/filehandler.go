@@ -50,13 +50,16 @@ const INTER_PATCH_METAKEY_SYNCTIME2="sync-time-r"
 const CANONICAL_VERSION_METAKEY_SYNCTIME="sync-time"
 
 func GetFD(fn string, _io outapi.Outapi) *Fd {
-    return global_file_dict.Declare(fn+_io.GenerateUniqueID(), &Fd{
+    ret:=&Fd{
         filename: fn,
         io: _io,
         latestPatch: -10,
         // The number of locks may be changed here.
         locks: []*sync.Mutex{&sync.Mutex{},&sync.Mutex{},&sync.Mutex{}},
-    }).(*Fd)
+    }
+    ret.intervisor=NewIntermergeSupervisor(ret)
+    ret.intravisor=NewIntramergeSupervisor(ret)
+    return global_file_dict.Declare(fn+_io.GenerateUniqueID(), ret).(*Fd)
 }
 
 func (this *Fd)GetPatchName(patchnumber int, nodenumber int) string {
