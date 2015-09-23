@@ -62,7 +62,7 @@ func GetFD(fn string, _io outapi.Outapi) *Fd {
     return global_file_dict.Declare(fn+_io.GenerateUniqueID(), ret).(*Fd)
 }
 
-func (this *Fd)GetPatchName(patchnumber int, nodenumber int) string {
+func (this *Fd)GetPatchName(patchnumber int, nodenumber int/*-1*/) string {
     if nodenumber<0 {
         nodenumber=int(configinfo.GetProperty_Node("node_number").(float64))
     }
@@ -123,7 +123,7 @@ func (this *Fd)CommitPatch(patchfile filetype.Filetype) error {
     this.intravisor.AnnounceNewTask(latestAvailable, latestAvailable+1)
 
     if this.latestPatch==1 {
-        // TODO: start intermerge.
+        this.intervisor.PropagateUp()
     } else {
         this.intravisor.BatchWorker(-1, -1)
     }

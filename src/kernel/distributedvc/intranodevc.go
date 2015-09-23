@@ -4,6 +4,7 @@ import (
     "sync"
     "definition/configinfo"
     "time"
+    "logger"
 )
 
 /*
@@ -44,7 +45,72 @@ func NewIntramergeWorker(_supervisor *IntramergeSupervisor, _pinpoint int) *Intr
 }
 
 func (this *IntramergeWorker)run() {
-    // TODO
+    dieof:=REPORT_DEATH_DIEOF_EXCEPTION
+    defer this.supervisor.ReportDeath(this, dieof)
+
+    _, pinedFile, err:=this.fd.io.Get(this.fd.GetPatchName(this.pinpoint, -1))
+    if err!=nil {
+        logger.Secretary.Error("kernel.distributedvc.IntramergeWorker::run()", err)
+        return
+    }
+    prevTask:=-1
+    nextTask:=this.supervisor.CheckNext(this.pinpoint)
+
+    uploadFile:=func() error {
+        if prevTask==-1 {
+            // Nothing has been merged yet. ABORT uploading
+            return
+        }
+        err:=self.fd.io.Put(this.fd.GetPatchName(this.pinpoint, -1), pinedFile, nil)
+        if err!=nil {
+            logger.Secretary.Error("kernel.distributedvc.IntramergeWorker::run.uploadFile()", err)
+            return err
+        }
+        logger.Secretary.Log("kernel.distributedvc.IntramergeWorker::run.uploadFile()", this.fd.GetPatchName(this.pinpoint, -1)+" is uploaded.")
+        if this.pinpoint==0 {
+            // Start propagation on the splittree
+            this.fd.intervisor.PropagateUp()
+        }
+        return nil
+    }
+    workOnMerge:=func() error {
+        _, nextFile, err:=this.fd.io.Get(this.fd.GetPatchName(nextTask, -1))
+        if err!=nil {
+            logger.Secretary.Error("kernel.distributedvc.IntramergeWorker::run.workOnMerge()", err)
+            return err
+        }
+        pinedFile, err=pinedFile.MergeWith(nextFile)
+        if err!=nil {
+            logger.Secretary.Error("kernel.distributedvc.IntramergeWorker::run.workOnMerge()", err)
+            return err
+        }
+        this.havemerged++
+        this.prevTask=this.nextTask
+        this.nextTask=this.supervisor.CheckNext(this.nextTask)
+        return nil
+    }
+
+    for {
+        cmd:=this.supervisor.ReportNewTask(this, nextTask, prevTask)
+        if cmd==REPORT_TASK_RESPONSE_CONFIRMED {
+            if workOnMerge()!=nil {
+                return
+            }
+        } else if cmd==REPORT_TASK_RESPONSE_REJECT {
+            if uploadFile()!=nil {
+                return
+            }
+            dieof=REPORT_DEATH_DIEOF_COMMAND
+            return
+        } else {
+            if uploadFile()!=nil {
+                return
+            }
+            if workOnMerge()!=nil {
+                return
+            }
+        }
+    }
 }
 
 
@@ -146,6 +212,15 @@ func (this *IntramergeSupervisor)AnnounceNewTask(patchnum int, nextpatch int) {
     defer this.locks[0].Unlock()
 
     this.taskMap[patchnum]=NewtaskLinknode(TASKSTATUS_IDLE,nextpatch)
+}
+
+// Lookup in the map to find the next.
+// Sync(0)
+func (this *IntramergeSupervisor)CheckNext(item int) int {
+    this.locks[0].Lock()
+    defer this.locks[0].Unlock()
+
+    return this.taskMap[item].next
 }
 
 // Only the two arguments can be specified one, nums indicating the whole number
