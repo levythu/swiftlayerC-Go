@@ -59,9 +59,9 @@ func (this *IntramergeWorker)run() {
     uploadFile:=func() error {
         if prevTask==-1 {
             // Nothing has been merged yet. ABORT uploading
-            return
+            return nil
         }
-        err:=self.fd.io.Put(this.fd.GetPatchName(this.pinpoint, -1), pinedFile, nil)
+        err:=this.fd.io.Put(this.fd.GetPatchName(this.pinpoint, -1), pinedFile, nil)
         if err!=nil {
             logger.Secretary.Error("kernel.distributedvc.IntramergeWorker::run.uploadFile()", err)
             return err
@@ -85,8 +85,8 @@ func (this *IntramergeWorker)run() {
             return err
         }
         this.havemerged++
-        this.prevTask=this.nextTask
-        this.nextTask=this.supervisor.CheckNext(this.nextTask)
+        prevTask=nextTask
+        nextTask=this.supervisor.CheckNext(nextTask)
         return nil
     }
 
