@@ -7,7 +7,13 @@ import (
     . "utils/timestamp"
     . "kernel/distributedvc/filemeta"
     "sync"
+    "fmt"
+    "logger"
 )
+
+func ___nosuse___() {
+    fmt.Print("")
+}
 
 /*  Class for inter-node merge's sake. Considering all the nodes and build a segment
 **  tree on them. Each node's data changed, propagate its change in the segment tree
@@ -33,13 +39,13 @@ type IntermergeWorker struct {
     fd *Fd
     pinpoint int
 }
-// If pinpoint==-1, use nodenumber as default pinpoint
+// If pinpoint==-1, use nodenumber's leafnumber as default pinpoint
 func NewIntermergeWorker(_supervisor *IntermergeSupervisor, _pinpoint int/*=-1*/) *IntermergeWorker {
     var ret IntermergeWorker
     ret.supervisor=_supervisor
     ret.fd=_supervisor.filed
     if _pinpoint==-1 {
-        ret.pinpoint=int(configinfo.GetProperty_Node("node_number").(float64))
+        ret.pinpoint=int(splittree.FromNodeToLeaf(uint32(configinfo.GetProperty_Node("node_number").(float64))))
     } else {
         ret.pinpoint=_pinpoint
     }
@@ -163,7 +169,9 @@ func (this *IntermergeWorker)MakeCanonicalVersion(cacheDict map[int]*FetchRecord
     }
 
     if err=this.fd.io.Put(this.fd.GetCanonicalVersionName(), res.file, FileMeta(uploadMeta)); err!=nil {
-        // TODO:Log the error
+        logger.Secretary.Error("kernel.distributedvc.IntermergeWorker::MakeCanonicalVersion()", err)
+    } else {
+        logger.Secretary.Log("kernel.distributedvc.IntermergeWorker::MakeCanonicalVersion()", "Updated CVFile: "+this.fd.GetCanonicalVersionName())
     }
 }
 
