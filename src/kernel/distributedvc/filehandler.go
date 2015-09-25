@@ -20,6 +20,7 @@ import (
     . "kernel/distributedvc/filemeta"
     "sync"
     "definition/exception"
+    "fmt"
 )
 
 type Fd struct {
@@ -31,6 +32,10 @@ type Fd struct {
     latestPatch int
 
     locks []*sync.Mutex
+}
+
+func ____no_use() {
+    fmt.Println("Nouse")
 }
 
 var global_file_dict=syncdict.NewSyncdict()
@@ -121,7 +126,7 @@ func (this *Fd)CommitPatch(patchfile filetype.Filetype) error {
     this.io.Put(this.GetPatchName(latestAvailable, -1), patchfile, meta)
     this.latestPatch++
     this.intravisor.AnnounceNewTask(latestAvailable, latestAvailable+1)
-
+    //fmt.Println("123")
     if this.latestPatch==1 {
         this.intervisor.PropagateUp()
     } else {

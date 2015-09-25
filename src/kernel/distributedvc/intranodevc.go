@@ -5,6 +5,8 @@ import (
     "definition/configinfo"
     "time"
     "logger"
+    "fmt"
+    "strconv"
 )
 
 /*
@@ -33,6 +35,11 @@ type IntramergeWorker struct{
     pinpoint int
     fd *Fd
     havemerged int
+    workingOn int
+}
+
+func ____no_use_intra() {
+    fmt.Println("Nouse")
 }
 
 func NewIntramergeWorker(_supervisor *IntramergeSupervisor, _pinpoint int) *IntramergeWorker {
@@ -40,15 +47,16 @@ func NewIntramergeWorker(_supervisor *IntramergeSupervisor, _pinpoint int) *Intr
         supervisor: _supervisor,
         pinpoint: _pinpoint,
         fd: _supervisor.filed,
-        havemerged: 0 ,
+        havemerged: 0,
+        workingOn: -1,
     }
 }
 
 func (this *IntramergeWorker)run() {
     dieof:=REPORT_DEATH_DIEOF_EXCEPTION
-    defer this.supervisor.ReportDeath(this, dieof)
+    defer this.supervisor.ReportDeath(this, &dieof)
 
-    _, pinedFile, err:=this.fd.io.Get(this.fd.GetPatchName(this.pinpoint, -1))
+    pinedMeta, pinedFile, err:=this.fd.io.Get(this.fd.GetPatchName(this.pinpoint, -1))
     if err!=nil {
         logger.Secretary.Error("kernel.distributedvc.IntramergeWorker::run()", err)
         return
@@ -61,7 +69,8 @@ func (this *IntramergeWorker)run() {
             // Nothing has been merged yet. ABORT uploading
             return nil
         }
-        err:=this.fd.io.Put(this.fd.GetPatchName(this.pinpoint, -1), pinedFile, nil)
+        pinedMeta[INTRA_PATCH_METAKEY_NEXT_PATCH]=strconv.Itoa(nextTask)
+        err:=this.fd.io.Put(this.fd.GetPatchName(this.pinpoint, -1), pinedFile, pinedMeta)
         if err!=nil {
             logger.Secretary.Error("kernel.distributedvc.IntramergeWorker::run.uploadFile()", err)
             return err
@@ -92,6 +101,7 @@ func (this *IntramergeWorker)run() {
 
     for {
         cmd:=this.supervisor.ReportNewTask(this, nextTask, prevTask)
+
         if cmd==REPORT_TASK_RESPONSE_CONFIRMED {
             if workOnMerge()!=nil {
                 return
@@ -160,12 +170,14 @@ func (this *IntramergeSupervisor)ReportNewTask(worker *IntramergeWorker, patchnu
     if oldpatch!=-1 {
         // Remove the merged one from the list. May delete it from Swift.
         this.taskMap[worker.pinpoint].next=patchnum
+        worker.workingOn=-1
         delete(this.taskMap, oldpatch)
     }
     if elem, ok:=this.taskMap[patchnum]; !ok || elem.status==TASKSTATUS_WORKING {
         return REPORT_TASK_RESPONSE_REJECT
     }
     this.taskMap[patchnum].status=TASKSTATUS_WORKING
+    worker.workingOn=patchnum
     if worker.havemerged%int(configinfo.GetProperty_Node("auto_commit_per_intramerge").(float64))==0 {
         return REPORT_TASK_RESPONSE_COMMIT
     }
@@ -176,14 +188,17 @@ const REPORT_DEATH_DIEOF_STARVATION=0
 const REPORT_DEATH_DIEOF_COMMAND=1
 const REPORT_DEATH_DIEOF_EXCEPTION=2
 // @Sync(0)
-func (this *IntramergeSupervisor)ReportDeath(worker *IntramergeWorker, dieof int) {
+func (this *IntramergeSupervisor)ReportDeath(worker *IntramergeWorker, dieof *int) {
     this.locks[0].Lock()
     defer this.locks[0].Unlock()
 
     this.workersAlive=this.workersAlive-1
     this.taskMap[worker.pinpoint].status=TASKSTATUS_IDLE
+    if worker.workingOn>=0 {
+        this.taskMap[worker.workingOn].status=TASKSTATUS_IDLE
+    }
     if this.workersAlive==0 && len(this.taskMap)>1 {
-        time.Sleep(time.Second)
+        time.Sleep(time.Second) //TODO: need to wait?
         go this.BatchWorker(-1, -1)
     }
 }
@@ -220,7 +235,12 @@ func (this *IntramergeSupervisor)CheckNext(item int) int {
     this.locks[0].Lock()
     defer this.locks[0].Unlock()
 
-    return this.taskMap[item].next
+    e, ok:=this.taskMap[item]
+    if ok {
+        return e.next
+    } else {
+        return -1
+    }
 }
 
 // Only the two arguments can be specified one, nums indicating the whole number

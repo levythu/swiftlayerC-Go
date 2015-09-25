@@ -1,1 +1,1 @@
-- Check for lethal logical error for := symbols
+- [x] Check for lethal logical error for := symbols 
