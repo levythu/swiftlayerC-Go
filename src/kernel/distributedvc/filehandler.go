@@ -21,6 +21,7 @@ import (
     "sync"
     "definition/exception"
     "fmt"
+    "logger"
 )
 
 type Fd struct {
@@ -149,6 +150,16 @@ func (this *Fd)GetFile() filetype.Filetype {
     return tFile
 }
 
-func (this *Fd)PutOriginalFile() {
-    //TODO
+// @Sync(2)
+func (this *Fd)PutOriginalFile(content filetype.Filetype, meta FileMeta/*=nil*/) error {
+    this.locks[2].Lock()
+    defer this.locks[2].Unlock()
+
+    if meta==nil {
+        meta=NewMeta()
+    }
+    if err:=this.io.Put(this.filename, content, meta); err {
+        return err
+    }
+    logger.Secretary.Log("kernel.dvc.fd::PutOriginalFile", "Upload original file successfully")
 }
