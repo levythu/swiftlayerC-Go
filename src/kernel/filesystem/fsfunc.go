@@ -87,7 +87,7 @@ func (this *Fs)Mkdir(foldername string, frominode string) error {
     patcher.SetTS(GetTimestamp(flist.GetTS()))
     patcher.CheckOut()
     patcher.Kvm[foldername]=&filetype.KvmapEntry{
-        Timestamp: GetTimestamp(0),
+        Timestamp: GetTimestamp(flist.GetRelativeTS(foldername)),
         Key: foldername,
         Val: newFileName,
     }
@@ -164,7 +164,7 @@ func (this *Fs)Rm(foldername string, frominode string) error {
     patcher.SetTS(GetTimestamp(flist.GetTS()))
     patcher.CheckOut()
     patcher.Kvm[foldername]=&filetype.KvmapEntry{
-        Timestamp: GetTimestamp(0),
+        Timestamp: GetTimestamp(flist.GetRelativeTS(foldername)),
         Key: foldername,
         Val: filetype.REMOVE_SPECIFIED,
     }
@@ -173,4 +173,5 @@ func (this *Fs)Rm(foldername string, frominode string) error {
         return err
     }
 
+    return nil
 }

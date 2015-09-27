@@ -155,7 +155,7 @@ func (this *Kvmap)MergeWith(file2 Filetype) (Filetype ,error) {
     if reflect.TypeOf(this)!=reflect.TypeOf(file2) {
         return nil, errors.New(exception.EX_UNMATCHED_MERGE)
     }
-    
+
     tRes:=make([]*KvmapEntry, 0)
     file2x:=file2.(*Kvmap)
     i,j:=0,0
@@ -305,4 +305,25 @@ func (this *Kvmap)lazyRead(pos int) (*KvmapEntry, error) {
     }
 
     return this.readData[pos], nil
+}
+
+// Get the latest TS, from the removed version as well
+func (this *Kvmap)GetRelativeTS(entry string) ClxTimestamp {
+    if this.Kvm==nil {
+        log.Fatal("<Kvmap::CheckIn> Have not checkout yet.")
+    }
+    ClxTimestamp v1, v2
+    if v, ok:=this.Kvm[entry]; ok {
+        v1=v.Timestamp
+    } else {
+        v1=0
+    }
+
+    if v, ok:=this.rmed[entry]; ok {
+        v2=v.Timestamp
+    } else {
+        v2=0
+    }
+
+    return MergeTimestamp(v1, v2)
 }
