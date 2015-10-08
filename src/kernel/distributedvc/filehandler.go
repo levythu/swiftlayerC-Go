@@ -158,8 +158,9 @@ func (this *Fd)PutOriginalFile(content filetype.Filetype, meta FileMeta/*=nil*/)
     if meta==nil {
         meta=NewMeta()
     }
-    if err:=this.io.Put(this.filename, content, meta); err {
+    if err:=this.io.Put(this.filename, content, meta); err!=nil {
         return err
     }
     logger.Secretary.Log("kernel.dvc.fd::PutOriginalFile", "Upload original file successfully")
+    return nil
 }

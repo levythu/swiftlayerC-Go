@@ -8,6 +8,7 @@ import (
     dvc "kernel/distributedvc"
     "kernel/filetype"
     "utils/uniqueid"
+    "strings"
     . "utils/timestamp"
     "logger"
 )
@@ -20,7 +21,7 @@ type Fs struct {
 
 func NewFs(_io outapi.Outapi) *Fs {
     return &Fs{
-        io: _io
+        io: _io,
     }
 }
 
@@ -37,8 +38,9 @@ func (this *Fs)Locate(path string, frominode string/*=-""*/) (string, error) {
     rawResult:=strings.Split(path, "/")
     for _, e:=range rawResult {
         if e!="" {
-            frominode, err:=lookUp(frominode, e, this.io)
+            frominode, _:=lookUp(frominode, e, this.io)
             if frominode=="" {
+                // It is correct only to check result without referring to error.
                 return "", errors.New(exception.EX_FAIL_TO_LOOKUP)
             }
         }
@@ -53,7 +55,7 @@ func (this *Fs)Mkdir(foldername string, frominode string) error {
     }
 
     var par=dvc.GetFD(frominode, this.io)
-    var flist=par.GetFile().(*filetype.Kvm)
+    var flist=par.GetFile().(*filetype.Kvmap)
     if flist==nil {
         return errors.New(exception.EX_INODE_NONEXIST)
     }
@@ -63,7 +65,7 @@ func (this *Fs)Mkdir(foldername string, frominode string) error {
     }
 
     var newFileName=uniqueid.GenGlobalUniqueName()
-    var newFile=dvc.FD(newFileName, this.io)
+    var newFile=dvc.GetFD(newFileName, this.io)
 
     fmap:=filetype.NewKvMap()
     fmap.CheckOut()
@@ -124,7 +126,7 @@ func (this *Fs)FormatFS() error {
     }
 
     logger.Secretary.Log("kernel.filesystem.Fs::formatfs", "Formatted!")
-    reutrn nil
+    return nil
 }
 
 // Only returns file name list of one inode. Innername excluded.
@@ -157,7 +159,7 @@ func (this *Fs)Rm(foldername string, frominode string) error {
         return errors.New(exception.EX_INODE_NONEXIST)
     }
     if _, ok:=flist.Kvm[foldername]; !ok {
-        return
+        return nil
     }
 
     var patcher=filetype.NewKvMap()

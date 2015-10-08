@@ -312,7 +312,7 @@ func (this *Kvmap)GetRelativeTS(entry string) ClxTimestamp {
     if this.Kvm==nil {
         log.Fatal("<Kvmap::CheckIn> Have not checkout yet.")
     }
-    ClxTimestamp v1, v2
+    var v1, v2 ClxTimestamp
     if v, ok:=this.Kvm[entry]; ok {
         v1=v.Timestamp
     } else {

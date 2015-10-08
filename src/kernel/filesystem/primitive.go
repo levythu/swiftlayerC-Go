@@ -41,7 +41,7 @@ func lookUp(inode string, vfilename string, io outapi.Outapi) (string, error) {
     if !CheckValidFilename(vfilename) {
         return "", errors.New(exception.EX_INVALID_FILENAME)
     }
-    inodefile:=dvc.GetFD(inode, io).GetFile().(*Kvmap)
+    inodefile:=dvc.GetFD(inode, io).GetFile().(*filetype.Kvmap)
     if inodefile==nil {
         return "", errors.New(exception.EX_INODE_NONEXIST)
     }
