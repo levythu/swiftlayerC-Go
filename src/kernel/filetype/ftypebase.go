@@ -17,4 +17,7 @@ type Filetype interface {
 
     GetType() string
     EnsureRead() error
+
+    // All the files are not pointer file except blob.
+    IsPointer() bool
 }

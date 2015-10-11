@@ -7,7 +7,7 @@ import (
     //"fmt"
 )
 
-var prototypeList=[]Filetype{&Kvmap{}, &Nonexist{}}
+var prototypeList=[]Filetype{&Kvmap{}, &Nonexist{}, &Blob{}}
 var typeMap=makeTypeMap()
 
 func makeTypeMap() map[string]reflect.Type {

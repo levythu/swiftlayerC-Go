@@ -51,3 +51,7 @@ func (this *Nonexist)GetType() string {
 func (this *Nonexist)EnsureRead() error {
     return nil
 }
+
+func (this *Nonexist)IsPointer() bool {
+    return false
+}
