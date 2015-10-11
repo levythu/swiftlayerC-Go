@@ -34,3 +34,19 @@ func TestSession(t *testing.T) {
         time.Sleep(time.Hour)
     }
 }
+
+func _TestErrSession(t *testing.T) {
+    var ses4test=NewSession(Testio)
+    ses4test.Cd("xle")
+    for {
+        time.Sleep(time.Hour)
+    }
+}
+
+func _TestFormat(t *testing.T) {
+    var fs4test=NewFs(Testio)
+    fs4test.FormatFS()
+    for {
+        time.Sleep(time.Hour)
+    }
+}

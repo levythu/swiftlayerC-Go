@@ -28,8 +28,10 @@ func (this *Session)Cd(path string) error {
     this.locks[0].Lock()
     defer this.locks[0].Unlock()
 
-    var err error
-    this.d, err=this.fs.Locate(path, this.d)
+    var tempD, err=this.fs.Locate(path, this.d)
+    if err==nil {
+        this.d=tempD
+    }
     return err
 }
 
