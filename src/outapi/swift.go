@@ -11,6 +11,7 @@ import (
     . "utils/timestamp"
     "bytes"
     "io"
+    . "kernel/distributedvc/constdef"
 )
 
 type SwiftConnector struct {
@@ -91,6 +92,7 @@ func (this *Swiftio)Delete(filename string) error {
 
 // Get file and automatically check the MD5
 func (this *Swiftio)Get(filename string) (FileMeta, filetype.Filetype, error) {
+
     contents:=&bytes.Buffer{}
     header, err:=this.conn.c.ObjectGet(
         this.container, filename, contents,
@@ -105,13 +107,11 @@ func (this *Swiftio)Get(filename string) (FileMeta, filetype.Filetype, error) {
     }
     meta:=header.ObjectMetadata()
 
-    //TODO: change the typestamp to the constant in kernel.distributedvc.filehandler
-    resFile:=filetype.Makefile(meta["typestamp"])
+    resFile:=filetype.Makefile(meta[METAKEY_TYPE])
     if resFile==nil {
         return nil, nil, errors.New(exception.EX_UNSUPPORTED_TYPESTAMP)
     }
-    //TODO: change the timestamp to the constant in kernel.distributedvc.filehandler
-    resFile.Init(contents, String2ClxTimestamp(meta["timestamp"]))
+    resFile.Init(contents, String2ClxTimestamp(meta[METAKEY_TIMESTAMP]))
 
     return FileMeta(meta), resFile, nil
 }
@@ -121,10 +121,8 @@ func (this *Swiftio)Put(filename string, content filetype.Filetype, info FileMet
         info=FileMeta(map[string]string{})
     }
     meta:=swift.Metadata(info)
-    //TODO: change the timestamp to the constant in kernel.distributedvc.filehandler
-    meta["timestamp"]=content.GetTS().String()
-    //TODO: change the typestamp to the constant in kernel.distributedvc.filehandler
-    meta["typestamp"]=content.GetType()
+    meta[METAKEY_TIMESTAMP]=content.GetTS().String()
+    meta[METAKEY_TYPE]=content.GetType()
 
     buffer:=&bytes.Buffer{}
     content.WriteBack(buffer)

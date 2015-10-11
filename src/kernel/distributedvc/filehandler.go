@@ -23,6 +23,7 @@ import (
     "fmt"
     "logger"
     "io"
+    "kernel/distributedvc/constdef"
 )
 
 type Fd struct {
@@ -44,8 +45,8 @@ var global_file_dict=syncdict.NewSyncdict()
 
 // METADATA must not contain "_" and only lowercase is permitted
 // ============Constants in the mainfile's metadata=============
-const METAKEY_TIMESTAMP="timestamp"
-const METAKEY_TYPE="typestamp"
+const METAKEY_TIMESTAMP=constdef.METAKEY_TIMESTAMP
+const METAKEY_TYPE=constdef.METAKEY_TYPE
 
 // ============Constants in the intra-patch's metadata=============
 const INTRA_PATCH_METAKEY_NEXT_PATCH="next-patch"
