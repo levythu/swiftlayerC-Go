@@ -4,6 +4,7 @@ package filesystem
 import (
     "outapi"
     "sync"
+    "fmt"
 )
 
 type Session struct {
@@ -17,6 +18,10 @@ func NewSession(io outapi.Outapi) *Session {
         d: ROOT_INODE_NAME,
         locks: []*sync.Mutex{&sync.Mutex{},&sync.Mutex{}},
     }
+}
+
+func ____nouse__() {
+    fmt.Println("123")
 }
 
 func (this *Session)Cd(path string) error {

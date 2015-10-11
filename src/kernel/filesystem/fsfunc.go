@@ -11,12 +11,16 @@ import (
     "strings"
     . "utils/timestamp"
     "logger"
+    "fmt"
 )
 
 const ROOT_INODE_NAME="rootNode"
 
 type Fs struct {
     io outapi.Outapi
+}
+func __nouse__() {
+    fmt.Println("123")
 }
 
 func NewFs(_io outapi.Outapi) *Fs {
@@ -38,7 +42,7 @@ func (this *Fs)Locate(path string, frominode string/*=-""*/) (string, error) {
     rawResult:=strings.Split(path, "/")
     for _, e:=range rawResult {
         if e!="" {
-            frominode, _:=lookUp(frominode, e, this.io)
+            frominode, _=lookUp(frominode, e, this.io)
             if frominode=="" {
                 // It is correct only to check result without referring to error.
                 return "", errors.New(exception.EX_FAIL_TO_LOOKUP)
