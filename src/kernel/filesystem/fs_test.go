@@ -6,7 +6,7 @@ import (
     "fmt"
 )
 
-func TestSession(t *testing.T) {
+func _TestSession(t *testing.T) {
     var ses4test=NewSession(Testio)
     res, _:=ses4test.Ls()
     fmt.Println(res);

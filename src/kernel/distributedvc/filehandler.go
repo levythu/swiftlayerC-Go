@@ -22,6 +22,7 @@ import (
     "definition/exception"
     "fmt"
     "logger"
+    "io"
 )
 
 type Fd struct {
@@ -163,4 +164,10 @@ func (this *Fd)PutOriginalFile(content filetype.Filetype, meta FileMeta/*=nil*/)
     }
     logger.Secretary.Log("kernel.dvc.fd::PutOriginalFile", "Upload original file successfully")
     return nil
+}
+
+// @Sync(2)
+func (this *Fd)PutOriginalFileStream(meta FileMeta/*=nil*/) (io.WriteCloser, error) {
+    //TODO
+    return nil, nil
 }

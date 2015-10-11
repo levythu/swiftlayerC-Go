@@ -59,7 +59,7 @@ func (this *Fs)Mkdir(foldername string, frominode string) error {
     }
 
     var par=dvc.GetFD(frominode, this.io)
-    var flist=par.GetFile().(*filetype.Kvmap)
+    var flist, _=par.GetFile().(*filetype.Kvmap)
     if flist==nil {
         return errors.New(exception.EX_INODE_NONEXIST)
     }
@@ -135,7 +135,7 @@ func (this *Fs)FormatFS() error {
 
 // Only returns file name list of one inode. Innername excluded.
 func (this *Fs)List(frominode string) ([]string, error) {
-    var inodefile=dvc.GetFD(frominode, this.io).GetFile().(*filetype.Kvmap)
+    var inodefile, _=dvc.GetFD(frominode, this.io).GetFile().(*filetype.Kvmap)
     if inodefile==nil {
         return nil, errors.New(exception.EX_INODE_NONEXIST)
     }
@@ -158,7 +158,7 @@ func (this *Fs)Rm(foldername string, frominode string) error {
     }
 
     var par=dvc.GetFD(frominode, this.io)
-    var flist=par.GetFile().(*filetype.Kvmap)
+    var flist, _=par.GetFile().(*filetype.Kvmap)
     if flist==nil {
         return errors.New(exception.EX_INODE_NONEXIST)
     }
