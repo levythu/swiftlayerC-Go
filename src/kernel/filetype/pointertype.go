@@ -13,3 +13,8 @@ type PointerType interface {
     SetPointer(val string)
     GetPointer() string
 }
+
+type PointerFileType interface {
+    PointerType
+    Filetype
+}

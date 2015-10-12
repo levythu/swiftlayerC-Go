@@ -92,6 +92,20 @@ func (this *Swiftio)Delete(filename string) error {
 
 // Get file and automatically check the MD5
 func (this *Swiftio)Get(filename string) (FileMeta, filetype.Filetype, error) {
+    var filem, metaerror=this.Getinfo(filename)
+    if metaerror!=nil {
+        return nil, nil, metaerror
+    }
+    var metaFile=filetype.Makefile(filem[METAKEY_TYPE])
+    if metaFile==nil {
+        return nil, nil, errors.New(exception.EX_UNSUPPORTED_TYPESTAMP)
+    }
+    if metaFile.IsPointer() {
+        var targetFile=metaFile.(filetype.PointerFileType)
+        targetFile.Init(nil, String2ClxTimestamp(filem[METAKEY_TIMESTAMP]))
+        targetFile.SetPointer(filem[filetype.BLOB_POINT_TO])
+        return filem, targetFile, nil
+    }
 
     contents:=&bytes.Buffer{}
     header, err:=this.conn.c.ObjectGet(
@@ -111,6 +125,9 @@ func (this *Swiftio)Get(filename string) (FileMeta, filetype.Filetype, error) {
     if resFile==nil {
         return nil, nil, errors.New(exception.EX_UNSUPPORTED_TYPESTAMP)
     }
+    if resFile.IsPointer() {
+        return nil, nil, errors.New(exception.EX_INCONSISTENT_TYPE)
+    }
     resFile.Init(contents, String2ClxTimestamp(meta[METAKEY_TIMESTAMP]))
 
     return FileMeta(meta), resFile, nil
@@ -123,6 +140,13 @@ func (this *Swiftio)Put(filename string, content filetype.Filetype, info FileMet
     meta:=swift.Metadata(info)
     meta[METAKEY_TIMESTAMP]=content.GetTS().String()
     meta[METAKEY_TYPE]=content.GetType()
+
+    if content.IsPointer() {
+        var contentInPointer=content.(filetype.PointerFileType)
+        meta[filetype.BLOB_POINT_TO]=contentInPointer.GetPointer()
+        this.Putinfo(filename, FileMeta(meta))
+        return nil
+    }
 
     buffer:=&bytes.Buffer{}
     content.WriteBack(buffer)
