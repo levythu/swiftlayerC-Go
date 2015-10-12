@@ -183,3 +183,15 @@ func (this *Fd)PutOriginalFileStream(meta FileMeta) (io.WriteCloser, error) {
     })
     return hackedwc, nil
 }
+
+// nil will be returned indicating that the file does not exist
+func (this *Fd)GetFileStream() (io.ReadCloser, error) {
+    _, rc, err:=this.io.GetStream(this.GetCanonicalVersionName())
+    if rc==nil || err!=nil {
+        _, rc, err=this.io.GetStream(this.filename)
+        if rc==nil || err!=nil {
+            return nil, nil
+        }
+    }
+    return rc, nil
+}

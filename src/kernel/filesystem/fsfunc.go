@@ -187,13 +187,12 @@ func (this *Fs)Rm(foldername string, frominode string) error {
 
 // To put a large file and modify its corresponding index.
 // Note that the function is synchronous, which means that it
-// will block until data are fully written. So be sure to run
-// it in a new goroutine.
+// will block until data are fully written.
 // It will try to put a file at destination, no matter whether
 // there's already one file, which will be replaced then.
 
 // The para frominode could be used to accerlerate index access.
-func (this *Fs)Put(destination string, frominode string/*=""*/, dataSource io.Reader, filet string/*=""*/) error {
+func (this *Fs)Put(destination string, frominode string/*=""*/, dataSource io.Reader, typeoffile string/*=""*/) error {
     var lastPos=strings.LastIndex(destination, "/")
 
     var filename=destination[:lastPos+1]
@@ -203,15 +202,15 @@ func (this *Fs)Put(destination string, frominode string/*=""*/, dataSource io.Re
         return err
     }
 
-    if filet=="" {
-        filet=(&filetype.Blob{}).GetType()
+    if typeoffile=="" {
+        typeoffile=(&filetype.Blob{}).GetType()
     }
 
     var newFileName=uniqueid.GenGlobalUniqueNameWithTag("Stream")
     var newFilefd=dvc.GetFD(newFileName, this.io)
     var newFilemeta=NewMeta()
     newFilemeta[METAKEY_TIMESTAMP]=GetTimestamp(0).String()
-    newFilemeta[METAKEY_TYPE]=filet
+    newFilemeta[METAKEY_TYPE]=typeoffile
     wc, err:=newFilefd.PutOriginalFileStream(newFilemeta)
     if err!=nil {
         return err
@@ -224,6 +223,7 @@ func (this *Fs)Put(destination string, frominode string/*=""*/, dataSource io.Re
         return err
     }
     if err2!=nil {
+        logger.Secretary.Error("kernel.filesystem.Fs::Put", "Error when closing: "+err2.Error())
         return err2
     }
     // Copy successfully. Update the index.
@@ -249,4 +249,54 @@ func (this *Fs)Put(destination string, frominode string/*=""*/, dataSource io.Re
     }
 
     return nil
+}
+
+
+// To get a large file by streaming.
+// Attentez: it is a two-phase function.
+// The first phase is try to locate the file in repository, and commit the possible
+// error to phase1callback, which will determine the next step by returning a nil or
+// available WriteCloser. In this phase an error code could be returned in the form
+// of HTTP response code.
+// The second phase is data transmission, by returning HTTP 200 the webserver just pipe
+// data to the client. It will be run in another goroutine. So use it synchronously.
+
+// Unlike Put, which handles upstream, Get func must use downstream to return error or
+// valid stream. So the architectures are different.
+type Phase1Callback func(error) io.WriteCloser
+type Phase2Callback func(error)
+
+func (this *Fs)Get(source string, frominode string/*=""*/, phase1 Phase1Callback, phase2 Phase2Callback) {
+    // Use this.locate, but not for finding folder. Note the semantic discrepancy.
+    var obj, err=this.Locate(source, frominode)
+    if err!=nil {
+        phase1(err)
+        return
+    }
+
+    var objFD=dvc.GetFD(obj, this.io)
+    rc, err:=objFD.GetFileStream()
+    if err!=nil{
+        phase1(err)
+        return
+    }
+    if rc==nil {
+        // 404
+        phase1(errors.New(exception.EX_FILE_NOT_EXIST))
+        return
+    }
+
+    var wc=phase1(nil)
+    if wc==nil {
+        // Phase1 requires to terminate.
+        rc.Close()
+        return
+    }
+
+    go func() {
+        _, copyError:=io.Copy(wc, rc)
+        rc.Close()
+        wc.Close()
+        phase2(copyError)
+    }()
 }

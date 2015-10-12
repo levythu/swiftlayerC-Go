@@ -94,6 +94,9 @@ func (this *Swiftio)Delete(filename string) error {
 func (this *Swiftio)Get(filename string) (FileMeta, filetype.Filetype, error) {
     var filem, metaerror=this.Getinfo(filename)
     if metaerror!=nil {
+        if metaerror==swift.ObjectNotFound {
+            return nil, nil, nil
+        }
         return nil, nil, metaerror
     }
 
@@ -159,6 +162,18 @@ func (this *Swiftio)Put(filename string, content filetype.Filetype, info FileMet
 
 // If pointerfile, returns the actual data of the pointed one.
 func (this *Swiftio)GetStream(filename string) (FileMeta, io.ReadCloser, error) {
+    // Check whether it is pointer type first.
+    var filem, metaerror=this.Getinfo(filename)
+    if metaerror!=nil {
+        if metaerror==swift.ObjectNotFound {
+            return nil, nil, nil
+        }
+        return nil, nil, metaerror
+    }
+    if filetype.CheckPointerMap[filem[METAKEY_TYPE]] {
+        return this.GetStream(filem[filetype.META_POINT_TO])
+    }
+
     file, header, err:=this.conn.c.ObjectOpen(this.container, filename, false, nil)
     if err!=nil {
         if err==swift.ObjectNotFound {
@@ -167,13 +182,8 @@ func (this *Swiftio)GetStream(filename string) (FileMeta, io.ReadCloser, error) 
         return nil, nil, err
     }
     meta:=header.ObjectMetadata()
-    if filetype.CheckPointerMap[meta[METAKEY_TYPE]] {
-        // Pointer type. Try to locate the real file.
-        file.Close()
-        return this.GetStream(meta[filetype.META_POINT_TO])
-    }
 
-    return FileMeta(meta), file, err
+    return FileMeta(meta), file, nil
 }
 
 // If PointerFile, automatically set to pointer to itself.
