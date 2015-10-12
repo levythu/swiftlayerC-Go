@@ -9,6 +9,8 @@ package filetype
 
 // For implemented Filetype, its IsPointer() must return TRUE.
 
+const META_POINT_TO="pointed-to"      // WORK as meta key.
+
 type PointerType interface {
     SetPointer(val string)
     GetPointer() string

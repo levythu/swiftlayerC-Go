@@ -6,9 +6,19 @@ import (
     "reflect"
     //"fmt"
 )
-
+//============================================================
+// Modify this to add new filetype.
 var prototypeList=[]Filetype{&Kvmap{}, &Nonexist{}, &Blob{}}
+//============================================================
+
 var typeMap=makeTypeMap()
+var CheckPointerMap=func() map[string]bool {
+    var ret=make(map[string]bool)
+    for _, elem:=range prototypeList {
+        ret[elem.GetType()]=elem.IsPointer()
+    }
+    return ret
+}()
 
 func makeTypeMap() map[string]reflect.Type {
     ret:=make(map[string]reflect.Type)

@@ -10,8 +10,6 @@ import (
     "errors"
 )
 
-const BLOB_POINT_TO="blob-point-to"      // WORK as meta key.
-
 type Blob struct {
     fileTS ClxTimestamp
     pointTo string

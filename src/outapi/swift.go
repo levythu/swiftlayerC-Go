@@ -96,14 +96,16 @@ func (this *Swiftio)Get(filename string) (FileMeta, filetype.Filetype, error) {
     if metaerror!=nil {
         return nil, nil, metaerror
     }
-    var metaFile=filetype.Makefile(filem[METAKEY_TYPE])
-    if metaFile==nil {
-        return nil, nil, errors.New(exception.EX_UNSUPPORTED_TYPESTAMP)
-    }
-    if metaFile.IsPointer() {
+
+    if filetype.CheckPointerMap[filem[METAKEY_TYPE]] {
+        var metaFile=filetype.Makefile(filem[METAKEY_TYPE])
+        if metaFile==nil {
+            return nil, nil, errors.New(exception.EX_UNSUPPORTED_TYPESTAMP)
+        }
+
         var targetFile=metaFile.(filetype.PointerFileType)
         targetFile.Init(nil, String2ClxTimestamp(filem[METAKEY_TIMESTAMP]))
-        targetFile.SetPointer(filem[filetype.BLOB_POINT_TO])
+        targetFile.SetPointer(filem[filetype.META_POINT_TO])
         return filem, targetFile, nil
     }
 
@@ -143,7 +145,7 @@ func (this *Swiftio)Put(filename string, content filetype.Filetype, info FileMet
 
     if content.IsPointer() {
         var contentInPointer=content.(filetype.PointerFileType)
-        meta[filetype.BLOB_POINT_TO]=contentInPointer.GetPointer()
+        meta[filetype.META_POINT_TO]=contentInPointer.GetPointer()
         this.Putinfo(filename, FileMeta(meta))
         return nil
     }
@@ -155,6 +157,7 @@ func (this *Swiftio)Put(filename string, content filetype.Filetype, info FileMet
     return err
 }
 
+// If pointerfile, returns the actual data of the pointed one.
 func (this *Swiftio)GetStream(filename string) (FileMeta, io.ReadCloser, error) {
     file, header, err:=this.conn.c.ObjectOpen(this.container, filename, false, nil)
     if err!=nil {
@@ -164,13 +167,22 @@ func (this *Swiftio)GetStream(filename string) (FileMeta, io.ReadCloser, error) 
         return nil, nil, err
     }
     meta:=header.ObjectMetadata()
+    if filetype.CheckPointerMap[meta[METAKEY_TYPE]] {
+        // Pointer type. Try to locate the real file.
+        file.Close()
+        return this.GetStream(meta[filetype.META_POINT_TO])
+    }
 
     return FileMeta(meta), file, err
 }
 
+// If PointerFile, automatically set to pointer to itself.
 func (this *Swiftio)PutStream(filename string, info FileMeta) (io.WriteCloser, error) {
-    if info==nil {
-        info=FileMeta(map[string]string{})
+    if info==nil || !CheckIntegrity(info) {
+        return nil, errors.New(exception.EX_METADATA_NEEDS_TO_BE_SPECIFIED)
+    }
+    if filetype.CheckPointerMap[info[METAKEY_TYPE]] {
+        info[filetype.META_POINT_TO]=filename
     }
     meta:=swift.Metadata(info)
 
