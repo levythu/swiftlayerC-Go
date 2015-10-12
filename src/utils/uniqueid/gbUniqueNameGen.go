@@ -16,3 +16,8 @@ func GenGlobalUniqueName() string  {
     return nodeNum+"~"+lauchTime+"~"+
         strconv.FormatInt(globalCounter.Inc(), _BASESHOW)
 }
+
+func GenGlobalUniqueNameWithTag(tag string) string  {
+    return tag+"~"+nodeNum+"~"+lauchTime+"~"+
+        strconv.FormatInt(globalCounter.Inc(), _BASESHOW)
+}

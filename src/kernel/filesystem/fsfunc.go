@@ -10,7 +10,10 @@ import (
     "utils/uniqueid"
     "strings"
     . "utils/timestamp"
+    . "kernel/distributedvc/filemeta"
+    . "kernel/distributedvc/constdef"
     "logger"
+    "io"
     "fmt"
 )
 
@@ -35,8 +38,8 @@ func NewFs(_io outapi.Outapi) *Fs {
 // path is a unix-like path string. If path starts with "/", search begins at
 // root node. Otherwise in the frominode folder, when the frominode must exist.
 // For any errors, a blank string and error will be returned.
-func (this *Fs)Locate(path string, frominode string/*=-""*/) (string, error) {
-    if strings.HasPrefix(path, "/") {
+func (this *Fs)Locate(path string, frominode string/*=""*/) (string, error) {
+    if strings.HasPrefix(path, "/") || frominode=="" {
         frominode=ROOT_INODE_NAME
     }
     rawResult:=strings.Split(path, "/")
@@ -173,6 +176,72 @@ func (this *Fs)Rm(foldername string, frominode string) error {
         Timestamp: GetTimestamp(flist.GetRelativeTS(foldername)),
         Key: foldername,
         Val: filetype.REMOVE_SPECIFIED,
+    }
+    patcher.CheckIn()
+    if err:=par.CommitPatch(patcher); err!=nil {
+        return err
+    }
+
+    return nil
+}
+
+// To put a large file and modify its corresponding index.
+// Note that the function is synchronous, which means that it
+// will block until data are fully written. So be sure to run
+// it in a new goroutine.
+// It will try to put a file at destination, no matter whether
+// there's already one file, which will be replaced then.
+
+// The para frominode could be used to accerlerate index access.
+func (this *Fs)Put(destination string, frominode string/*=""*/, dataSource io.Reader, filet string/*=""*/) error {
+    var lastPos=strings.LastIndex(destination, "/")
+
+    var filename=destination[:lastPos+1]
+    var path=destination[lastPos+1:]
+    var basenode, err=this.Locate(path, frominode)
+    if err!=nil {
+        return err
+    }
+
+    if filet=="" {
+        filet=(&filetype.Blob{}).GetType()
+    }
+
+    var newFileName=uniqueid.GenGlobalUniqueNameWithTag("Stream")
+    var newFilefd=dvc.GetFD(newFileName, this.io)
+    var newFilemeta=NewMeta()
+    newFilemeta[METAKEY_TIMESTAMP]=GetTimestamp(0).String()
+    newFilemeta[METAKEY_TYPE]=filet
+    wc, err:=newFilefd.PutOriginalFileStream(newFilemeta)
+    if err!=nil {
+        return err
+    }
+
+    // Streaming
+    _, err=io.Copy(wc, dataSource)
+    var err2=wc.Close()
+    if err!=nil {
+        return err
+    }
+    if err2!=nil {
+        return err2
+    }
+    // Copy successfully. Update the index.
+
+    var par=dvc.GetFD(basenode, this.io)
+    var flist, _=par.GetFile().(*filetype.Kvmap)
+    if flist==nil {
+        return errors.New(exception.EX_INODE_NONEXIST)
+    }
+    flist.CheckOut()
+
+    var patcher=filetype.NewKvMap()
+    patcher.SetTS(GetTimestamp(flist.GetTS()))
+    patcher.CheckOut()
+    patcher.Kvm[filename]=&filetype.KvmapEntry{
+        Timestamp: GetTimestamp(flist.GetRelativeTS(filename)),
+        Key: filename,
+        Val: newFileName,
     }
     patcher.CheckIn()
     if err:=par.CommitPatch(patcher); err!=nil {

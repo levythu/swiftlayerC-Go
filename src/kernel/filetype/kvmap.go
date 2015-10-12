@@ -308,6 +308,7 @@ func (this *Kvmap)lazyRead(pos int) (*KvmapEntry, error) {
 }
 
 // Get the latest TS, from the removed version as well
+// If not exist, return 0
 func (this *Kvmap)GetRelativeTS(entry string) ClxTimestamp {
     if this.Kvm==nil {
         log.Fatal("<Kvmap::CheckIn> Have not checkout yet.")
