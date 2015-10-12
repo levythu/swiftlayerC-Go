@@ -24,6 +24,7 @@ import (
     "logger"
     "io"
     "kernel/distributedvc/constdef"
+    "utils/iomidware"
 )
 
 type Fd struct {
@@ -168,7 +169,17 @@ func (this *Fd)PutOriginalFile(content filetype.Filetype, meta FileMeta/*=nil*/)
 }
 
 // @Sync(2)
-func (this *Fd)PutOriginalFileStream(meta FileMeta/*=nil*/) (io.WriteCloser, error) {
-    //TODO
-    return nil, nil
+func (this *Fd)PutOriginalFileStream(meta FileMeta) (io.WriteCloser, error) {
+    this.locks[2].Lock()
+
+    var wc, err=this.io.PutStream(this.filename, meta)
+    if err!=nil {
+        return nil, err
+    }
+
+    var hackedwc=iomidware.NewWritecloserHackerPost(wc, func(tErr error) error {
+        this.locks[2].Unlock()
+        return tErr
+    })
+    return hackedwc, nil
 }

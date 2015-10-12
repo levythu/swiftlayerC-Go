@@ -1,2 +1,3 @@
 - [x] Check for lethal logical error for := symbols
-- [ ] Consider delete the file after merged or removed.
+- [ ] Consider delete the file after merged or removed
+- [ ] Consider remove the fd from memory after long without manipulation
