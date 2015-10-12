@@ -1,5 +1,8 @@
 package filesystem
 
+// The test script is used for being called by main function.
+// Since in go test mode scanf seems not working.
+
 import (
     "time"
     "fmt"

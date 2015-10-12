@@ -20,7 +20,7 @@ type SwiftConnector struct {
 
 func _no__use_1_() {
     fmt.Println("nosue")
-    
+
 }
 // If auth failed, return nil
 func ConnectbyAuth(username string, passwd string, tenant string) *SwiftConnector {
@@ -105,6 +105,7 @@ func (this *Swiftio)Get(filename string) (FileMeta, filetype.Filetype, error) {
     }
 
     if filetype.CheckPointerMap[filem[METAKEY_TYPE]] {
+        // is pointer file
         var metaFile=filetype.Makefile(filem[METAKEY_TYPE])
         if metaFile==nil {
             return nil, nil, errors.New(exception.EX_UNSUPPORTED_TYPESTAMP)
@@ -175,7 +176,10 @@ func (this *Swiftio)GetStream(filename string) (FileMeta, io.ReadCloser, error) 
         return nil, nil, metaerror
     }
     if filetype.CheckPointerMap[filem[METAKEY_TYPE]] {
-        return this.GetStream(filem[filetype.META_POINT_TO])
+        if filem[filetype.META_POINT_TO]!=filename {
+            // jump to the pointed file
+            return this.GetStream(filem[filetype.META_POINT_TO])
+        }
     }
 
     file, header, err:=this.conn.c.ObjectOpen(this.container, filename, false, nil)
