@@ -17,6 +17,11 @@ import (
 type SwiftConnector struct {
     c *swift.Connection
 }
+
+func _no__use_1_() {
+    fmt.Println("nosue")
+    
+}
 // If auth failed, return nil
 func ConnectbyAuth(username string, passwd string, tenant string) *SwiftConnector {
     swc:=&swift.Connection{
@@ -27,7 +32,6 @@ func ConnectbyAuth(username string, passwd string, tenant string) *SwiftConnecto
         //AuthVersion: 2,
     }
     if err:=swc.Authenticate();err!=nil {
-        fmt.Println(err.Error())
         panic(errors.New(exception.EX_KEYSTONE_AUTH_ERROR))
         return nil
     }

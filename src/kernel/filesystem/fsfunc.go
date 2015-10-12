@@ -195,8 +195,8 @@ func (this *Fs)Rm(foldername string, frominode string) error {
 func (this *Fs)Put(destination string, frominode string/*=""*/, dataSource io.Reader, typeoffile string/*=""*/) error {
     var lastPos=strings.LastIndex(destination, "/")
 
-    var filename=destination[:lastPos+1]
-    var path=destination[lastPos+1:]
+    var path=destination[:lastPos+1]
+    var filename=destination[lastPos+1:]
     var basenode, err=this.Locate(path, frominode)
     if err!=nil {
         return err
@@ -247,6 +247,7 @@ func (this *Fs)Put(destination string, frominode string/*=""*/, dataSource io.Re
     if err:=par.CommitPatch(patcher); err!=nil {
         return err
     }
+    logger.Secretary.Log("kernel.filesystem.Fs::put", "Put stream file "+destination+" successfully.")
 
     return nil
 }
