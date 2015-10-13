@@ -7,7 +7,7 @@ import (
     "outapi"
     "strings"
     "io"
-    _ "fmt"
+    "fmt"
     "logger"
     "kernel/filesystem"
 )
@@ -28,7 +28,7 @@ func RootRouter(w http.ResponseWriter, r *http.Request) {
 // ==========================API DOCS=======================================
 // API Name: Create & Initiate Container
 // Action: Create a new container and format it for pseudo-fs
-// API URL: /containermng
+// API URL: /container
 // REQUEST: PUT
 // Parameters:
 //      - Container-Name(in Header): the container name to create
@@ -53,6 +53,8 @@ func createContainerHandler(w http.ResponseWriter, r *http.Request) {
         }
         containerName=containerHeader[0]
     }
+
+    fmt.Println(r.URL.Path)
 
     var ioAPI=outapi.NewSwiftio(outapi.DefaultConnector, containerName)
     var isNew, err=ioAPI.EnsureSpace()

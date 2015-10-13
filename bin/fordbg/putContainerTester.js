@@ -5,7 +5,7 @@ http=require("http");
 var options = {
     hostname: 'localhost',
     port: 9144,
-    path: '/containermng',
+    path: '/container/asd',
     method: 'PUT',
     headers: {
         'Container-Name': 'huahua'
