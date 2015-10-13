@@ -4,10 +4,12 @@ package containermanage
 
 import (
     "net/http"
-    _ "outapi"
+    "outapi"
     "strings"
     "io"
-    "fmt"
+    _ "fmt"
+    "logger"
+    "kernel/filesystem"
 )
 
 func RootRouter(w http.ResponseWriter, r *http.Request) {
@@ -51,7 +53,26 @@ func createContainerHandler(w http.ResponseWriter, r *http.Request) {
         }
         containerName=containerHeader[0]
     }
-    fmt.Println(containerName)
+
+    var ioAPI=outapi.NewSwiftio(outapi.DefaultConnector, containerName)
+    var isNew, err=ioAPI.EnsureSpace()
+    if err!=nil {
+        logger.Secretary.Error("inapi.container.create", err)
+        w.WriteHeader(500)
+        io.WriteString(w, "Internal Error: "+err.Error())
+        return
+    }
+    if !isNew {
+        w.WriteHeader(202)
+        return
+    }
+    // The container is newly created. Now format it.
+    if err=filesystem.NewFs(ioAPI).FormatFS(); err!=nil {
+        logger.Secretary.Error("inapi.container.create", err)
+        w.WriteHeader(500)
+        io.WriteString(w, "Internal Error: "+err.Error())
+        return
+    }
 
     w.WriteHeader(201)
 }
