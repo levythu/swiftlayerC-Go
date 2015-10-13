@@ -14,7 +14,7 @@ func errcomb(err1, err2 error) error {
 
 var conf map[string]Tout=make(map[string]Tout)
 var err1=AppendFileToJSON("conf/nodeinfo.json", conf)
-var err2=errcomb(err1, AppendFileToJSON("conf/accountinfo.json", conf))
+var err2=errcomb(err1, AppendFileToJSON("conf/accountinfo.debug.noupload.json", conf))
 
 func GetProperty_Node(proname string) Tout {
     const errPrefix="<Nodeinfo::GetProperty_Node> "
