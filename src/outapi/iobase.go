@@ -36,4 +36,9 @@ type Outapi interface {
 
     PutStream(filename string, info FileMeta) (io.WriteCloser, error)
 
+    // If the space is not available, create it and return (TRUE, nil);
+    // If the space is already available, return (FALSE, nil);
+    // Otherwise, (space is not available and fail to create), return a non-nil error.
+    EnsureSpace() (bool, error)
+
 }

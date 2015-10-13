@@ -211,3 +211,12 @@ func (this *Swiftio)PutStream(filename string, info FileMeta) (io.WriteCloser, e
     }
     return fileW, nil
 }
+
+func (this *Swiftio)EnsureSpace() (bool, error) {
+    _, _, err:=this.conn.c.Container(this.container)
+    if err==swift.ContainerNotFound {
+        err=this.conn.c.ContainerCreate(this.container, nil)
+        return true, err
+    }
+    return false, err
+}
