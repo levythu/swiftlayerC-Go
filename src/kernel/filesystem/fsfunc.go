@@ -192,7 +192,8 @@ func (this *Fs)Rm(foldername string, frominode string) error {
 // there's already one file, which will be replaced then.
 
 // The para frominode could be used to accerlerate index access.
-func (this *Fs)Put(destination string, frominode string/*=""*/, dataSource io.Reader, typeoffile string/*=""*/) error {
+// Note that the type/time will be specified in the func, so no need to provide in meta.
+func (this *Fs)Put(destination string, frominode string/*=""*/, meta FileMeta/*=nil*/, dataSource io.Reader, typeoffile string/*=""*/) error {
     var lastPos=strings.LastIndex(destination, "/")
 
     var path=destination[:lastPos+1]
@@ -208,7 +209,10 @@ func (this *Fs)Put(destination string, frominode string/*=""*/, dataSource io.Re
 
     var newFileName=uniqueid.GenGlobalUniqueNameWithTag("Stream")
     var newFilefd=dvc.GetFD(newFileName, this.io)
-    var newFilemeta=NewMeta()
+    if meta==nil {
+        meta=NewMeta()
+    }
+    var newFilemeta=meta
     newFilemeta[METAKEY_TIMESTAMP]=GetTimestamp(0).String()
     newFilemeta[METAKEY_TYPE]=typeoffile
     wc, err:=newFilefd.PutOriginalFileStream(newFilemeta)
@@ -264,30 +268,33 @@ func (this *Fs)Put(destination string, frominode string/*=""*/, dataSource io.Re
 
 // Unlike Put, which handles upstream, Get func must use downstream to return error or
 // valid stream. So the architectures are different.
-type Phase1Callback func(error) io.WriteCloser
+
+// Phase1Callback is called when data transmission is ready.
+type Phase1Callback func(error, FileMeta) io.WriteCloser
+// Phase2Callback is called when transmission completed.
 type Phase2Callback func(error)
 
 func (this *Fs)Get(source string, frominode string/*=""*/, phase1 Phase1Callback, phase2 Phase2Callback) {
     // Use this.locate, but not for finding folder. Note the semantic discrepancy.
     var obj, err=this.Locate(source, frominode)
     if err!=nil {
-        phase1(err)
+        phase1(err, nil)
         return
     }
 
     var objFD=dvc.GetFD(obj, this.io)
-    rc, err:=objFD.GetFileStream()
+    rc, fm, err:=objFD.GetFileStream()
     if err!=nil{
-        phase1(err)
+        phase1(err, nil)
         return
     }
     if rc==nil {
         // 404
-        phase1(errors.New(exception.EX_FILE_NOT_EXIST))
+        phase1(errors.New(exception.EX_FILE_NOT_EXIST), nil)
         return
     }
 
-    var wc=phase1(nil)
+    var wc=phase1(nil, fm)
     if wc==nil {
         // Phase1 requires to terminate.
         rc.Close()

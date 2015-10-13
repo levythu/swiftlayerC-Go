@@ -13,7 +13,7 @@ func TestUpstream() {
     var fs4test=NewFs(Testio)
     r, w:=io.Pipe()
     go func() {
-        fmt.Println(fs4test.Put("/file1.txt", "", r, ""))
+        fmt.Println(fs4test.Put("/file1.txt", "", nil, r, ""))
     }()
     var str string
     fmt.Println("input:")

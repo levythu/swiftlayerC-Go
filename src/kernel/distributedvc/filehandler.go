@@ -174,6 +174,7 @@ func (this *Fd)PutOriginalFileStream(meta FileMeta) (io.WriteCloser, error) {
 
     var wc, err=this.io.PutStream(this.filename, meta)
     if err!=nil {
+        this.locks[2].Unlock()
         return nil, err
     }
 
@@ -185,13 +186,13 @@ func (this *Fd)PutOriginalFileStream(meta FileMeta) (io.WriteCloser, error) {
 }
 
 // nil will be returned indicating that the file does not exist
-func (this *Fd)GetFileStream() (io.ReadCloser, error) {
-    _, rc, err:=this.io.GetStream(this.GetCanonicalVersionName())
+func (this *Fd)GetFileStream() (io.ReadCloser, FileMeta, error) {
+    fm, rc, err:=this.io.GetStream(this.GetCanonicalVersionName())
     if rc==nil || err!=nil {
-        _, rc, err=this.io.GetStream(this.filename)
+        fm, rc, err=this.io.GetStream(this.filename)
         if rc==nil || err!=nil {
-            return nil, nil
+            return nil, nil, nil
         }
     }
-    return rc, nil
+    return rc, fm, nil
 }

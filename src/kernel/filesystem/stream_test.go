@@ -5,6 +5,7 @@ import (
     "time"
     "fmt"
     "io"
+    . "kernel/distributedvc/filemeta"
 )
 
 func _TestGet(t *testing.T) {
@@ -21,7 +22,7 @@ func _TestGet(t *testing.T) {
         }
     }()
 
-    fs4test.Get("/file1.txt", "", func(err error) io.WriteCloser {
+    fs4test.Get("/file1.txt", "", func(err error, _ FileMeta) io.WriteCloser {
         if err!=nil {
             fmt.Println("Error:", err)
             return nil

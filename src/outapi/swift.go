@@ -47,6 +47,7 @@ func ConnectbyPreauth(account string, token string) *SwiftConnector {
 }
 
 type Swiftio struct {
+    //Implementing outapi.Outapi
     conn *SwiftConnector
     container string
 }
