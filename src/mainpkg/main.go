@@ -9,7 +9,7 @@ func _no_use_() {
 }
 
 func main() {
-    //startUp()
-    //inapi.Entry()
-    forDBG()
+    startUp()
+    inapi.Entry()
+    //forDBG()
 }

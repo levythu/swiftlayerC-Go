@@ -6,6 +6,7 @@ import (
     "fmt"
     "io"
     "utils/iomidware"
+    "inapi/containermanage"
 )
 
 func uploadhandler(w http.ResponseWriter, r *http.Request) {
@@ -22,5 +23,6 @@ func uploadhandler(w http.ResponseWriter, r *http.Request) {
 
 func Entry() {
     http.HandleFunc("/upload", uploadhandler)
+    http.HandleFunc("/containermng", containermanage.RootRouter)
     http.ListenAndServe(":9144", nil)
 }
