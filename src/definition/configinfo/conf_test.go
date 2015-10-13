@@ -5,6 +5,6 @@ import (
 )
 
 func TestJSONGet(t *testing.T) {
-    t.Log(ReadFileToJSON("conf/nodeinfo.json"))
     t.Log(GetProperty_Node("node_number"))
+    t.Log(GetProperty_Node("keystone_username"))
 }

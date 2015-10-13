@@ -6,6 +6,7 @@ import (
     "encoding/json"
     "bytes"
     _ "fmt"
+    "errors"
 )
 
 // Removes the /**/ line from the string
@@ -58,4 +59,20 @@ func ReadFileToJSON(filename string) (map[string]Tout, error) {
     }
 
     return ret, nil
+}
+
+func AppendFileToJSON(filename string, tomodify map[string]Tout) error {
+    if tomodify==nil {
+        return errors.New("Empty config pattern.")
+    }
+    var tMap, err=ReadFileToJSON(filename)
+    if err!=nil {
+        return err
+    }
+    for k, v:=range tMap {
+        if _, ok:=tomodify[k]; !ok {
+            tomodify[k]=v
+        }
+    }
+    return nil
 }
