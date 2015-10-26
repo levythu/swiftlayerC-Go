@@ -1,4 +1,6 @@
 - [x] Check for lethal logical error for := symbols
 - [ ] Consider delete the file after merged or removed
 - [ ] Consider remove the fd from memory after long without manipulation
-- [ ] Carry overhaul on the filesystem to check its robustness
+- [x] Carry overhaul on the filesystem to check its robustness
+- [ ] Impelent inapi
+- [ ] Find the reason of slow fileget
