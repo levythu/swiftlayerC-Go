@@ -1,28 +1,13 @@
 package inapi
 
 import (
-    "net/http"
-    //"io/ioutil"
-    "fmt"
-    "io"
-    "utils/iomidware"
+    . "github.com/levythu/gurgling"
     "inapi/containermanage"
 )
 
-func uploadhandler(w http.ResponseWriter, r *http.Request) {
-    res:=make([]byte, 3)
-    ds:=iomidware.Blockify(r.Body)
-    for {
-        n, err:=ds.Read(res)
-        fmt.Println(string(res[:n]),n)
-        if err==io.EOF {
-            break
-        }
-    }
-}
-
 func Entry() {
-    http.HandleFunc("/upload", uploadhandler)
-    http.HandleFunc("/container/", containermanage.RootRouter)
-    http.ListenAndServe(":9144", nil)
+    var rootRouter=ARouter()
+    rootRouter.Use("/container", containermanage.CMRouter())
+
+    rootRouter.Launch(":9144")
 }
