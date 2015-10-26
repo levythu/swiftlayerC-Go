@@ -1,10 +1,12 @@
 package exception
 
-const EX_INVALID_FILENAME="exception.fs.lookup.invalid_filename"
-const EX_INODE_NONEXIST="exception.fs.lookup.inode_not_exist"
+import "errors"
 
-const EX_FAIL_TO_LOOKUP="exception.fs.lookup.fail"
+var EX_INVALID_FILENAME=errors.New("exception.fs.lookup.invalid_filename")
+var EX_INODE_NONEXIST=errors.New("exception.fs.lookup.inode_not_exist")
 
-const EX_FOLDER_ALREADY_EXIST="exception.fs.mkdir.folder_already_exist"
+var EX_FAIL_TO_LOOKUP=errors.New("exception.fs.lookup.fail")
 
-const EX_FILE_NOT_EXIST="exception.fs.streamio.file_not_exist"
+var EX_FOLDER_ALREADY_EXIST=errors.New("exception.fs.mkdir.folder_already_exist")
+
+var EX_FILE_NOT_EXIST=errors.New("exception.fs.streamio.file_not_exist")

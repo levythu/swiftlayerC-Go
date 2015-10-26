@@ -7,7 +7,6 @@ import (
     . "utils/timestamp"
     "reflect"
     "definition/exception"
-    "errors"
 )
 
 type Blob struct {
@@ -51,7 +50,7 @@ func (this *Blob)MergeWith(file2 Filetype) (Filetype, error) {
         return this, nil
     }
     if reflect.TypeOf(this)!=reflect.TypeOf(file2) {
-        return nil, errors.New(exception.EX_UNMATCHED_MERGE)
+        return nil, exception.EX_UNMATCHED_MERGE
     }
 
     if this.fileTS>=(file2.(*Blob)).fileTS {

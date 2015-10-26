@@ -1,4 +1,6 @@
 package exception
 
-const EX_WRONG_FILEFORMAT="exception.io.wrong_format"
-const EX_IMPROPER_DATA="exception.io.improper_data"
+import "errors"
+
+var EX_WRONG_FILEFORMAT=errors.New("exception.io.wrong_format")
+var EX_IMPROPER_DATA=errors.New("exception.io.improper_data")

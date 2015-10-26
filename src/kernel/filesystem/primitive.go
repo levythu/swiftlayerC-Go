@@ -15,7 +15,6 @@ package filesystem
 import (
     "strings"
     "outapi"
-    "errors"
     "definition/exception"
     dvc "kernel/distributedvc"
     "kernel/filetype"
@@ -35,15 +34,15 @@ func CheckValidFilename(filename string) bool {
 }
 
 // From the parent inode, consult the vfilename and return its corresponding filename
-// With any errors, the string returned will be "".
+// With any error, the string returned will be "".
 // However, when the file does not exist, error WILL BE nil
 func lookUp(inode string, vfilename string, io outapi.Outapi) (string, error) {
     if !CheckValidFilename(vfilename) {
-        return "", errors.New(exception.EX_INVALID_FILENAME)
+        return "", exception.EX_INVALID_FILENAME
     }
     inodefile, _:=dvc.GetFD(inode, io).GetFile().(*filetype.Kvmap)
     if inodefile==nil {
-        return "", errors.New(exception.EX_INODE_NONEXIST)
+        return "", exception.EX_INODE_NONEXIST
     }
     inodefile.CheckOut()
     elem, ok:=inodefile.Kvm[vfilename]

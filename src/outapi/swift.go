@@ -6,7 +6,6 @@ import (
     "fmt"
     . "kernel/distributedvc/filemeta"
     "definition/exception"
-    "errors"
     "kernel/filetype"
     . "utils/timestamp"
     "bytes"
@@ -32,7 +31,7 @@ func ConnectbyAuth(username string, passwd string, tenant string) *SwiftConnecto
         //AuthVersion: 2,
     }
     if err:=swc.Authenticate();err!=nil {
-        panic(errors.New(exception.EX_KEYSTONE_AUTH_ERROR))
+        panic(exception.EX_KEYSTONE_AUTH_ERROR)
         return nil
     }
 
@@ -42,7 +41,7 @@ func ConnectbyAuth(username string, passwd string, tenant string) *SwiftConnecto
 }
 func ConnectbyPreauth(account string, token string) *SwiftConnector {
     // TODO: set it up!
-    panic(errors.New(exception.EX_KEYSTONE_AUTH_ERROR))
+    panic(exception.EX_KEYSTONE_AUTH_ERROR)
     return nil
 }
 
@@ -109,7 +108,7 @@ func (this *Swiftio)Get(filename string) (FileMeta, filetype.Filetype, error) {
         // is pointer file
         var metaFile=filetype.Makefile(filem[METAKEY_TYPE])
         if metaFile==nil {
-            return nil, nil, errors.New(exception.EX_UNSUPPORTED_TYPESTAMP)
+            return nil, nil, exception.EX_UNSUPPORTED_TYPESTAMP
         }
 
         var targetFile=metaFile.(filetype.PointerFileType)
@@ -134,10 +133,10 @@ func (this *Swiftio)Get(filename string) (FileMeta, filetype.Filetype, error) {
 
     resFile:=filetype.Makefile(meta[METAKEY_TYPE])
     if resFile==nil {
-        return nil, nil, errors.New(exception.EX_UNSUPPORTED_TYPESTAMP)
+        return nil, nil, exception.EX_UNSUPPORTED_TYPESTAMP
     }
     if resFile.IsPointer() {
-        return nil, nil, errors.New(exception.EX_INCONSISTENT_TYPE)
+        return nil, nil, exception.EX_INCONSISTENT_TYPE
     }
     resFile.Init(contents, String2ClxTimestamp(meta[METAKEY_TIMESTAMP]))
 
@@ -198,7 +197,7 @@ func (this *Swiftio)GetStream(filename string) (FileMeta, io.ReadCloser, error) 
 // If PointerFile, automatically set to pointer to itself.
 func (this *Swiftio)PutStream(filename string, info FileMeta) (io.WriteCloser, error) {
     if info==nil || !CheckIntegrity(info) {
-        return nil, errors.New(exception.EX_METADATA_NEEDS_TO_BE_SPECIFIED)
+        return nil, exception.EX_METADATA_NEEDS_TO_BE_SPECIFIED
     }
     if filetype.CheckPointerMap[info[METAKEY_TYPE]] {
         info[filetype.META_POINT_TO]=filename

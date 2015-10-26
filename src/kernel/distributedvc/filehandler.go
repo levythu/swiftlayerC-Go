@@ -16,7 +16,6 @@ import (
     "outapi"
     "definition/configinfo"
     "strconv"
-    "errors"
     . "kernel/distributedvc/filemeta"
     "sync"
     "definition/exception"
@@ -123,7 +122,7 @@ func (this *Fd)CommitPatch(patchfile filetype.Filetype) error {
 
     latestAvailable:=this.GetLatestPatch()
     if latestAvailable<0 {
-        return errors.New(exception.EX_FAIL_TO_FETCH_INTRALINK)
+        return exception.EX_FAIL_TO_FETCH_INTRALINK
     }
     meta:=NewMeta()
     meta[INTRA_PATCH_METAKEY_NEXT_PATCH]=strconv.FormatInt(int64(latestAvailable+1), 10)

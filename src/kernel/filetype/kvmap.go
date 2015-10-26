@@ -28,7 +28,6 @@ package filetype
 import (
     . "utils/timestamp"
     "io"
-    "errors"
     "definition/exception"
     "encoding/binary"
     "log"
@@ -84,7 +83,7 @@ func ParseString(inp io.Reader ,length uint32) (string, error) {
     buf:=make([]byte, length)
     n, err:=inp.Read(buf)
     if err!=nil || uint32(n)<length {
-        return "", errors.New(exception.EX_IMPROPER_DATA)
+        return "", exception.EX_IMPROPER_DATA
     }
     return string(buf[:n]), nil
 }
@@ -153,7 +152,7 @@ func (this *Kvmap)MergeWith(file2 Filetype) (Filetype ,error) {
         return this, nil
     }
     if reflect.TypeOf(this)!=reflect.TypeOf(file2) {
-        return nil, errors.New(exception.EX_UNMATCHED_MERGE)
+        return nil, exception.EX_UNMATCHED_MERGE
     }
 
     tRes:=make([]*KvmapEntry, 0)
@@ -263,10 +262,10 @@ func (this *Kvmap)lazyRead(pos int) (*KvmapEntry, error) {
         // Open the target, check it.
         tmpString, err:=ParseString(this.dataSource, 4)
         if (err!=nil) {
-            return nil, errors.New(exception.EX_WRONG_FILEFORMAT)
+            return nil, exception.EX_WRONG_FILEFORMAT
         }
         if tmpString!=fileMagic {
-            return nil, errors.New(exception.EX_WRONG_FILEFORMAT)
+            return nil, exception.EX_WRONG_FILEFORMAT
         }
     }
 
@@ -274,27 +273,27 @@ func (this *Kvmap)lazyRead(pos int) (*KvmapEntry, error) {
         var m, n uint32
         var ts ClxTimestamp
         if binary.Read(this.dataSource, binary.LittleEndian, &n)!=nil {
-            return nil, errors.New(exception.EX_WRONG_FILEFORMAT)
+            return nil, exception.EX_WRONG_FILEFORMAT
         }
         if n==0 {
             this.finishRead=true
             return nil, nil
         }
         if binary.Read(this.dataSource, binary.LittleEndian, &m)!=nil {
-            return nil, errors.New(exception.EX_WRONG_FILEFORMAT)
+            return nil, exception.EX_WRONG_FILEFORMAT
         }
         if binary.Read(this.dataSource, binary.LittleEndian, &ts)!=nil {
-            return nil, errors.New(exception.EX_WRONG_FILEFORMAT)
+            return nil, exception.EX_WRONG_FILEFORMAT
         }
 
         K, err:=ParseString(this.dataSource, n)
         if (err!=nil) {
-            return nil, errors.New(exception.EX_WRONG_FILEFORMAT)
+            return nil, exception.EX_WRONG_FILEFORMAT
         }
 
         V, err:=ParseString(this.dataSource, m)
         if (err!=nil) {
-            return nil, errors.New(exception.EX_WRONG_FILEFORMAT)
+            return nil, exception.EX_WRONG_FILEFORMAT
         }
 
         this.readData=append(this.readData, &KvmapEntry{

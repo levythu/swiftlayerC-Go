@@ -1,3 +1,5 @@
 package exception
 
-const EX_KEYSTONE_AUTH_ERROR="exception.auth.keystone.autherror"
+import "errors"
+
+var EX_KEYSTONE_AUTH_ERROR=errors.New("exception.auth.keystone.autherror")

@@ -7,6 +7,7 @@ import (
     "outapi"
     "kernel/filesystem"
     "kernel/filetype"
+    //"strings"
     //"fmt"
     //"logger"
 )
@@ -16,12 +17,12 @@ func FMRouter() Router {
     rootRouter.Use(`/([^/]+)/\[\[SC\](.+)\]/(.*)`, handlingShortcut)
 
     rootRouter.Get(`/([^/]+)/(.*)`, lsDirectory)
-    rootRouter.Put(`/([^/]+)/(.*)`, lsDirectory)
+    rootRouter.Put(`/([^/]+)/(.*)`, mkDirectory)
 
     return rootRouter
 }
 
-const LAST_PARENT_NODE="Last-Parent-Node"
+const LAST_PARENT_NODE="Manipulated-Node"
 
 // Handling shortcut retrieve. It's applied to all the api in the field
 // format: /fs/{contianer}/[[SC]{rootnode}]/{followingpath}
@@ -46,10 +47,11 @@ func handlingShortcut(req Request, res Response) bool {
 // API URL: /fs/{contianer}/{followingpath}
 // REQUEST: GET
 // Parameters:
-//      - Container-Name(in URL): the container name to create
+//      - contianer(in URL): the container name
+//      - followingpath(in URL): the path to be listed
 // Returns:
 //      - HTTP 200: No error and the result will be returned in JSON in the body.
-//              When success, 'Last-Parent-Node' will indicate the last parent node name it's referred to.
+//              When success, 'Manipulated-Node' will indicate the listed directory.
 //      - HTTP 404: Either the container or the filepath does not exist.
 //      - HTTP 500: Error. The body is supposed to return error info.
 // ==========================API DOCS END===================================
@@ -75,4 +77,27 @@ func lsDirectory(req Request, res Response) {
 
     res.Set(LAST_PARENT_NODE, nodeName)
     res.JSON(resultList)
+}
+
+
+// ==========================API DOCS=======================================
+// API Name: Make one directory
+// Action: make the directory only if it does not exist and its parent path exists
+// API URL: /fs/{contianer}/{followingpath}
+// REQUEST: PUT
+// Parameters:
+//      - contianer(in URL): the container name
+//      - followingpath(in URL): the path to be create. Please guarantee its parent node exists.
+// Returns:
+//      - HTTP 201: No error and the directory creation application has been submitted.
+//        to ensure created, another list operation should be carried.
+//              When success, 'Manipulated-Node' will indicate the created directory.
+//      - HTTP 202: No error but the directory has existed before.
+//              When success, 'Manipulated-Node' will indicate the already exist directory.
+//      - HTTP 404: Either the container or the parent filepath does not exist.
+//      - HTTP 405: Parameters not specifed. Info will be provided in body.
+//      - HTTP 500: Error. The body is supposed to return error info.
+// ==========================API DOCS END===================================
+func mkDirectory(req Request, res Response) {
+
 }
