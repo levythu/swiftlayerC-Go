@@ -6,7 +6,8 @@ import (
     . "github.com/levythu/gurgling"
     "outapi"
     "kernel/filesystem"
-    "fmt"
+    "kernel/filetype"
+    //"fmt"
     //"logger"
 )
 
@@ -15,9 +16,12 @@ func FMRouter() Router {
     rootRouter.Use(`/([^/]+)/\[\[SC\](.+)\]/(.*)`, handlingShortcut)
 
     rootRouter.Get(`/([^/]+)/(.*)`, lsDirectory)
+    rootRouter.Put(`/([^/]+)/(.*)`, lsDirectory)
 
     return rootRouter
 }
+
+const LAST_PARENT_NODE="Last-Parent-Node"
 
 // Handling shortcut retrieve. It's applied to all the api in the field
 // format: /fs/{contianer}/[[SC]{rootnode}]/{followingpath}
@@ -45,6 +49,7 @@ func handlingShortcut(req Request, res Response) bool {
 //      - Container-Name(in URL): the container name to create
 // Returns:
 //      - HTTP 200: No error and the result will be returned in JSON in the body.
+//              When success, 'Last-Parent-Node' will indicate the last parent node name it's referred to.
 //      - HTTP 404: Either the container or the filepath does not exist.
 //      - HTTP 500: Error. The body is supposed to return error info.
 // ==========================API DOCS END===================================
@@ -61,12 +66,13 @@ func lsDirectory(req Request, res Response) {
         res.Status("Nonexist container or path. "+err.Error(), 404)
         return
     }
-    var resultList []string
-    resultList, err=fs.List(nodeName)
+    var resultList []*filetype.KvmapEntry
+    resultList, err=fs.ListDetail(nodeName)
     if err!=nil {
         res.Status("Nonexist container or path. "+err.Error(), 404)
         return
     }
 
-    res.Send(fmt.Sprint(resultList))
+    res.Set(LAST_PARENT_NODE, nodeName)
+    res.JSON(resultList)
 }

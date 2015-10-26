@@ -154,6 +154,24 @@ func (this *Fs)List(frominode string) ([]string, error) {
     return ret, nil
 }
 
+// Only returns file name list of one inode. Innername excluded.
+func (this *Fs)ListDetail(frominode string) ([]*filetype.KvmapEntry, error) {
+    var inodefile, _=dvc.GetFD(frominode, this.io).GetFile().(*filetype.Kvmap)
+    if inodefile==nil {
+        return nil, errors.New(exception.EX_INODE_NONEXIST)
+    }
+    inodefile.CheckOut()
+
+    var ret=[]*filetype.KvmapEntry{}
+    for k, v:=range inodefile.Kvm {
+        if CheckValidFilename(k) {
+            ret=append(ret, v)
+        }
+    }
+
+    return ret, nil
+}
+
 // All the folder will be removed. No matter if it is empty or not.
 func (this *Fs)Rm(foldername string, frominode string) error {
     if !CheckValidFilename(foldername) {
