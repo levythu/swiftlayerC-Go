@@ -19,7 +19,7 @@ func CMRouter() Router {
 // ==========================API DOCS=======================================
 // API Name: Create & Initiate Container
 // Action: Create a new container and format it for pseudo-fs
-// API URL: /container/{Container-Name}
+// API URL: /cn/{Container-Name}
 // REQUEST: PUT
 // Parameters:
 //      - Container-Name(in URL): the container name to create

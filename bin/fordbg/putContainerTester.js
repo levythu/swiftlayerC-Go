@@ -5,7 +5,7 @@ http=require("http");
 var options = {
     hostname: 'localhost',
     port: 9144,
-    path: '/container/sss',
+    path: '/cn/sss',
     method: 'PUT',
     headers: {
         // NOTHING

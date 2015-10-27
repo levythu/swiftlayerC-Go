@@ -4,3 +4,4 @@
 - [x] Carry overhaul on the filesystem to check its robustness
 - [ ] Impelent inapi
 - [ ] Find the reason of slow fileget
+- [ ] Set folder move api
