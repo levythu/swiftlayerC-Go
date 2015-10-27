@@ -7,7 +7,7 @@ import (
     "outapi"
     "kernel/filesystem"
     "kernel/filetype"
-    //"strings"
+    "definition/exception"
     //"fmt"
     //"logger"
 )
@@ -91,13 +91,62 @@ func lsDirectory(req Request, res Response) {
 // Returns:
 //      - HTTP 201: No error and the directory creation application has been submitted.
 //        to ensure created, another list operation should be carried.
-//              When success, 'Manipulated-Node' will indicate the created directory.
+//              When success, 'Manipulated-Node' will indicate the parent of created directory.
 //      - HTTP 202: No error but the directory has existed before.
-//              When success, 'Manipulated-Node' will indicate the already exist directory.
+//              When success, 'Manipulated-Node' will indicate the parent of already exist directory.
 //      - HTTP 404: Either the container or the parent filepath does not exist.
 //      - HTTP 405: Parameters not specifed. Info will be provided in body.
 //      - HTTP 500: Error. The body is supposed to return error info.
 // ==========================API DOCS END===================================
 func mkDirectory(req Request, res Response) {
+    var pathDetail, _=req.F()["HandledRR"].([]string)
+    if pathDetail==nil {
+        pathDetail=req.F()["RR"].([]string)
+        pathDetail=append(pathDetail, filesystem.ROOT_INODE_NAME)
+    }
 
+    var trimer=pathDetail[2]
+    var i int
+    for i=len(trimer)-1; i>=0; i-- {
+        if trimer[i]!='/' {
+            break
+        }
+    }
+    if i<0 {
+        res.Status("The directory to create should be specified.", 405)
+        return
+    }
+    trimer=trimer[:i+1]
+    var j int
+    for j=i; j>=0; j-- {
+        if trimer[j]=='/' {
+            break
+        }
+    }
+    var base=trimer[:j+1]
+    trimer=trimer[j+1:]
+
+    var fs=filesystem.NewFs(outapi.NewSwiftio(outapi.DefaultConnector, pathDetail[1]))
+    var nodeName, err=fs.Locate(base, pathDetail[3])
+    if err!=nil {
+        res.Status("Nonexist container or path. "+err.Error(), 404)
+        return
+    }
+
+    res.Set(LAST_PARENT_NODE, nodeName)
+    err=fs.Mkdir(trimer, nodeName)
+    if err!=nil {
+        if err==exception.EX_INODE_NONEXIST {
+            res.Status("Nonexist container or path.", 404)
+            return
+        }
+        if err==exception.EX_FOLDER_ALREADY_EXIST {
+            res.SendCode(202)
+            return
+        }
+        res.Status("Internal Error: "+err.Error(), 500)
+        return
+    }
+
+    res.SendCode(201)
 }
