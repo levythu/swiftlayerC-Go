@@ -23,8 +23,8 @@ import (
 // It is the primary function of filesystem, responsible for basic fs operation
 
 // Check whether a direct filename/foldername is valid (not containing invalid chars)
+var invalidSet=[]string{"/"}
 func CheckValidFilename(filename string) bool {
-    invalidSet:=[]string{"/"}
     for _, e:=range invalidSet {
         if strings.Contains(filename, e) {
             return false

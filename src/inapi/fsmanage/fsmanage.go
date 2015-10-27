@@ -8,9 +8,14 @@ import (
     "kernel/filesystem"
     "kernel/filetype"
     "definition/exception"
-    //"fmt"
+    "fmt"
     //"logger"
 )
+
+
+func __fsmanagego_nouse() {
+    fmt.Println("nouse")
+}
 
 func FMRouter() Router {
     var rootRouter=ARegexpRouter()
@@ -18,6 +23,7 @@ func FMRouter() Router {
 
     rootRouter.Get(`/([^/]+)/(.*)`, lsDirectory)
     rootRouter.Put(`/([^/]+)/(.*)`, mkDirectory)
+    rootRouter.Delete(`/([^/]+)/(.*)`, rmDirectory)
 
     return rootRouter
 }
@@ -125,6 +131,8 @@ func mkDirectory(req Request, res Response) {
     }
     var base=trimer[:j+1]
     trimer=trimer[j+1:]
+    // now trimer holds the last foldername
+    // base holds the parent folder path
 
     var fs=filesystem.NewFs(outapi.NewSwiftio(outapi.DefaultConnector, pathDetail[1]))
     var nodeName, err=fs.Locate(base, pathDetail[3])
@@ -149,4 +157,71 @@ func mkDirectory(req Request, res Response) {
     }
 
     res.SendCode(201)
+}
+
+
+// ==========================API DOCS=======================================
+// API Name: Remove one directory
+// Action: remove the directory only if it exists and its parent path exists
+// API URL: /fs/{contianer}/{followingpath}
+// REQUEST: DELETE
+// Parameters:
+//      - contianer(in URL): the container name
+//      - followingpath(in URL): the path to be removed. Please guarantee its parent node exists.
+// Returns:
+//      - HTTP 204: The deletion succeeds but it is only a patch. to ensure created, another list
+//        operation should be carried.
+//              When success, 'Manipulated-Node' will indicate the parent of removed directory.
+//      - HTTP 404: Either the container or the parent filepath does not exist.
+//      - HTTP 500: Error. The body is supposed to return error info.
+// ==========================API DOCS END===================================
+func rmDirectory(req Request, res Response) {
+    var pathDetail, _=req.F()["HandledRR"].([]string)
+    if pathDetail==nil {
+        pathDetail=req.F()["RR"].([]string)
+        pathDetail=append(pathDetail, filesystem.ROOT_INODE_NAME)
+    }
+
+    var trimer=pathDetail[2]
+    var i int
+    for i=len(trimer)-1; i>=0; i-- {
+        if trimer[i]!='/' {
+            break
+        }
+    }
+    if i<0 {
+        res.Status("The directory to create should be specified.", 405)
+        return
+    }
+    trimer=trimer[:i+1]
+    var j int
+    for j=i; j>=0; j-- {
+        if trimer[j]=='/' {
+            break
+        }
+    }
+    var base=trimer[:j+1]
+    trimer=trimer[j+1:]
+    // now trimer holds the last foldername
+    // base holds the parent folder path
+
+    var fs=filesystem.NewFs(outapi.NewSwiftio(outapi.DefaultConnector, pathDetail[1]))
+    var nodeName, err=fs.Locate(base, pathDetail[3])
+    if err!=nil {
+        res.Status("Nonexist container or path. "+err.Error(), 404)
+        return
+    }
+
+    res.Set(LAST_PARENT_NODE, nodeName)
+    err=fs.Rm(trimer, nodeName)
+    if err!=nil {
+        if err==exception.EX_INODE_NONEXIST {
+            res.Status("Nonexist container or path.", 404)
+            return
+        }
+        res.Status("Internal Error: "+err.Error(), 500)
+        return
+    }
+
+    res.SendCode(204)
 }

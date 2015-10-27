@@ -172,6 +172,7 @@ func (this *Fs)ListDetail(frominode string) ([]*filetype.KvmapEntry, error) {
 }
 
 // All the folder will be removed. No matter if it is empty or not.
+// Attentez: if the removed object does not exist, a exception.EX_INODE_NONEXIST will be returned.
 func (this *Fs)Rm(foldername string, frominode string) error {
     if !CheckValidFilename(foldername) {
         return exception.EX_INVALID_FILENAME
@@ -182,8 +183,9 @@ func (this *Fs)Rm(foldername string, frominode string) error {
     if flist==nil {
         return exception.EX_INODE_NONEXIST
     }
+    flist.CheckOut()
     if _, ok:=flist.Kvm[foldername]; !ok {
-        return nil
+        return exception.EX_INODE_NONEXIST
     }
 
     var patcher=filetype.NewKvMap()
