@@ -21,7 +21,8 @@ func IORouter() Router {
     rootRouter.Use(`/([^/]+)/\[\[SC\](.+)\]/(.*)`, handlingShortcut)
 
     rootRouter.Get(`/([^/]+)/(.*)`, downloader)
-    rootRouter.Put(`/([^/]+)/(.*)`, uploader)
+    rootRouter.Put(`/([^/]+)/(.*)`, uploadForcePut)
+    rootRouter.Post(`/([^/]+)/(.*)`, uploadAvoidConflict)
 
     return rootRouter
 }
@@ -49,6 +50,14 @@ func downloader(req Request, res Response) {
 
 }
 
-func uploader(req Request, res Response) {
-    
+func uploadAvoidConflict(req Request, res Response) {
+    uploader(req, res, false)
+}
+
+func uploadForcePut(req Request, res Response) {
+    uploader(req, res, true)
+}
+
+func uploader(req Request, res Response, forcePut bool) {
+
 }
