@@ -289,7 +289,7 @@ func (this *Fs)Put(destination string, frominode string/*=""*/, meta FileMeta/*=
 // valid stream. So the architectures are different.
 
 // Phase1Callback is called when data transmission is ready.
-type Phase1Callback func(error, FileMeta) io.Write
+type Phase1Callback func(error, FileMeta) io.Writer
 // Phase2Callback is called when transmission completed.
 type Phase2Callback func(error)
 

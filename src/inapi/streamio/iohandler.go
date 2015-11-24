@@ -5,8 +5,8 @@ package streamio
 import (
     . "github.com/levythu/gurgling"
     . "kernel/distributedvc/filemeta"
-    //"outapi"
-    //"kernel/filesystem"
+    "outapi"
+    "kernel/filesystem"
     //"kernel/filetype"
     "definition/exception"
     "io"
@@ -66,7 +66,7 @@ func downloader(req Request, res Response) {
     }
 
     var fs=filesystem.NewFs(outapi.NewSwiftio(outapi.DefaultConnector, pathDetail[1]))
-    fs.Get(pathDetail[2], pathDetail[3], func(err error, fm FileMeta) io.Write {
+    fs.Get(pathDetail[2], pathDetail[3], func(err error, fm FileMeta) io.Writer {
         if err!=nil {
             if err==exception.EX_FILE_NOT_EXIST {
                 res.Status("Nonexist container or path.", 404)
@@ -106,7 +106,7 @@ func uploader(req Request, res Response) {
     }
 
     var fs=filesystem.NewFs(outapi.NewSwiftio(outapi.DefaultConnector, pathDetail[1]))
-    var err=fs.Put(pathDetail[2], pathDetail[3], nil, "")
+    var err=fs.Put(pathDetail[2], pathDetail[3], nil, req.R().Body, "")
     if err!=nil {
         if err==exception.EX_FILE_NOT_EXIST {
             res.Status("Nonexist container or path.", 404)
