@@ -2,8 +2,9 @@
 - [ ] Consider delete the file after merged or removed
 - [ ] Consider remove the fd from memory after long without manipulation
 - [x] Carry overhaul on the filesystem to check its robustness
-- [x] Impelent inapi
+- [x] Implement inapi
 - [ ] Find the reason of slow fileget
 - [ ] Set folder move api
 - [ ] Check the pointer type
 - [ ] Content Type!?
+- [ ] Resolve conflict

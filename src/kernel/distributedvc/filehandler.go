@@ -76,6 +76,9 @@ func (this *Fd)GetPatchName(patchnumber int, nodenumber int/*-1*/) string {
     }
     return this.filename+".proxy"+strconv.Itoa(nodenumber)+".patch"+strconv.Itoa(patchnumber)
 }
+func (this *Fd)Release() {
+    return
+}
 
 func (this *Fd)GetGlobalPatchName(splittreeid uint32) string {
     return this.filename+".splittree"+strconv.FormatUint(uint64(splittreeid),10)+".patch"

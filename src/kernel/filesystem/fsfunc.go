@@ -61,6 +61,7 @@ func (this *Fs)Mkdir(foldername string, frominode string) error {
     }
 
     var par=dvc.GetFD(frominode, this.io)
+    defer par.Release()
     var flist, _=par.GetFile().(*filetype.Kvmap)
     if flist==nil {
         return exception.EX_INODE_NONEXIST
@@ -72,6 +73,7 @@ func (this *Fs)Mkdir(foldername string, frominode string) error {
 
     var newFileName=uniqueid.GenGlobalUniqueName()
     var newFile=dvc.GetFD(newFileName, this.io)
+    defer newFile.Release()
 
     fmap:=filetype.NewKvMap()
     fmap.CheckOut()
@@ -111,6 +113,7 @@ func (this *Fs)Mkdir(foldername string, frominode string) error {
 // TODO: Setup clear old fs info
 func (this *Fs)FormatFS() error {
     var nf=dvc.GetFD(ROOT_INODE_NAME, this.io)
+    defer nf.Release()
     //nf.clear()
 
     fmap:=filetype.NewKvMap()
@@ -137,7 +140,10 @@ func (this *Fs)FormatFS() error {
 
 // Only returns file name list of one inode. Innername excluded.
 func (this *Fs)List(frominode string) ([]string, error) {
-    var inodefile, _=dvc.GetFD(frominode, this.io).GetFile().(*filetype.Kvmap)
+    var tmp=dvc.GetFD(frominode, this.io)
+    var inodefile, _=tmp.GetFile().(*filetype.Kvmap)
+    tmp.Release()
+
     if inodefile==nil {
         return nil, exception.EX_INODE_NONEXIST
     }
@@ -155,7 +161,10 @@ func (this *Fs)List(frominode string) ([]string, error) {
 
 // Only returns file name list of one inode. Innername excluded.
 func (this *Fs)ListDetail(frominode string) ([]*filetype.KvmapEntry, error) {
-    var inodefile, _=dvc.GetFD(frominode, this.io).GetFile().(*filetype.Kvmap)
+    var tmp=dvc.GetFD(frominode, this.io)
+    var inodefile, _=tmp.GetFile().(*filetype.Kvmap)
+    tmp.Release()
+
     if inodefile==nil {
         return nil, exception.EX_INODE_NONEXIST
     }
@@ -179,6 +188,7 @@ func (this *Fs)Rm(foldername string, frominode string) error {
     }
 
     var par=dvc.GetFD(frominode, this.io)
+    defer par.Release()
     var flist, _=par.GetFile().(*filetype.Kvmap)
     if flist==nil {
         return exception.EX_INODE_NONEXIST
@@ -228,6 +238,7 @@ func (this *Fs)Put(destination string, frominode string/*=""*/, meta FileMeta/*=
 
     var newFileName=uniqueid.GenGlobalUniqueNameWithTag("Stream")
     var newFilefd=dvc.GetFD(newFileName, this.io)
+    defer newFilefd.Release()
     if meta==nil {
         meta=NewMeta()
     }
@@ -252,6 +263,7 @@ func (this *Fs)Put(destination string, frominode string/*=""*/, meta FileMeta/*=
     // Copy successfully. Update the index.
 
     var par=dvc.GetFD(basenode, this.io)
+    defer par.Release()
     var flist, _=par.GetFile().(*filetype.Kvmap)
     if flist==nil {
         return exception.EX_INODE_NONEXIST
@@ -305,11 +317,13 @@ func (this *Fs)Get(source string, frominode string/*=""*/, phase1 Phase1Callback
     rc, fm, err:=objFD.GetFileStream()
     if err!=nil{
         phase1(err, nil)
+        objFD.Release()
         return
     }
     if rc==nil {
         // 404
         phase1(exception.EX_FILE_NOT_EXIST, nil)
+        objFD.Release()
         return
     }
 
@@ -317,18 +331,21 @@ func (this *Fs)Get(source string, frominode string/*=""*/, phase1 Phase1Callback
     if wc==nil {
         // Phase1 requires to terminate.
         rc.Close()
+        objFD.Release()
         return
     }
 
     if isSychronous {
         _, copyError:=io.Copy(wc, rc)
         rc.Close()
+        objFD.Release()
         phase2(copyError)
     } else {
         go func() {
             _, copyError:=io.Copy(wc, rc)
             rc.Close()
             phase2(copyError)
+            objFD.Release()
         }()
     }
 }
