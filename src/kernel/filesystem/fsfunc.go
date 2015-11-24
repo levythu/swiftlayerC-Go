@@ -219,7 +219,7 @@ func (this *Fs)Put(destination string, frominode string/*=""*/, meta FileMeta/*=
     var filename=destination[lastPos+1:]
     var basenode, err=this.Locate(path, frominode)
     if err!=nil {
-        return err
+        return exception.EX_FILE_NOT_EXIST
     }
 
     if typeoffile=="" {
@@ -289,15 +289,15 @@ func (this *Fs)Put(destination string, frominode string/*=""*/, meta FileMeta/*=
 // valid stream. So the architectures are different.
 
 // Phase1Callback is called when data transmission is ready.
-type Phase1Callback func(error, FileMeta) io.WriteCloser
+type Phase1Callback func(error, FileMeta) io.Write
 // Phase2Callback is called when transmission completed.
 type Phase2Callback func(error)
 
-func (this *Fs)Get(source string, frominode string/*=""*/, phase1 Phase1Callback, phase2 Phase2Callback) {
+func (this *Fs)Get(source string, frominode string/*=""*/, phase1 Phase1Callback, phase2 Phase2Callback, isSychronous bool) {
     // Use this.locate, but not for finding folder. Note the semantic discrepancy.
     var obj, err=this.Locate(source, frominode)
     if err!=nil {
-        phase1(err, nil)
+        phase1(exception.EX_FILE_NOT_EXIST, nil)
         return
     }
 
@@ -320,10 +320,15 @@ func (this *Fs)Get(source string, frominode string/*=""*/, phase1 Phase1Callback
         return
     }
 
-    go func() {
+    if isSychronous {
         _, copyError:=io.Copy(wc, rc)
         rc.Close()
-        wc.Close()
         phase2(copyError)
-    }()
+    } else {
+        go func() {
+            _, copyError:=io.Copy(wc, rc)
+            rc.Close()
+            phase2(copyError)
+        }()
+    }
 }
