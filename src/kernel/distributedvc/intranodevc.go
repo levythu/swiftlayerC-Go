@@ -158,6 +158,14 @@ func NewIntramergeSupervisor(filedes *Fd) *IntramergeSupervisor {
     }
 }
 
+// @Sync(0)
+func (this *IntramergeSupervisor)GetWorkersCount() int {
+    this.locks[0].Lock()
+    defer this.locks[0].Unlock()
+
+    return this.workersAlive
+}
+
 const REPORT_TASK_RESPONSE_CONFIRMED=0        // Approve to continue work
 const REPORT_TASK_RESPONSE_REJECT=1           // Reject the work, the worker should commit all the change and suicide
 const REPORT_TASK_RESPONSE_COMMIT=2           // Approve, on condition that the status merging be commited first

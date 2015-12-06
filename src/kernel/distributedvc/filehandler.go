@@ -23,6 +23,7 @@ import (
     "logger"
     "io"
     "kernel/distributedvc/constdef"
+    "container/list"
     "utils/iomidware"
 )
 
@@ -33,6 +34,8 @@ type Fd struct {
     intravisor *IntramergeSupervisor
     intervisor *IntermergeSupervisor
     latestPatch int
+    grabbed int
+    uselessPosition *list.Element
 
     locks []*sync.Mutex
 }
@@ -62,12 +65,16 @@ func GetFD(fn string, _io outapi.Outapi) *Fd {
         filename: fn,
         io: _io,
         latestPatch: -10,
+        grabbed: 0,
+        uselessPosition: nil,
         // The number of locks may be changed here.
-        locks: []*sync.Mutex{&sync.Mutex{},&sync.Mutex{},&sync.Mutex{}},
+        locks: []*sync.Mutex{&sync.Mutex{},&sync.Mutex{},&sync.Mutex{},&sync.Mutex{}},
     }
     ret.intervisor=NewIntermergeSupervisor(ret)
     ret.intravisor=NewIntramergeSupervisor(ret)
-    return global_file_dict.Declare(fn+_io.GenerateUniqueID(), ret).(*Fd)
+    var result=global_file_dict.Declare(fn+_io.GenerateUniqueID(), ret).(*Fd)
+    result.Grab()
+    return result
 }
 
 func (this *Fd)GetPatchName(patchnumber int, nodenumber int/*-1*/) string {
@@ -76,8 +83,34 @@ func (this *Fd)GetPatchName(patchnumber int, nodenumber int/*-1*/) string {
     }
     return this.filename+".proxy"+strconv.Itoa(nodenumber)+".patch"+strconv.Itoa(patchnumber)
 }
+
+// @Sync(3)
+func (this *Fd)Grab() bool {
+    this.locks[3].Lock()
+    defer this.locks[3].UnLock()
+    if this.grabbed<0 {
+        return false
+    }
+    this.grabbed++
+    return true
+}
+// @Sync(3)
 func (this *Fd)Release() {
-    return
+    this.locks[3].Lock()
+    this.grabbed--
+    this.locks[3].UnLock()
+
+    this.checkInactive();
+}
+// @Sync(3)
+func (this *Fd)checkInactive() {
+    // Only run when grabbed==0 and synced. So no more other calls are there.
+    this.locks[3].Lock()
+    defer this.locks[3].UnLock()
+    if this.grabbed!=0 {
+        return
+    }
+
 }
 
 func (this *Fd)GetGlobalPatchName(splittreeid uint32) string {

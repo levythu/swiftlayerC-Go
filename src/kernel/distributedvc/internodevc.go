@@ -271,6 +271,13 @@ func NewIntermergeSupervisor(filed *Fd) *IntermergeSupervisor {
 }
 
 // @Sync
+func (this *IntermergeSupervisor)GetWorkersCount() int {
+    this.lock.Lock()
+    defer this.lock.Unlock()
+
+    return this.workersAlive
+}
+// @Sync
 func (this *IntermergeSupervisor)ReportDeath(worker *IntermergeWorker) {
     this.lock.Lock()
     defer this.lock.Unlock()
