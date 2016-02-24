@@ -8,3 +8,4 @@
 - [ ] Check the pointer type
 - [ ] Content Type!?
 - [ ] Resolve conflict
+- [x] Kick off S-H2
