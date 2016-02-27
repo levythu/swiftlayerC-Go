@@ -21,10 +21,6 @@
         it will commit the merged file to Swift.  */
     "auto_commit_per_intramerge": 1,
 
-    /*  In overhaul mode multiple intermerge worker will be spawned to do things in
-       parallel. Not supported yet so it's always FALSE even if set to TRUE.  */
-    "enable_parallel_overhaul": false,
-
     /*  Openstack Keystone authencation server url. Only API v2.0 is supported here.  */
     "swift_auth_url": "http://58.205.208.81:5000/v2.0",
 
