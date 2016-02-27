@@ -25,10 +25,10 @@ func ___nosuse___() {
 **  It's identical between different nodes.
 */
 
-var rootnodeid=int(splittree.GetRootLable(uint32(configinfo.GetProperty_Node("node_nums_in_all").(float64))))
+var rootnodeid=int(splittree.GetRootLable(uint32(configinfo.NODE_NUMS_IN_ALL)))
 var overhaulOrder=func() []int {
     ret:=[]int{}
-    splittree.Traverse(uint32(configinfo.GetProperty_Node("node_nums_in_all").(float64)), func(nodeid uint32, layer uint32){
+    splittree.Traverse(uint32(configinfo.NODE_NUMS_IN_ALL), func(nodeid uint32, layer uint32){
         ret=append(ret, int(nodeid))
     })
     return ret
@@ -45,7 +45,7 @@ func NewIntermergeWorker(_supervisor *IntermergeSupervisor, _pinpoint int/*=-1*/
     ret.supervisor=_supervisor
     ret.fd=_supervisor.filed
     if _pinpoint==-1 {
-        ret.pinpoint=int(splittree.FromNodeToLeaf(uint32(configinfo.GetProperty_Node("node_number").(float64))))
+        ret.pinpoint=int(splittree.FromNodeToLeaf(uint32(configinfo.NODE_NUMBER)))
     } else {
         ret.pinpoint=_pinpoint
     }

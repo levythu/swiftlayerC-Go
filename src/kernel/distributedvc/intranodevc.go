@@ -186,7 +186,7 @@ func (this *IntramergeSupervisor)ReportNewTask(worker *IntramergeWorker, patchnu
     }
     this.taskMap[patchnum].status=TASKSTATUS_WORKING
     worker.workingOn=patchnum
-    if worker.havemerged%int(configinfo.GetProperty_Node("auto_commit_per_intramerge").(float64))==0 {
+    if worker.havemerged%configinfo.AUTO_COMMIT_PER_INTRAMERGE==0 {
         return REPORT_TASK_RESPONSE_COMMIT
     }
     return REPORT_TASK_RESPONSE_CONFIRMED
