@@ -17,7 +17,6 @@ func prepEnv_SetConcurrency() {
 // Only run once when start.
 func startUp() {
     fmt.Println("- Swift Layer-C is starting...")
-    configinfo.InitAll()
     prepEnv_SetConcurrency()
     fmt.Println("- Premise checked. Now lauching Web server...")
 }

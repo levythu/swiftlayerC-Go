@@ -12,7 +12,7 @@ var KEYSTONE_USERNAME string
 var KEYSTONE_TENANT string
 var KEYSTONE_PASSWORD string
 
-func InitAll() {
+func InitAll() bool {
     errorAssert(AppendFileToJSON("conf/nodeinfo.json", conf), "Reading conf/nodeinfo.json")
     errorAssert(AppendFileToJSON("conf/accountinfo.debug.noupload.json", conf), "Reading conf/accountinfo.debug.noupload.json")
 
@@ -27,4 +27,8 @@ func InitAll() {
     KEYSTONE_USERNAME               =extractProperty("keystone_username").(string)
     KEYSTONE_TENANT                 =extractProperty("keystone_tenant").(string)
     KEYSTONE_PASSWORD               =extractProperty("keystone_password").(string)
+
+    return true
 }
+
+var _=InitAll()

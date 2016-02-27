@@ -87,7 +87,7 @@ func (this *Fd)GetPatchName(patchnumber int, nodenumber int/*-1*/) string {
 // @Sync(3)
 func (this *Fd)Grab() bool {
     this.locks[3].Lock()
-    defer this.locks[3].UnLock()
+    defer this.locks[3].Unlock()
     if this.grabbed<0 {
         return false
     }
@@ -98,7 +98,7 @@ func (this *Fd)Grab() bool {
 func (this *Fd)Release() {
     this.locks[3].Lock()
     this.grabbed--
-    this.locks[3].UnLock()
+    this.locks[3].Unlock()
 
     this.checkInactive();
 }
@@ -106,7 +106,7 @@ func (this *Fd)Release() {
 func (this *Fd)checkInactive() {
     // Only run when grabbed==0 and synced. So no more other calls are there.
     this.locks[3].Lock()
-    defer this.locks[3].UnLock()
+    defer this.locks[3].Unlock()
     if this.grabbed!=0 {
         return
     }
