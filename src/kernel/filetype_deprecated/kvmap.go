@@ -327,3 +327,7 @@ func (this *Kvmap)GetRelativeTS(entry string) ClxTimestamp {
 
     return MergeTimestamp(v1, v2)
 }
+
+func (this *Kvmap)IsPointer() bool {
+    return false
+}
