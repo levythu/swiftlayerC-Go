@@ -39,3 +39,7 @@ func newFD(filename string) *FD {
 
     return ret
 }
+
+func (this *FD)GoDormant() bool {
+
+}

@@ -1,0 +1,4 @@
+{
+    "max_number_of_active_fd": 1000,
+    "max_number_of_dormant_fd": 1000000
+}

@@ -58,6 +58,14 @@ func (this *fdDLinkedList)AppendX(carrier *FD) {
         carrier: carrier,
     })
 }
+func (this *fdDLinkedList)AppendWithoutLock(element *fdDLinkedListNode) {
+    element.prev=this.Tail.prev
+    element.next=this.Tail
+    element.prev.next=element
+    element.next.prev=element
+
+    this.Length++
+}
 func (this *fdDLinkedList)Cut(element *fdDLinkedListNode) {
     this.Lock.Lock()
     defer this.Lock.Unlock()
