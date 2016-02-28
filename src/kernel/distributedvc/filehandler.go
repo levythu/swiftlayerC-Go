@@ -28,18 +28,18 @@ func newFD(filename string) *FD {
         status: 0,
         lock: &sync.Mutex{},
         isInDormant: false,
-        isInTrash: false
+        isInTrash: false,
     }
     ret.trashNode=&fdDLinkedListNode {
-        carrier: ret
+        carrier: ret,
     }
     ret.dormantNode=&fdDLinkedListNode {
-        carrier: ret
+        carrier: ret,
     }
 
     return ret
 }
 
 func (this *FD)GoDormant() bool {
-
+    return false
 }

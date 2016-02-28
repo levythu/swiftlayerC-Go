@@ -20,9 +20,9 @@ var fdPool=make(map[string]*FD)
 var trash=NewFSDLinkedList()
 var dormant=NewFSDLinkedList()
 
-var locks []*sync.RWMutex{&sync.RWMutex{}, &sync.RWMutex{}}
+var locks=[]*sync.RWMutex{&sync.RWMutex{}, &sync.RWMutex{}}
 
-func GetFD(filename string) *Fd {
+func GetFD(filename string) *FD {
     locks[0].RLock()
     var elem, ok=fdPool[filename]
     if ok {
@@ -40,12 +40,12 @@ func GetFD(filename string) *Fd {
         return elem
     }
     // New a FD
-    var ret=newFD()
+    var ret=newFD(filename)
     fdPool[filename]=ret
     ret.Grasp()
     return ret
 }
-func GetFDWithoutModifying(filename string) *Fd {
+func GetFDWithoutModifying(filename string) *FD {
     locks[0].RLock()
     defer locks[0].RUnlock()
     var elem, ok=fdPool[filename]
@@ -89,7 +89,7 @@ func ClearTrash() {
 
     delTail.next=nil
     for delHead!=nil {
-        delete(fdPooldel, delHead.carrier.filename)
+        delete(fdPool, delHead.carrier.filename)
         delHead=delHead.next
     }
 }
@@ -130,7 +130,7 @@ func clearDormant() {
     }
 }
 
-func (this *Fd)Grasp() {
+func (this *FD)Grasp() {
     // If in trashlist, remove it.
     this.lock.Lock()
     defer this.lock.Unlock()
@@ -140,7 +140,7 @@ func (this *Fd)Grasp() {
         trash.Cut(this.trashNode)
     }
 }
-func (this *Fd)Release() {
+func (this *FD)Release() {
     // If peeper==0, throw into trashlist and check capacity
     this.lock.Lock()
     defer this.lock.Unlock()
@@ -155,7 +155,7 @@ func (this *Fd)Release() {
         trash.Lock.Unlock()
     }
 }
-func (this *Fd)GraspReader() {
+func (this *FD)GraspReader() {
     locks[1].RLock()
     defer locks[1].RUnlock()
 
@@ -168,7 +168,7 @@ func (this *Fd)GraspReader() {
         dormant.Cut(this.dormantNode)
     }
 }
-func (this *Fd)ReleaseReader() {
+func (this *FD)ReleaseReader() {
     this.lock.Lock()
     defer this.lock.Unlock()
 

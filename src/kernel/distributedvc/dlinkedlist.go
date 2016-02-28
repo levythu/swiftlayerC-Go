@@ -26,7 +26,7 @@ func genList(head *fdDLinkedListNode) *fdDLinkedListNode {
     }
     head.next=ret
     return ret
-})
+}
 func NewFSDLinkedList() *fdDLinkedList {
     var head=&fdDLinkedListNode {
         carrier: nil,
@@ -38,7 +38,7 @@ func NewFSDLinkedList() *fdDLinkedList {
         Head: head,
         Tail: tail,
         Length: 0,
-        Lock: &sync.Mutex,
+        Lock: &sync.Mutex{},
     }
 }
 
