@@ -3,6 +3,7 @@ package distributedvc
 import (
     "sync"
     conf "definition/configinfo"
+    "fmt"
 )
 
 /*
@@ -21,6 +22,10 @@ var trash=NewFSDLinkedList()
 var dormant=NewFSDLinkedList()
 
 var locks=[]*sync.RWMutex{&sync.RWMutex{}, &sync.RWMutex{}}
+
+func _no_u_se() {
+    fmt.Println("")
+}
 
 func GetFD(filename string) *FD {
     locks[0].RLock()
@@ -43,6 +48,7 @@ func GetFD(filename string) *FD {
     var ret=newFD(filename)
     fdPool[filename]=ret
     ret.Grasp()
+    locks[0].Unlock()
     return ret
 }
 func GetFDWithoutModifying(filename string) *FD {
@@ -67,6 +73,7 @@ func ClearTrash() {
         trash.Lock.Unlock()
         return
     }
+    nLimit=trash.Length-nLimit
 
     // peel half of the list to del-list, and delete all the elements in it one by one.
 
@@ -106,6 +113,7 @@ func clearDormant() {
         dormant.Lock.Unlock()
         return
     }
+    nLimit=dormant.Length-nLimit
 
     var p=dormant.Head
     for i:=0; i<nLimit; i++ {
@@ -130,6 +138,7 @@ func clearDormant() {
     }
 }
 
+// Attentez: this method will be invoked by GetFG automatically, so no manual invocation is needed.
 func (this *FD)Grasp() {
     // If in trashlist, remove it.
     this.lock.Lock()
