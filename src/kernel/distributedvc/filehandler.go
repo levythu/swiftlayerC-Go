@@ -44,6 +44,7 @@ func newFD(filename string) *FD {
 func (this *FD)GoDormant() bool {
     this.lock.Lock()
     defer this.lock.Unlock()
+    this.isInDormant=false
     //logger.Secretary.LogD("Filehandler "+this.filename+" is going dormant.")
     if this.status!=1 {
         // noe active yet.

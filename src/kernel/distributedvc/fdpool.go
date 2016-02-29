@@ -33,6 +33,7 @@ func GetFD(filename string) *FD {
     if ok {
         elem.Grasp()
         locks[0].RUnlock()
+        fmt.Println("Exist & provide:", filename)
         return elem
     }
     locks[0].RUnlock()
@@ -42,6 +43,7 @@ func GetFD(filename string) *FD {
     if ok {
         elem.Grasp()
         locks[0].Unlock()
+        fmt.Println("Exist & provide:", filename)
         return elem
     }
     // New a FD
@@ -49,6 +51,7 @@ func GetFD(filename string) *FD {
     fdPool[filename]=ret
     ret.Grasp()
     locks[0].Unlock()
+    fmt.Println("Create:", filename)
     return ret
 }
 func GetFDWithoutModifying(filename string) *FD {

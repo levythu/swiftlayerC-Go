@@ -1,5 +1,0 @@
-=== RUN   TestAutoDormant
-999
---- PASS: TestAutoDormant (0.07s)
-PASS
-ok  	kernel/distributedvc	0.116s
