@@ -12,7 +12,7 @@ type FD struct {
     reader int
     peeper int
 
-    // 1 for active, 2 for dormant, 0 for uninited
+    // 1 for active, 2 for dormant, 0 for uninited, 99 for dead
     status int
 
     isInTrash bool
@@ -41,6 +41,17 @@ func newFD(filename string) *FD {
     return ret
 }
 
+func (this *FD)GoDie() {
+    this.lock.Lock()
+    defer this.lock.Unlock()
+
+    if this.status!=1 {
+        return false
+    }
+    this.status=99
+
+    return
+}
 func (this *FD)GoDormant() bool {
     this.lock.Lock()
     defer this.lock.Unlock()

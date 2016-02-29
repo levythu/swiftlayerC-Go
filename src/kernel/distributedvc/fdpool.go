@@ -105,6 +105,7 @@ func ClearTrash() {
     delTail.next=nil
     for delHead!=nil {
         delete(fdPool, delHead.carrier.filename)
+        delHead.carrier.GoDie()
         delHead=delHead.next
     }
 }
