@@ -69,11 +69,24 @@ func NewKvMap() *Kvmap {
     rkv.finishRead=true
     return rkv
 }
+
 func (this *Kvmap)Init(dtSource io.Reader, dtTimestamp ClxTimestamp) {
     this.readData=make([]*KvmapEntry, 0)
     this.dataSource=dtSource
     this.fileTS=dtTimestamp
     this.finishRead=false
+}
+
+func (this *Kvmap)TSet(dtTimestamp ClxTimestamp) {
+    this.fileTS=dtTimestamp
+}
+func (this *Kvmap)TGet() ClxTimestamp {
+    return this.fileTS
+}
+
+func (this *Kvmap)LoadIn(dtSource io.Reader) error {
+    this.Init(dtSource, 0)
+    return this.EnsureRead()
 }
 func (this *Kvmap)GetType() string {
     return "key-value map file"
@@ -88,12 +101,6 @@ func ParseString(inp io.Reader ,length uint32) (string, error) {
     return string(buf[:n]), nil
 }
 
-func (this *Kvmap)GetTS() ClxTimestamp {
-    return this.fileTS
-}
-func (this *Kvmap)SetTS(val ClxTimestamp) {
-    this.fileTS=val
-}
 func (this *Kvmap)CheckOut() {
     // Attentez: All the modification will not be stored before executing CheckIn
     if this.LoadIntoMem()!=nil {
@@ -148,9 +155,6 @@ func (this *Kvmap)CheckIn() {
 }
 
 func (this *Kvmap)MergeWith(file2 Filetype) (Filetype ,error) {
-    if IsNonexist(file2) {
-        return this, nil
-    }
     if reflect.TypeOf(this)!=reflect.TypeOf(file2) {
         return nil, exception.EX_UNMATCHED_MERGE
     }
