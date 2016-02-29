@@ -62,7 +62,7 @@ func ClearTrash() {
 
     trash.Lock.Lock()
 
-    var nLimit int=conf.MAX_NUMBER_OF_DORMANT_FD/2
+    var nLimit int=conf.MAX_NUMBER_OF_CACHED_DORMANT_FD/2
     if trash.Length<=nLimit {
         trash.Lock.Unlock()
         return
@@ -101,7 +101,7 @@ func clearDormant() {
     defer locks[1].Unlock()
 
     dormant.Lock.Lock()
-    var nLimit int=conf.MAX_NUMBER_OF_ACTIVE_FD/2
+    var nLimit int=conf.MAX_NUMBER_OF_CACHED_ACTIVE_FD/2
     if dormant.Length<=nLimit {
         dormant.Lock.Unlock()
         return
@@ -149,7 +149,7 @@ func (this *FD)Release() {
         this.isInTrash=true
         trash.Lock.Lock()
         trash.AppendWithoutLock(this.trashNode)
-        if trash.Length>=conf.MAX_NUMBER_OF_DORMANT_FD {
+        if trash.Length>=conf.MAX_NUMBER_OF_CACHED_DORMANT_FD {
             go ClearTrash()
         }
         trash.Lock.Unlock()
@@ -173,11 +173,11 @@ func (this *FD)ReleaseReader() {
     defer this.lock.Unlock()
 
     this.reader--
-    if this.reader==0 {
+    if this.reader==0 && this.status==1 {
         this.isInDormant=true
         dormant.Lock.Lock()
         dormant.AppendWithoutLock(this.dormantNode)
-        if dormant.Length>=conf.MAX_NUMBER_OF_ACTIVE_FD {
+        if dormant.Length>=conf.MAX_NUMBER_OF_CACHED_ACTIVE_FD {
             go clearDormant()
         }
         dormant.Lock.Unlock()

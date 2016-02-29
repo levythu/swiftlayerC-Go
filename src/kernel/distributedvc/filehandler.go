@@ -2,6 +2,7 @@ package distributedvc
 
 import (
     "sync"
+    "logger"
 )
 
 type FD struct {
@@ -41,5 +42,20 @@ func newFD(filename string) *FD {
 }
 
 func (this *FD)GoDormant() bool {
-    return false
+    this.lock.Lock()
+    defer this.lock.Unlock()
+    logger.Secretary.LogD("Filehandler "+this.filename+" is going dormant.")
+    if this.status!=1 {
+        // noe active yet.
+        return false
+    }
+
+    return true
+}
+func (this *FD)Read() {
+    this.lock.Lock()
+    defer this.lock.Unlock()
+
+    // load in and parse file
+    this.status=1
 }

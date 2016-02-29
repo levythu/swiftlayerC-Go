@@ -16,8 +16,8 @@ var KEYSTONE_USERNAME string
 var KEYSTONE_TENANT string
 var KEYSTONE_PASSWORD string
 
-var MAX_NUMBER_OF_ACTIVE_FD int
-var MAX_NUMBER_OF_DORMANT_FD int
+var MAX_NUMBER_OF_CACHED_ACTIVE_FD int
+var MAX_NUMBER_OF_CACHED_DORMANT_FD int
 
 func maxInt(n1, n2 int) int {
     if n1>n2 {
@@ -43,15 +43,15 @@ func InitAll() bool {
     KEYSTONE_TENANT                 =extractProperty("keystone_tenant").(string)
     KEYSTONE_PASSWORD               =extractProperty("keystone_password").(string)
 
-    MAX_NUMBER_OF_ACTIVE_FD         =int(extractProperty("max_number_of_active_fd").(float64))
-    if MAX_NUMBER_OF_ACTIVE_FD<100 {
-        Secretary.WarnD("The configuration variable MAX_NUMBER_OF_ACTIVE_FD is too small and is set to 100 automatically.")
-        MAX_NUMBER_OF_ACTIVE_FD=100
+    MAX_NUMBER_OF_CACHED_ACTIVE_FD  =int(extractProperty("max_number_of_cached_active_fd").(float64))
+    if MAX_NUMBER_OF_CACHED_ACTIVE_FD<100 {
+        Secretary.WarnD("The configuration variable MAX_NUMBER_OF_CACHED_ACTIVE_FD is too small and is set to 100 automatically.")
+        MAX_NUMBER_OF_CACHED_ACTIVE_FD=100
     }
-    MAX_NUMBER_OF_DORMANT_FD        =int(extractProperty("max_number_of_dormant_fd").(float64))
-    if MAX_NUMBER_OF_DORMANT_FD<100 {
-        Secretary.WarnD("The configuration variable MAX_NUMBER_OF_DORMANT_FD is too small and is set to 100 automatically.")
-        MAX_NUMBER_OF_DORMANT_FD=100
+    MAX_NUMBER_OF_CACHED_DORMANT_FD =int(extractProperty("max_number_of_cached_active_fd").(float64))
+    if MAX_NUMBER_OF_CACHED_DORMANT_FD<100 {
+        Secretary.WarnD("The configuration variable MAX_NUMBER_OF_CACHED_DORMANT_FD is too small and is set to 100 automatically.")
+        MAX_NUMBER_OF_CACHED_DORMANT_FD=100
     }
 
     return true
