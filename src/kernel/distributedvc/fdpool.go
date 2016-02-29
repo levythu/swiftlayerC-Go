@@ -27,13 +27,14 @@ func _no_u_se() {
     fmt.Println("")
 }
 
+// may return nil for error
 func GetFD(filename string) *FD {
     locks[0].RLock()
     var elem, ok=fdPool[filename]
     if ok {
         elem.Grasp()
         locks[0].RUnlock()
-        fmt.Println("Exist & provide:", filename)
+        //fmt.Println("Exist & provide:", filename)
         return elem
     }
     locks[0].RUnlock()
@@ -43,15 +44,19 @@ func GetFD(filename string) *FD {
     if ok {
         elem.Grasp()
         locks[0].Unlock()
-        fmt.Println("Exist & provide:", filename)
+        //fmt.Println("Exist & provide:", filename)
         return elem
+    }
+    if len(fdPool)>conf.MAX_NUMBER_OF_TOTAL_DORMANT_FD {
+        locks[0].Unlock()
+        return nil
     }
     // New a FD
     var ret=newFD(filename)
     fdPool[filename]=ret
     ret.Grasp()
     locks[0].Unlock()
-    fmt.Println("Create:", filename)
+    //fmt.Println("Create:", filename)
     return ret
 }
 func GetFDWithoutModifying(filename string) *FD {
