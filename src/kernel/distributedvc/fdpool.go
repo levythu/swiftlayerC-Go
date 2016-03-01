@@ -191,6 +191,8 @@ func (this *FD)GraspReader() {
         this.isInDormant=false
         dormant.Cut(this.dormantNode)
     }
+
+    go this.GoRead()
 }
 func (this *FD)ReleaseReader() {
     this.lock.Lock()

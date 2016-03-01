@@ -8,6 +8,7 @@ import (
     "strconv"
     . "definition/configinfo"
     . "utils/timestamp"
+    "errors"
 )
 
 type FD struct {
@@ -19,7 +20,7 @@ type FD struct {
     reader int
     peeper int
 
-    // 1 for active, 2 for dormant, 0 for uninited, 99 for dead
+    // 1 for active, 2 for dormant, 0 for uninited, -1 for dead
     status int
 
     isInTrash bool
@@ -35,6 +36,7 @@ type FD struct {
     // only available when active
     numberZero *filetype.Kvmap
     contentLock *sync.RWMutex
+    nextToBeMerge int
 }
 
 // Lock priority: lock > updateChainLock > contentLock
@@ -59,6 +61,7 @@ func newFD(filename string, io Outapi) *FD {
 
         numberZero: nil,
         contentLock: &sync.RWMutex{},
+        nextToBeMerge: -1,
     }
     ret.trashNode=&fdDLinkedListNode {
         carrier: ret,
@@ -83,7 +86,7 @@ func (this *FD)GoDie() {
     if this.status!=1 {
         return
     }
-    this.status=99
+    this.status=-1
 
     return
 }
@@ -100,19 +103,91 @@ func (this *FD)GoDormant() bool {
 
     return true
 }
-func (this *FD)Read() {
-    this.lock.Lock()
-    defer this.lock.Unlock()
 
-    // load in and parse file
-    this.status=1
+// If not active yet, will fetch the data from storage.
+// With fetching failure, a nil will be returned.
+// @ Must be Grasped Reader to use
+func (this *FD)Read() *filetype.Kvmap {
+    this.contentLock.RLock()
+    var t=this.numberZero
+    this.contentLock.RUnlock()
+    if t!=nil {
+        return t
+    }
+    if ReadInNumberZero()!=nil {
+        return nil
+    }
+    this.contentLock.RLock()
+    t=this.numberZero
+    this.contentLock.RUnlock()
+    return t
 }
+
+// Attentez: this method is asynchonously invoked
 func (this *FD)GoGrasped() {
     this.LoadPointerMap()
 }
 
-func (this *FD)ReadInNumberZero() error {
+// Attentez: this method is asynchonously invoked
+func (this *FD)GoRead() {
+    this.ReadInNumberZero()
+}
 
+// @ indeed static
+func (this *FD)GetTSFromMeta(meta FileMeta) ClxTimestamp {
+    if tTS, tOK:=meta[METAKEY_TIMESTAMP]; !tOK {
+        Secretary.WarnD("File "+this.filename+"'s patch #0 has invalid timestamp.")
+        return 0
+    } else {
+        return String2ClxTimestamp(tTS)
+    }
+}
+var READ_ZERO_NONEXISTENCE=errors.New("Patch#0 does not exist.")
+// @ Must be Grasped Reader to use
+func (this *FD)ReadInNumberZero() error {
+    this.lock.Lock()
+    defer this.lock.Unlock()
+
+    this.contentLock.Lock()
+    defer this.contentLock.Unlock()
+
+    if this.numberZero!=nil {
+        return nil
+    }
+
+    var tMeta, tFile, tErr=this.io.Get(this.GetPatchName(0, -1))
+    if tErr!=nil {
+        return tErr
+    }
+    if tFile==nil || tMeta==nil {
+        return READ_ZERO_NONEXISTENCE
+    }
+    var tKvmap, ok=tFile.(*filetype.Kvmap)
+    if !ok {
+        Secretary.WarnD("File "+this.filename+"'s patch #0 has invalid filetype. Its content will get ignored.")
+        this.numberZero=filetype.NewKvMap()
+    } else {
+        this.numberZero=tKvmap
+    }
+    this.numberZero.TSet(this.GetTSFromMeta(tMeta))
+    if tNext, ok2:=tMeta[INTRA_PATCH_METAKEY_NEXT_PATCH]; !ok2 {
+        Secretary.WarnD("File "+this.filename+"'s patch #0 has invalid next-patch. Its precedents will get ignored.")
+        this.nextToBeMerge=1
+    } else {
+        if nextNum, errx:=strconv.Atoi(tNext); errx!=nil {
+            Secretary.WarnD("File "+this.filename+"'s patch #0 has invalid next-patch. Its precedents will get ignored.")
+            this.nextToBeMerge=1
+        } else {
+            this.nextToBeMerge=nextNum
+        }
+    }
+    this.status=1
+    return nil
+}
+
+// @ Must be Grasped Reader to use
+func (this *FD)MergeNext() error {
+    var
 }
 
 /*
@@ -132,6 +207,7 @@ func (this *Fd)GetPatchName(patchnumber int, nodenumber int/*-1*/) string {
     return this.filename+".node"+strconv.Itoa(nodenumber)+".patch"+strconv.Itoa(patchnumber)
 }
 
+// @ Get Normally Grasped
 func (this *FD)LoadPointerMap() error {
     this.lock.Lock()
     defer this.lock.Unlock()
@@ -151,28 +227,44 @@ func (this *FD)LoadPointerMap() error {
         }
         if tMeta==nil {
             // the file does not exist
+            if this.status<=0 {
+                this.status=2
+            }
             this.nextAvailablePosition=tmpPos
             return nil
         }
         if tNum, ok:=tMeta[INTRA_PATCH_METAKEY_NEXT_PATCH]; !ok {
             Secretary.WarnD("File "+this.filename+"'s patch #"+tmpPos+" has broken/invalid metadata. All the patches after it will get lost.")
+            if this.status<=0 {
+                this.status=2
+            }
             this.nextAvailablePosition=tmpPos+1
             return nil
         } else {
+            var oldPos=tmpPos
             tmpPos, tErr=strconv.Atoi(tNum)
+            if tErr!=nil {
+                Secretary.WarnD("File "+this.filename+"'s patch #"+tmpPos+" has broken/invalid metadata. All the patches after it will get lost.")
+                tmpPos=oldPos
+            }
             // TODO: consider add it into merge list
         }
     }
 
     return nil
 }
+// @ Get Normally Grasped
 func (this *FD)Submit(object *filetype.Kvmap) error {
-    this.updateChainLock.RLock()
-    defer this.updateChainLock.RUnlock()
-
+    this.updateChainLock.Lock()
     if this.nextAvailablePosition<0 {
-        panic("Fatal logic error!")
+        this.updateChainLock.Unlock()
+        if err:=this.LoadPointerMap(); err!=nil {
+            return nil
+        }
+        this.updateChainLock.Lock()
     }
+    defer this.updateChainLock.Unlock()
+
     var err=this.io.Put(this.GetPatchName(this.nextAvailablePosition, -1),
                 object,
                 FileMeta(map[string]string {
