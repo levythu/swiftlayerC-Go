@@ -27,7 +27,7 @@ func ConnectbyAuth(username string, passwd string, tenant string) *SwiftConnecto
         UserName: username,
         ApiKey: passwd,
         Tenant: tenant,
-        AuthUrl: configinfo.GetProperty_Node("swift_auth_url").(string),
+        AuthUrl: configinfo.SWIFT_AUTH_URL,
         //AuthVersion: 2,
     }
     if err:=swc.Authenticate();err!=nil {
@@ -120,7 +120,7 @@ func (this *Swiftio)Get(filename string) (FileMeta, filetype.Filetype, error) {
     contents:=&bytes.Buffer{}
     header, err:=this.conn.c.ObjectGet(
         this.container, filename, contents,
-        configinfo.GetProperty_Node("index_file_check_md5").(bool),
+        configinfo.INDEX_FILE_CHECK_MD5,
         nil)
 
     if err!=nil {

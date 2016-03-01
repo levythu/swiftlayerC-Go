@@ -1,8 +1,8 @@
 package configinfo
 
 import (
-    "log"
     . "definition"
+    "logger"
 )
 
 func errcomb(err1, err2 error) error {
@@ -13,18 +13,19 @@ func errcomb(err1, err2 error) error {
 }
 
 var conf map[string]Tout=make(map[string]Tout)
-var err1=AppendFileToJSON("conf/nodeinfo.json", conf)
-var err2=errcomb(err1, AppendFileToJSON("conf/accountinfo.debug.noupload.json", conf))
 
-func GetProperty_Node(proname string) Tout {
-    const errPrefix="<Nodeinfo::GetProperty_Node> "
-    if err2!=nil {
-        log.Fatal(errPrefix+err2.Error())
+func errorAssert(err error, reason string) bool {
+    if err!=nil {
+        logger.Secretary.Error(reason, err)
+        panic("EXIT DUE TO ASSERTION FAILURE.")
     }
-    var elem, ok=conf[proname]
-    if ok==false {
-        log.Fatal(errPrefix+"No such a property named "+proname)
+    return false
+}
+func extractProperty(key string) Tout {
+    var elem, ok=conf[key]
+    if !ok {
+        logger.Secretary.ErrorD("Fail to extract property <"+key+">")
+        panic("EXIT DUE TO ASSERTION FAILURE.")
     }
-
     return elem
 }

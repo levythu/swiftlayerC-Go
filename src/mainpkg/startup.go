@@ -7,7 +7,7 @@ import (
 )
 
 func prepEnv_SetConcurrency() {
-    num:=int(configinfo.GetProperty_Node("thread_utilised").(float64))
+    num:=configinfo.THREAD_UTILISED
     if (num<=0) {
         num=runtime.NumCPU()
     }
