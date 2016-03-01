@@ -3,7 +3,9 @@ package distributedvc
 import (
     "sync"
     conf "definition/configinfo"
+    . "outapi"
     "fmt"
+    . "logger"
 )
 
 /*
@@ -28,41 +30,44 @@ func _no_u_se() {
 }
 
 // may return nil for error
-func GetFD(filename string) *FD {
+func GetFD(filename string, io Outapi) *FD {
     locks[0].RLock()
-    var elem, ok=fdPool[filename]
+    var identifier=genID_static(filename, io)
+    var elem, ok=fdPool[identifier]
     if ok {
         elem.Grasp()
         locks[0].RUnlock()
-        //fmt.Println("Exist & provide:", filename)
+        //fmt.Println("Exist & provide:", identifier)
         return elem
     }
     locks[0].RUnlock()
 
     locks[0].Lock()
-    elem, ok=fdPool[filename]
+    elem, ok=fdPool[identifier]
     if ok {
         elem.Grasp()
         locks[0].Unlock()
-        //fmt.Println("Exist & provide:", filename)
+        //fmt.Println("Exist & provide:", identifier)
         return elem
     }
     if len(fdPool)>conf.MAX_NUMBER_OF_TOTAL_DORMANT_FD {
+        Secretary.ErrorD("MAX_NUMBER_OF_TOTAL_DORMANT_FD reached and new FDs fail to be created. Consider modifying your settings please.")
         locks[0].Unlock()
         return nil
     }
     // New a FD
-    var ret=newFD(filename)
-    fdPool[filename]=ret
+    var ret=newFD(filename, io)
+    fdPool[identifier]=ret
     ret.Grasp()
     locks[0].Unlock()
-    //fmt.Println("Create:", filename)
+    //fmt.Println("Create:", identifier)
     return ret
 }
-func GetFDWithoutModifying(filename string) *FD {
+func GetFDWithoutModifying(filename string, io Outapi) *FD {
     locks[0].RLock()
     defer locks[0].RUnlock()
-    var elem, ok=fdPool[filename]
+    var identifier=genID_static(filename, io)
+    var elem, ok=fdPool[identifier]
     if ok {
         elem.Grasp()
         return elem
@@ -104,7 +109,7 @@ func ClearTrash() {
 
     delTail.next=nil
     for delHead!=nil {
-        delete(fdPool, delHead.carrier.filename)
+        delete(fdPool, delHead.carrier.ID())
         delHead.carrier.GoDie()
         delHead=delHead.next
     }
@@ -157,6 +162,7 @@ func (this *FD)Grasp() {
         this.isInTrash=false
         trash.Cut(this.trashNode)
     }
+    go this.GoGrasped()
 }
 func (this *FD)Release() {
     // If peeper==0, throw into trashlist and check capacity

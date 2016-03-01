@@ -12,9 +12,6 @@ func NewMeta() FileMeta {
 }
 
 func CheckIntegrity(obj FileMeta) bool {
-    if _, ok:=obj[METAKEY_TIMESTAMP]; !ok {
-        return false
-    }
     if _, ok:=obj[METAKEY_TYPE]; !ok {
         return false
     }

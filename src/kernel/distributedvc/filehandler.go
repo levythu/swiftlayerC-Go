@@ -3,12 +3,16 @@ package distributedvc
 import (
     "sync"
     _ "logger"
+    "kernel/filetype"
+    . "outapi"
 )
 
 type FD struct {
+    /*====BEGIN: for fdPool====*/
     lock *sync.Mutex
 
     filename string
+    io Outapi
     reader int
     peeper int
 
@@ -19,17 +23,30 @@ type FD struct {
     isInDormant bool
     trashNode *fdDLinkedListNode
     dormantNode *fdDLinkedListNode
+    /*====END: for fdPool====*/
+
+    /*====BEGIN: for functionality====*/
+    updateChainLock *sync.RWMutex
+    nextAvailablePosition int
 }
 
-func newFD(filename string) *FD {
+const (
+    INTRA_PATCH_METAKEY_NEXT_PATCH="next-patch"
+)
+
+func newFD(filename string, io Outapi) *FD {
     var ret=&FD {
         filename: filename,
+        io: io,
         reader: 0,
         peeper: 0,
         status: 0,
         lock: &sync.Mutex{},
         isInDormant: false,
         isInTrash: false,
+
+        updateChainLock: &sync.RWMutex{},
+        nextAvailablePosition: -1,
     }
     ret.trashNode=&fdDLinkedListNode {
         carrier: ret,
@@ -41,12 +58,18 @@ func newFD(filename string) *FD {
     return ret
 }
 
+func genID_static(filename string, io Outapi) string {
+    return filename+"@@"+io.GenerateUniqueID()
+}
+func (this *FD)ID() string {
+    return genID_static(this.filename, this.io)
+}
 func (this *FD)GoDie() {
     this.lock.Lock()
     defer this.lock.Unlock()
 
     if this.status!=1 {
-        return false
+        return
     }
     this.status=99
 
@@ -71,4 +94,20 @@ func (this *FD)Read() {
 
     // load in and parse file
     this.status=1
+}
+func (this *FD)GoGrasped() {
+    this.LoadPointerMap()
+}
+
+func (this *FD)LoadPointerMap() error {
+    this.updateChainLock.Lock()
+    defer this.updateChainLock.Unlock()
+
+    if this.nextAvailablePosition>=0 {
+        return nil
+    }
+    return nil
+}
+func (this *FD)Submit(object *filetype.Kvmap) error {
+    return nil
 }
