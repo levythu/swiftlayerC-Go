@@ -154,11 +154,7 @@ func (this *Kvmap)CheckIn() {
     this.readData=tRes
 }
 
-func (this *Kvmap)MergeWith(file2 Filetype) (Filetype ,error) {
-    if reflect.TypeOf(this)!=reflect.TypeOf(file2) {
-        return nil, exception.EX_UNMATCHED_MERGE
-    }
-
+func (this *Kvmap)MergeWith(file2 *Kvmap) (*Kvmap, error) {
     tRes:=make([]*KvmapEntry, 0)
     file2x:=file2.(*Kvmap)
     i,j:=0,0

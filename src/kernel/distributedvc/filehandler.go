@@ -185,9 +185,69 @@ func (this *FD)ReadInNumberZero() error {
     return nil
 }
 
+var FORMAT_EXCEPTION=errors.New("Kvmap file not suitable.")
+// if return (nil, nil), the file just does not exist.
+// a nil for file and an error instance will be returned for other errors
+// if the file is not nil, the function is invoked successfully
+func readInKvMapfile(io Outapi, filename string) (*Kvmap, error) {
+    var meta, file, err=io.Get(filename)
+    if err!=nil {
+        return nil, err
+    }
+    if file==nil || meta==nil {
+        Secretary.Warn("distributedvc::readInKvMapfile()", "Fail in reading file "+filename)
+        return nil, nil
+    }
+    var result, ok=file.(*Kvmap)
+    if !ok {
+        Secretary.Warn("distributedvc::readInKvMapfile()", "Fail in reading file "+filename)
+        return nil, FORMAT_EXCEPTION
+    }
+
+    if tTS, tOK:=meta[METAKEY_TIMESTAMP]; !tOK {
+        Secretary.WarnD("File "+filename+"'s patch #0 has invalid timestamp.")
+        result.TSet(0)
+    } else {
+        result.TSet(String2ClxTimestamp(tTS))
+    }
+
+    return result, nil
+}
+
+var MERGE_ERROR=errors.New("Merging error").
+
 // @ Must be Grasped Reader to use
 func (this *FD)MergeNext() error {
-    var
+    if this.Read()==nil {
+        return READ_ZERO_NONEXISTENCE
+    }
+    // Read one patch file , get ready for merge
+    this.updateChainLock.RLock()
+    var nextEmptyPatch=this.nextAvailablePosition
+    this.updateChainLock.RUnlock()
+
+    this.contentLock.Lock()
+    defer this.contentLock.Unlock()
+
+    if nextEmptyPatch==this.nextToBeMerge {
+        return nil
+    }
+
+    var thePatch, err=readInKvMapfile(this.io, this.GetPatchName(this.nextToBeMerge, -1))
+    if thePatch==nil {
+        Secretary.Warn("distributedvc::FD.MergeNext()", "Fail to get a supposed-to-be patch for file "+this.filename)
+        if err==nil {
+            return MERGE_ERROR
+        } else {
+            return err
+        }
+    }
+    tNew, err:=this.numberZero.MergeWith(thePatch)
+    if err!=nil {
+        Secretary.Warn("distributedvc::FD.MergeNext()", "Fail to merge patches for file "+this.filename)
+        return err
+    }
+    this.numberZero=tNew
 }
 
 /*
@@ -273,7 +333,7 @@ func (this *FD)Submit(object *filetype.Kvmap) error {
                 })
     )
     if err!=nil {
-        Secretary.Warn("Fail in putting file "+this.GetPatchName(this.nextAvailablePosition, -1), "FD.Submit()")
+        Secretary.Warn("distributedvc::FD.Submit()", "Fail in putting file "+this.GetPatchName(this.nextAvailablePosition, -1))
         return err
     }
     this.nextAvailablePosition++
