@@ -9,6 +9,6 @@
 - [ ] Content Type!?
 - [ ] Resolve conflict
 - [x] Kick off S-H2
-    - [ ] Improve configure read process
+    - [x] Improve configure read process
     - [ ] modify the way to access files
     - [ ] add inter-communication mechanism

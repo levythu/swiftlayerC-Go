@@ -33,6 +33,7 @@ import (
     "log"
     "sort"
     "reflect"
+    "sync"
     "fmt"
 )
 
@@ -55,6 +56,8 @@ type Kvmap struct {
     dataSource io.Reader
 
     fileTS ClxTimestamp
+
+    lock *sync.RWMutex
 }
 
 func Kvmap_verbose() {
@@ -69,11 +72,31 @@ func NewKvMap() *Kvmap {
     rkv.finishRead=true
     return rkv
 }
+
 func (this *Kvmap)Init(dtSource io.Reader, dtTimestamp ClxTimestamp) {
     this.readData=make([]*KvmapEntry, 0)
     this.dataSource=dtSource
     this.fileTS=dtTimestamp
     this.finishRead=false
+    this.lock=&sync.RWMutex{}
+}
+
+func (this *Kvmap)TSet(dtTimestamp ClxTimestamp) {
+    this.lock.Lock()
+    defer this.lock.Unlock()
+
+    this.fileTS=dtTimestamp
+}
+func (this *Kvmap)TGet() ClxTimestamp {
+    this.lock.RLock()
+    defer this.lock.RUnlock()
+
+    return this.fileTS
+}
+
+func (this *Kvmap)LoadIn(dtSource io.Reader) error {
+    this.Init(dtSource, 0)
+    return this.EnsureRead()
 }
 func (this *Kvmap)GetType() string {
     return "key-value map file"
@@ -88,13 +111,9 @@ func ParseString(inp io.Reader ,length uint32) (string, error) {
     return string(buf[:n]), nil
 }
 
-func (this *Kvmap)GetTS() ClxTimestamp {
-    return this.fileTS
-}
-func (this *Kvmap)SetTS(val ClxTimestamp) {
-    this.fileTS=val
-}
 func (this *Kvmap)CheckOut() {
+    this.lock.RLock()
+    defer this.lock.RUnlock()
     // Attentez: All the modification will not be stored before executing CheckIn
     if this.LoadIntoMem()!=nil {
         return
@@ -110,6 +129,9 @@ func (this *Kvmap)CheckOut() {
     }
 }
 func (this *Kvmap)CheckIn() {
+    this.lock.Lock()
+    defer this.lock.Unlock()
+
     if this.Kvm==nil {
         log.Fatal("<Kvmap::CheckIn> Have not checkout yet.")
     }
@@ -145,15 +167,17 @@ func (this *Kvmap)CheckIn() {
     }
 
     this.readData=tRes
+
+    this.lock.RLock()
 }
 
-func (this *Kvmap)MergeWith(file2 Filetype) (Filetype ,error) {
-    if IsNonexist(file2) {
-        return this, nil
-    }
-    if reflect.TypeOf(this)!=reflect.TypeOf(file2) {
-        return nil, exception.EX_UNMATCHED_MERGE
-    }
+// Attentez: deadlock may happen with incorrect co-merge!!
+func (this *Kvmap)MergeWith(file2 *Kvmap) (*Kvmap, error) {
+    file2.lock.Lock()
+    defer file2.lock.Unlock()
+
+    this.lock.Lock()
+    defer this.lock.Unlock()
 
     tRes:=make([]*KvmapEntry, 0)
     file2x:=file2.(*Kvmap)
@@ -205,6 +229,10 @@ func (this *Kvmap)WriteBack(dtDes io.Writer) error {
     if err:=this.LoadIntoMem(); err!=nil {
         return err
     }
+
+    this.lock.RLock()
+    defer this.lock.RUnlock()
+
     if _,err:=dtDes.Write([]byte(fileMagic)); err!=nil {
         return err
     }
@@ -233,6 +261,9 @@ func (this *Kvmap)WriteBack(dtDes io.Writer) error {
     return nil
 }
 func (this *Kvmap)LoadIntoMem() error {
+    this.lock.Lock()
+    defer this.lock.Unlock()
+
     for !this.finishRead {
         _, err:=this.lazyRead(len(this.readData))
         if err!=nil {
@@ -308,6 +339,7 @@ func (this *Kvmap)lazyRead(pos int) (*KvmapEntry, error) {
 
 // Get the latest TS, from the removed version as well
 // If not exist, return 0
+// Must be checked out first.
 func (this *Kvmap)GetRelativeTS(entry string) ClxTimestamp {
     if this.Kvm==nil {
         log.Fatal("<Kvmap::CheckIn> Have not checkout yet.")
@@ -326,8 +358,4 @@ func (this *Kvmap)GetRelativeTS(entry string) ClxTimestamp {
     }
 
     return MergeTimestamp(v1, v2)
-}
-
-func (this *Kvmap)IsPointer() bool {
-    return false
 }

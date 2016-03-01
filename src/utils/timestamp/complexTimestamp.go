@@ -1,6 +1,4 @@
-// Relative Timestamp is a 8-bytes integer (unsigned long), indeed, with
-// higher 20 bits of version and lower 36 bits of time(UNIX TIME IN SECONDS).
-// HIGHEST 7 bits are reserved.
+// OLD version is deprecated. It is currently only serve for absTimestamp
 
 package timestamp
 
@@ -11,13 +9,6 @@ import (
 
 type ClxTimestamp uint64
 
-func GetVersionNumber(timestamp ClxTimestamp) uint32 {
-    return uint32((timestamp>>36)&0xfffff)
-}
-
-func GetExacttime(timestamp ClxTimestamp) uint64 {
-    return uint64(timestamp)&0xfffffffff
-}
 
 func processRawTime(unixTime uint64) ClxTimestamp {
     unixTime=unixTime&0xfffffffff
@@ -25,8 +16,8 @@ func processRawTime(unixTime uint64) ClxTimestamp {
     return ClxTimestamp(unixTime)
 }
 
-func GetTimestamp(baseTime ClxTimestamp) ClxTimestamp {
-    return (((ClxTimestamp(GetVersionNumber(baseTime))+1)&0xfffff)<<36)+processRawTime(uint64(time.Now().Unix()))
+func GetTimestamp() ClxTimestamp {
+    return ClxTimestamp(time.Now().UnixNano())
 }
 
 func String2ClxTimestamp(val string) ClxTimestamp {

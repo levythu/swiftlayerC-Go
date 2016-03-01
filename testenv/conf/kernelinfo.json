@@ -1,0 +1,10 @@
+{
+    "max_number_of_cached_active_fd": 100,
+    "max_number_of_cached_dormant_fd": 500,
+
+    /*  Attention: the total-active value indicates the capacity of holded fds ( active for reader-holded and
+        dormant for total-holded ). When holded fds are too many, cached fds will not get wiped by force. So
+        avoid setting the delta too small. */
+    "max_number_of_total_active_fd": 3000,  /* NOT IMPLEMENTED YET */
+    "max_number_of_total_dormant_fd": 2000000
+}
