@@ -1,11 +1,4 @@
 # swiftlayerC-Go
 The Golang version of Swift Layer-C
 
-**ATTENTION: this branch is deprecated and just for reference. For the latest update please checkout branch `serverless_h2`**
-
-Dependencies:
-
-- [github.com/ncw/swift](https://github.com/ncw/swift)
-- [github.com/levythu/gurgling](https://github.com/levythu/gurgling)
-
-**Remember to set environment variable SLCHOME to locate the homepath.**
+**ATTENTION: this branch is deprecated and just for reference. For the latest update please checkout branch `master`**
