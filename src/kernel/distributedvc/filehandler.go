@@ -11,6 +11,26 @@ import (
     "errors"
 )
 
+/*
+** FD: File Descriptor
+** File Descriptor is the core data structure of the S-H2, which is responsible for
+** directory meta info management.
+** Each FD represents a separate directory meta and is unique in the memory. It controls
+** submission of patches and auto-merging. Also, any LS operation will execute it
+** to read & merge all the data, while notifying random number of peers to update their
+** own patch chain.
+** The first segment of member variables are used for fdPool to keep it unique and supporting
+** automatically wiped out to control memory cost. It has several phases:
+** 1. uninited phase:   neither the file content nor the chain info is loaded into memory
+** 2. dormant phase:    when .grasp() gets invoked it will load chain info into memory,
+**                      then functions like .MergeNext(), .ReadInNumberZero() and .Read()
+**                      could get executed
+** 3. active phase:     when .graspReader() gets invoked it will loadthe file into memory,
+**                      then function .Submit could get executed.
+** So always GetFD()->[GraspReader()->ReleaseReader()]->Release() in use
+**
+*/
+
 type FD struct {
     /*====BEGIN: for fdPool====*/
     lock *sync.Mutex
