@@ -101,29 +101,36 @@ func genID_static(filename string, io Outapi) string {
 func (this *FD)ID() string {
     return genID_static(this.filename, this.io)
 }
+
+func (this *FD)__clearContentSansLock() {
+    if this.status!=1 {
+        return
+    }
+
+    this.contentLock.Lock()
+    this.numberZero=nil
+    this.nextToBeMerge=-1
+    // consider write-back for unpersisted data
+    this.contentLock.Unlock()
+
+    this.status=2
+}
 func (this *FD)GoDie() {
     this.lock.Lock()
     defer this.lock.Unlock()
 
-    if this.status!=1 {
-        return
-    }
+    this.__clearContentSansLock()
     this.status=-1
 
     return
 }
-func (this *FD)GoDormant() bool {
+func (this *FD)GoDormant() {
     this.lock.Lock()
     defer this.lock.Unlock()
     this.isInDormant=false
-    //logger.Secretary.LogD("Filehandler "+this.filename+" is going dormant.")
-    if this.status!=1 {
-        // noe active yet.
-        return false
-    }
-    this.status=2
 
-    return true
+    //logger.Secretary.LogD("Filehandler "+this.filename+" is going dormant.")
+    this.__clearContentSansLock()
 }
 
 // If not active yet, will fetch the data from storage.
