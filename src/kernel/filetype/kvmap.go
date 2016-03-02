@@ -32,7 +32,6 @@ import (
     "encoding/binary"
     "log"
     "sort"
-    "reflect"
     "sync"
     "fmt"
 )
@@ -68,7 +67,7 @@ func NewKvMap() *Kvmap {
     var nkv Kvmap
     rkv:=&nkv
 
-    rkv.Init(nil, GetTimestamp(0))
+    rkv.Init(nil, GetTimestamp())
     rkv.finishRead=true
     return rkv
 }
@@ -180,7 +179,7 @@ func (this *Kvmap)MergeWith(file2 *Kvmap) (*Kvmap, error) {
     defer this.lock.Unlock()
 
     tRes:=make([]*KvmapEntry, 0)
-    file2x:=file2.(*Kvmap)
+    file2x:=file2
     i,j:=0,0
 
     for {

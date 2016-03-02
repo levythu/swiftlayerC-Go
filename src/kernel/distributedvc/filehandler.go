@@ -2,8 +2,10 @@ package distributedvc
 
 import (
     "sync"
-    _ "logger"
+    . "logger"
     "kernel/filetype"
+    . "kernel/distributedvc/filemeta"
+    . "kernel/distributedvc/constdef"
     . "outapi"
     "strconv"
     . "definition/configinfo"
@@ -134,7 +136,7 @@ func (this *FD)Read() *filetype.Kvmap {
     if t!=nil {
         return t
     }
-    if ReadInNumberZero()!=nil {
+    if this.ReadInNumberZero()!=nil {
         return nil
     }
     this.contentLock.RLock()
@@ -209,7 +211,7 @@ var FORMAT_EXCEPTION=errors.New("Kvmap file not suitable.")
 // if return (nil, nil), the file just does not exist.
 // a nil for file and an error instance will be returned for other errors
 // if the file is not nil, the function is invoked successfully
-func readInKvMapfile(io Outapi, filename string) (*Kvmap, error) {
+func readInKvMapfile(io Outapi, filename string) (*filetype.Kvmap, error) {
     var meta, file, err=io.Get(filename)
     if err!=nil {
         return nil, err
@@ -218,7 +220,7 @@ func readInKvMapfile(io Outapi, filename string) (*Kvmap, error) {
         Secretary.Warn("distributedvc::readInKvMapfile()", "Fail in reading file "+filename)
         return nil, nil
     }
-    var result, ok=file.(*Kvmap)
+    var result, ok=file.(*filetype.Kvmap)
     if !ok {
         Secretary.Warn("distributedvc::readInKvMapfile()", "Fail in reading file "+filename)
         return nil, FORMAT_EXCEPTION
@@ -234,7 +236,7 @@ func readInKvMapfile(io Outapi, filename string) (*Kvmap, error) {
     return result, nil
 }
 
-var MERGE_ERROR=errors.New("Merging error").
+var MERGE_ERROR=errors.New("Merging error")
 
 // @ Must be Grasped Reader to use
 func (this *FD)MergeNext() error {
@@ -268,6 +270,7 @@ func (this *FD)MergeNext() error {
         return err
     }
     this.numberZero=tNew
+    return nil
 }
 
 /*
@@ -280,7 +283,7 @@ func (this *FD)MergeNext() error {
 ** and the dormant fd will store the next available patch number.
 */
 
-func (this *Fd)GetPatchName(patchnumber int, nodenumber int/*-1*/) string {
+func (this *FD)GetPatchName(patchnumber int, nodenumber int/*-1*/) string {
     if nodenumber<0 {
         nodenumber=NODE_NUMBER
     }
@@ -314,7 +317,7 @@ func (this *FD)LoadPointerMap() error {
             return nil
         }
         if tNum, ok:=tMeta[INTRA_PATCH_METAKEY_NEXT_PATCH]; !ok {
-            Secretary.WarnD("File "+this.filename+"'s patch #"+tmpPos+" has broken/invalid metadata. All the patches after it will get lost.")
+            Secretary.WarnD("File "+this.filename+"'s patch #"+strconv.Itoa(tmpPos)+" has broken/invalid metadata. All the patches after it will get lost.")
             if this.status<=0 {
                 this.status=2
             }
@@ -324,7 +327,7 @@ func (this *FD)LoadPointerMap() error {
             var oldPos=tmpPos
             tmpPos, tErr=strconv.Atoi(tNum)
             if tErr!=nil {
-                Secretary.WarnD("File "+this.filename+"'s patch #"+tmpPos+" has broken/invalid metadata. All the patches after it will get lost.")
+                Secretary.WarnD("File "+this.filename+"'s patch #"+strconv.Itoa(tmpPos)+" has broken/invalid metadata. All the patches after it will get lost.")
                 tmpPos=oldPos
             }
             // TODO: consider add it into merge list
@@ -349,13 +352,14 @@ func (this *FD)Submit(object *filetype.Kvmap) error {
                 object,
                 FileMeta(map[string]string {
                     INTRA_PATCH_METAKEY_NEXT_PATCH: strconv.Itoa(this.nextAvailablePosition+1),
-                    METAKEY_TIMESTAMP: GetTimestamp().String()
-                })
-    )
+                    METAKEY_TIMESTAMP: GetTimestamp().String(),
+                }))
     if err!=nil {
         Secretary.Warn("distributedvc::FD.Submit()", "Fail in putting file "+this.GetPatchName(this.nextAvailablePosition, -1))
         return err
     }
     this.nextAvailablePosition++
     // TODO: consider add it into merge list
+
+    return nil
 }
