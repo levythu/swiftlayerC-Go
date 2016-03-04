@@ -368,7 +368,10 @@ func (this *FD)Submit(object *filetype.Kvmap) error {
 
     var selfName=CONF_FLAG_PREFIX+NODE_SYNC_TIME_PREFIX+strconv.Itoa(NODE_NUMBER)
     var nowTime=GetTimestamp()
-    object.CheckOut()[selfName]=&filetype.KvmapEntry {
+    if object.Kvm==nil {
+        object.CheckOut()
+    }
+    object.Kvm[selfName]=&filetype.KvmapEntry {
         Key: selfName,
         Val: "",
         Timestamp: nowTime,

@@ -13,3 +13,5 @@
     - [x] modify the way to access files
     - [ ] add inter-communication mechanism
     - [ ] Consider reconstruct kvmap to allow fast access to timestamp
+    - [ ] Add auto mergenext
+    - [ ] Prepare to auto-fix folders that have not got a proper ../.
