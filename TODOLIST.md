@@ -10,5 +10,6 @@
 - [ ] Resolve conflict
 - [x] Kick off S-H2
     - [x] Improve configure read process
-    - [ ] modify the way to access files
+    - [x] modify the way to access files
     - [ ] add inter-communication mechanism
+    - [ ] Consider reconstruct kvmap to allow fast access to timestamp

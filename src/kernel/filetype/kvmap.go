@@ -110,13 +110,15 @@ func ParseString(inp io.Reader ,length uint32) (string, error) {
     return string(buf[:n]), nil
 }
 
-func (this *Kvmap)CheckOut() {
-    this.lock.RLock()
-    defer this.lock.RUnlock()
+func (this *Kvmap)CheckOut() map[string]*KvmapEntry {
     // Attentez: All the modification will not be stored before executing CheckIn
     if this.LoadIntoMem()!=nil {
-        return
+        return nil
     }
+
+    this.lock.RLock()
+    defer this.lock.RUnlock()
+
     this.Kvm=make(map[string]*KvmapEntry)
     this.rmed=make(map[string]*KvmapEntry)
     for _, elem:=range this.readData {
@@ -126,6 +128,8 @@ func (this *Kvmap)CheckOut() {
             this.Kvm[elem.Key]=elem
         }
     }
+
+    return this.Kvm
 }
 func (this *Kvmap)CheckIn() {
     this.lock.Lock()
@@ -166,8 +170,6 @@ func (this *Kvmap)CheckIn() {
     }
 
     this.readData=tRes
-
-    this.lock.RLock()
 }
 
 // Attentez: deadlock may happen with incorrect co-merge!!

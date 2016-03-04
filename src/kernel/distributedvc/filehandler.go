@@ -363,6 +363,14 @@ func (this *FD)Submit(object *filetype.Kvmap) error {
     }
     defer this.updateChainLock.Unlock()
 
+    var selfName=CONF_FLAG_PREFIX+NODE_SYNC_TIME_PREFIX+strconv.Itoa(NODE_NUMBER)
+    object.CheckOut()[selfName]=&filetype.KvmapEntry {
+        Key: selfName,
+        Val: "",
+        Timestamp: GetTimestamp(),
+    }
+    object.CheckIn()
+
     var err=this.io.Put(this.GetPatchName(this.nextAvailablePosition, -1),
                 object,
                 FileMeta(map[string]string {
@@ -453,9 +461,8 @@ func (this *FD)Sync() error {
         return nil
     }
 
-    var myself=this.numberZero
-    if myself==nil {
-        myself=filetype.NewKvMap()
+    if this.numberZero==nil {
+        this.numberZero=filetype.NewKvMap()
         this.nextToBeMerge=1
     }
     for searchNode:=0; searchNode<NODE_NUMS_IN_ALL; searchNode++ {
@@ -481,6 +488,7 @@ func (this *FD)WriteBack() error {
 
     var meta4Set=NewMeta()
     meta4Set[METAKEY_TIMESTAMP]=this.numberZero.TGet().String()
+    meta4Set[INTRA_PATCH_METAKEY_NEXT_PATCH]=strconv.Itoa(this.nextToBeMerge)
     if err:=this.io.Put(this.GetPatchName(0, -1), this.numberZero, meta4Set); err!=nil {
         return err
     }
