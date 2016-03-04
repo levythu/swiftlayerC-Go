@@ -351,6 +351,9 @@ func (this *FD)LoadPointerMap() error {
 
     return nil
 }
+
+// object need not have its Timestamp set, 'cause the function will set it to
+// the current systime
 // @ Get Normally Grasped
 func (this *FD)Submit(object *filetype.Kvmap) error {
     this.updateChainLock.Lock()
@@ -364,10 +367,11 @@ func (this *FD)Submit(object *filetype.Kvmap) error {
     defer this.updateChainLock.Unlock()
 
     var selfName=CONF_FLAG_PREFIX+NODE_SYNC_TIME_PREFIX+strconv.Itoa(NODE_NUMBER)
+    var nowTime=GetTimestamp()
     object.CheckOut()[selfName]=&filetype.KvmapEntry {
         Key: selfName,
         Val: "",
-        Timestamp: GetTimestamp(),
+        Timestamp: nowTime,
     }
     object.CheckIn()
 
@@ -375,7 +379,7 @@ func (this *FD)Submit(object *filetype.Kvmap) error {
                 object,
                 FileMeta(map[string]string {
                     INTRA_PATCH_METAKEY_NEXT_PATCH: strconv.Itoa(this.nextAvailablePosition+1),
-                    METAKEY_TIMESTAMP: GetTimestamp().String(),
+                    METAKEY_TIMESTAMP: nowTime.String(),
                 }))
     if err!=nil {
         Secretary.Warn("distributedvc::FD.Submit()", "Fail in putting file "+this.GetPatchName(this.nextAvailablePosition, -1))

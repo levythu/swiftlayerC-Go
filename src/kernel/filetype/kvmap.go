@@ -360,3 +360,22 @@ func (this *Kvmap)GetRelativeTS(entry string) ClxTimestamp {
 
     return MergeTimestamp(v1, v2)
 }
+
+// Make a Kvmap with following keys in the map and empty vals, setting Timestamp to the
+// system time at the present.
+func FastMake(stringList ...string) *Kvmap {
+    var ret=NewKvMap()
+    var nowTime=GetTimestamp()
+    ret.CheckOut()
+    for _, elem:=range stringList {
+        ret.Kvm[elem]=&KvmapEntry {
+            Key: elem,
+            Val: "",
+            Timestamp: nowTime
+        }
+    }
+    ret.CheckIn()
+    ret.TSet(nowTime)
+
+    return ret
+}
