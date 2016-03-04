@@ -10,6 +10,7 @@ import (
     "strconv"
     . "definition/configinfo"
     . "utils/timestamp"
+    "time"
     "errors"
 )
 
@@ -59,6 +60,8 @@ type FD struct {
     numberZero *filetype.Kvmap
     contentLock *sync.RWMutex
     nextToBeMerge int
+    lastSyncTime int64
+    latestReadableVersionTS ClxTimestamp
 }
 
 // Lock priority: lock > updateChainLock > contentLock
@@ -84,6 +87,8 @@ func newFD(filename string, io Outapi) *FD {
         numberZero: nil,
         contentLock: &sync.RWMutex{},
         nextToBeMerge: -1,
+        lastSyncTime: 0,
+        latestReadableVersionTS: 0,     // This version is for written version
     }
     ret.trashNode=&fdDLinkedListNode {
         carrier: ret,
@@ -136,20 +141,20 @@ func (this *FD)GoDormant() {
 // If not active yet, will fetch the data from storage.
 // With fetching failure, a nil will be returned.
 // @ Must be Grasped Reader to use
-func (this *FD)Read() *filetype.Kvmap {
+func (this *FD)Read() (*filetype.Kvmap, error) {
     this.contentLock.RLock()
     var t=this.numberZero
     this.contentLock.RUnlock()
     if t!=nil {
-        return t
+        return t, nil
     }
-    if this.ReadInNumberZero()!=nil {
-        return nil
+    if err:=this.ReadInNumberZero(); err!=nil {
+        return nil, err
     }
     this.contentLock.RLock()
     t=this.numberZero
     this.contentLock.RUnlock()
-    return t
+    return t, nil
 }
 
 // Attentez: this method is asynchonously invoked
@@ -247,8 +252,8 @@ var MERGE_ERROR=errors.New("Merging error")
 
 // @ Must be Grasped Reader to use
 func (this *FD)MergeNext() error {
-    if this.Read()==nil {
-        return READ_ZERO_NONEXISTENCE
+    if _, tmpErr:=this.Read(); tmpErr!=nil {
+        return tmpErr
     }
     // Read one patch file , get ready for merge
     this.updateChainLock.RLock()
@@ -369,4 +374,91 @@ func (this *FD)Submit(object *filetype.Kvmap) error {
     // TODO: consider add it into merge list
 
     return nil
+}
+
+const CONF_FLAG_PREFIX="/*CONF-FLAG*/"
+const NODE_SYNC_TIME_PREFIX="Node-Sync-"
+
+// Will not require any lock in the process, so the function invocation must be
+// strictly protected by lock in caller.
+// @ only can be invoked by this.Sync()
+func (this *FD)combineNodeX(nodenumber int) error {
+    if nodenumber==NODE_NUMBER {
+        return nil
+    }
+    // First, check whether the corresponding version exists or newer than currently
+    // merged version.
+    var keyStoreName=CONF_FLAG_PREFIX+NODE_SYNC_TIME_PREFIX+strconv.Itoa(nodenumber)
+    if this.numberZero.Kvm==nil {
+        this.numberZero.CheckOut()
+    }
+    var lastTime ClxTimestamp
+    if elem, ok:==this.numberZero.Kvm[keyStoreName]; ok {
+        lastTime=elem.Timestamp
+    } else {
+        lastTime=0
+    }
+    if lastTime>0 {
+        var meta, err=this.io.Getinfo(this.GetPatchName(0, nodenumber))
+        if meta==nil || err!=nil {
+            // The file does not exist. Combining ends.
+            return nil
+        }
+        var res, ok=meta[METAKEY_TIMESTAMP]
+        if !ok {
+            // The file does not exist. Combining ends.
+            return nil
+        }
+        var existRecentTS=String2ClxTimestamp(res)
+        if existRecentTS<=lastTime {
+            // no need to fetch the file
+            return nil
+        }
+    }
+
+    var file, err=readInKvMapfile(this.io, this.GetPatchName(0, nodenumber))
+    if err!=nil {
+        return err
+    }
+    if file==nil {
+        return nil
+    }
+    this.numberZero.MergeWith(file)
+    this.numberZero.CheckOut()
+    var newTS=GetTimestamp()
+    this.numberZero.Kvm[CONF_FLAG_PREFIX+NODE_SYNC_TIME_PREFIX+strconv.Itoa(NODE_NUMBER)]=newTS
+    this.numberZero.TSet(newTS)
+    this.numberZero.CheckIn()
+
+    return nil
+}
+// Read and combine all the version from other nodes, providing the combined version.
+// @ Get Reader Grasped
+func (this *FD)Sync() error {
+    this.ReadInNumberZero()
+    this.contentLock.Lock()
+    defer this.contentLock.Unlock()
+
+    if this.lastSyncTime+SINGLE_FILE_SYNC_INTERVAL_MIN>time.Now().Unix() {
+        // interval is too small, abort the sync.
+        return nil
+    }
+
+    var myself=this.numberZero
+    if myself==nil {
+        myself=filetype.NewKvMap()
+        nextToBeMerge=1
+    }
+    for searchNode:=0; searchNode<NODE_NUMS_IN_ALL; searchNode++ {
+        this.combineNodeX(searchNode)
+    }
+    this.lastSyncTime=time.Now().Unix()
+
+    return nil
+}
+
+// can be invoked after MergeWith(), Sync() or the moment that the FD goes dormant.
+// @ async
+func (this *FD)WriteBack() error {
+
 }

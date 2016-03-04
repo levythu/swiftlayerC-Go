@@ -27,5 +27,8 @@
         of logical cores is recommended to take full advantage of multi-core. If the
         value is less than or equal to zero, it will be set to the number of logical
         cores automatically.  */
-    "thread_utilised": 1
+    "thread_utilised": 1,
+
+    /*  */
+    "single_file_sync_interval_min_in_second": 60
 }
