@@ -396,7 +396,7 @@ func (this *FD)combineNodeX(nodenumber int) error {
         this.numberZero.CheckOut()
     }
     var lastTime ClxTimestamp
-    if elem, ok:==this.numberZero.Kvm[keyStoreName]; ok {
+    if elem, ok:=this.numberZero.Kvm[keyStoreName]; ok {
         lastTime=elem.Timestamp
     } else {
         lastTime=0
@@ -429,7 +429,12 @@ func (this *FD)combineNodeX(nodenumber int) error {
     this.numberZero.MergeWith(file)
     this.numberZero.CheckOut()
     var newTS=GetTimestamp()
-    this.numberZero.Kvm[CONF_FLAG_PREFIX+NODE_SYNC_TIME_PREFIX+strconv.Itoa(NODE_NUMBER)]=newTS
+    var selfName=CONF_FLAG_PREFIX+NODE_SYNC_TIME_PREFIX+strconv.Itoa(NODE_NUMBER)
+    this.numberZero.Kvm[selfName]=&filetype.KvmapEntry {
+        Key: selfName,
+        Val: "",
+        Timestamp: newTS,
+    }
     this.numberZero.TSet(newTS)
     this.numberZero.CheckIn()
     this.modified=true
@@ -451,7 +456,7 @@ func (this *FD)Sync() error {
     var myself=this.numberZero
     if myself==nil {
         myself=filetype.NewKvMap()
-        nextToBeMerge=1
+        this.nextToBeMerge=1
     }
     for searchNode:=0; searchNode<NODE_NUMS_IN_ALL; searchNode++ {
         this.combineNodeX(searchNode)
