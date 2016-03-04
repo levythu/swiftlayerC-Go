@@ -14,7 +14,7 @@ import (
 var swiftc=ConnectbyAuth(KEYSTONE_USERNAME, KEYSTONE_PASSWORD, KEYSTONE_TENANT)
 var io=NewSwiftio(swiftc, "testcon")
 
-func _TestFDGet(t *testing.T) {
+func TestFDGet(t *testing.T) {
     fmt.Println("+++++ TestFDGet::start")
     var huahua=GetFD("huahuad", io)
     huahua.GraspReader()
@@ -24,7 +24,7 @@ func _TestFDGet(t *testing.T) {
     fmt.Println("----- TestFDGet::start")
 }
 
-func TestFDSubmit(t *testing.T) {
+func _TestFDSubmit(t *testing.T) {
     fmt.Println("+++++ TestFDSubmit::start")
     var huahua=GetFD("huahuad", io)
     var toSubmit=NewKvMap()
@@ -41,4 +41,18 @@ func TestFDSubmit(t *testing.T) {
 
     huahua.Release()
     fmt.Println("----- TestFDSubmit::start")
+}
+
+func TestFDSync(t *testing.T) {
+    fmt.Println("+++++ TestFDSync::start")
+    var huahua=GetFD("huahuad", io)
+    huahua.GraspReader()
+
+    fmt.Println(huahua.Sync())
+    var x, _=huahua.Read()
+    fmt.Println(x.CheckOut()["huahuax"])
+
+    huahua.ReleaseReader()
+    huahua.Release()
+    fmt.Println("----- TestFDSync::end")
 }

@@ -231,7 +231,7 @@ func readInKvMapfile(io Outapi, filename string) (*filetype.Kvmap, error) {
         return nil, err
     }
     if file==nil || meta==nil {
-        Secretary.Warn("distributedvc::readInKvMapfile()", "Fail in reading file "+filename)
+        Secretary.Log("distributedvc::readInKvMapfile()", "File "+filename+"does not exist.")
         return nil, nil
     }
     var result, ok=file.(*filetype.Kvmap)
