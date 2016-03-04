@@ -62,6 +62,7 @@ type FD struct {
     nextToBeMerge int
     lastSyncTime int64
     latestReadableVersionTS ClxTimestamp
+    modified bool
 }
 
 // Lock priority: lock > updateChainLock > contentLock
@@ -216,6 +217,7 @@ func (this *FD)ReadInNumberZero() error {
         }
     }
     this.status=1
+    this.modified=false
     return nil
 }
 
@@ -282,6 +284,7 @@ func (this *FD)MergeNext() error {
         return err
     }
     this.numberZero=tNew
+    this.modified=true
     return nil
 }
 
@@ -429,6 +432,7 @@ func (this *FD)combineNodeX(nodenumber int) error {
     this.numberZero.Kvm[CONF_FLAG_PREFIX+NODE_SYNC_TIME_PREFIX+strconv.Itoa(NODE_NUMBER)]=newTS
     this.numberZero.TSet(newTS)
     this.numberZero.CheckIn()
+    this.modified=true
 
     return nil
 }
@@ -460,5 +464,24 @@ func (this *FD)Sync() error {
 // can be invoked after MergeWith(), Sync() or the moment that the FD goes dormant.
 // @ async
 func (this *FD)WriteBack() error {
+    this.contentLock.Lock()
+    defer this.contentLock.Unlock()
 
+    if this.numberZero==nil {
+        return nil
+    }
+    if !this.modified {
+        return nil
+    }
+
+    var meta4Set=NewMeta()
+    meta4Set[METAKEY_TIMESTAMP]=this.numberZero.TGet().String()
+    if err:=this.io.Put(this.GetPatchName(0, -1), this.numberZero, meta4Set); err!=nil {
+        return err
+    }
+
+    this.modified=false
+    this.latestReadableVersionTS=this.numberZero.TGet()
+
+    return nil
 }
