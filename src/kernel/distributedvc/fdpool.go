@@ -63,7 +63,7 @@ func GetFD(filename string, io Outapi) *FD {
     //fmt.Println("Create:", identifier)
     return ret
 }
-func GetFDWithoutModifying(filename string, io Outapi) *FD {
+func PeepFD(filename string, io Outapi) *FD {
     locks[0].RLock()
     defer locks[0].RUnlock()
     var identifier=genID_static(filename, io)

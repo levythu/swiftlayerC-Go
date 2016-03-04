@@ -1,3 +1,14 @@
+/* Configure file for Swift Layer-C.
+**
+** Note that all the line begin with  is macro-ed and will be removed
+** before JSON parse. So it is totally used for comments, and has no
+** effect on the configure value itself.
+**
+** DO NOT remove any property, otherwise it may cause the crackdown of
+** the whole program. If default values need to be set, just leave it
+** as its original value.
+**/
+
 {
     "max_number_of_cached_active_fd": 100,
     "max_number_of_cached_dormant_fd": 500,
@@ -6,5 +17,18 @@
         dormant for total-holded ). When holded fds are too many, cached fds will not get wiped by force. So
         avoid setting the delta too small. */
     "max_number_of_total_active_fd": 3000,  /* NOT IMPLEMENTED YET */
-    "max_number_of_total_dormant_fd": 2000000
+    "max_number_of_total_dormant_fd": 2000000,
+
+    /*  If set to TRUE, mem-get operation (like index-io) will check MD5 to ensure
+        integrity  */
+    "index_file_check_md5": false,
+
+    /*  How many threads is used to run the layer. A number approximate to the number
+        of logical cores is recommended to take full advantage of multi-core. If the
+        value is less than or equal to zero, it will be set to the number of logical
+        cores automatically.  */
+    "thread_utilised": 1,
+
+    /*  */
+    "single_file_sync_interval_min_in_second": 60
 }

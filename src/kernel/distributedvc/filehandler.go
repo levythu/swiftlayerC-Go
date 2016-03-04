@@ -2,12 +2,15 @@ package distributedvc
 
 import (
     "sync"
-    _ "logger"
+    . "logger"
     "kernel/filetype"
+    . "kernel/distributedvc/filemeta"
+    . "kernel/distributedvc/constdef"
     . "outapi"
     "strconv"
     . "definition/configinfo"
     . "utils/timestamp"
+    "time"
     "errors"
 )
 
@@ -57,6 +60,9 @@ type FD struct {
     numberZero *filetype.Kvmap
     contentLock *sync.RWMutex
     nextToBeMerge int
+    lastSyncTime int64
+    latestReadableVersionTS ClxTimestamp
+    modified bool
 }
 
 // Lock priority: lock > updateChainLock > contentLock
@@ -82,6 +88,8 @@ func newFD(filename string, io Outapi) *FD {
         numberZero: nil,
         contentLock: &sync.RWMutex{},
         nextToBeMerge: -1,
+        lastSyncTime: 0,
+        latestReadableVersionTS: 0,     // This version is for written version
     }
     ret.trashNode=&fdDLinkedListNode {
         carrier: ret,
@@ -99,48 +107,55 @@ func genID_static(filename string, io Outapi) string {
 func (this *FD)ID() string {
     return genID_static(this.filename, this.io)
 }
+
+func (this *FD)__clearContentSansLock() {
+    if this.status!=1 {
+        return
+    }
+
+    this.contentLock.Lock()
+    this.numberZero=nil
+    this.nextToBeMerge=-1
+    // consider write-back for unpersisted data
+    this.contentLock.Unlock()
+
+    this.status=2
+}
 func (this *FD)GoDie() {
     this.lock.Lock()
     defer this.lock.Unlock()
 
-    if this.status!=1 {
-        return
-    }
+    this.__clearContentSansLock()
     this.status=-1
 
     return
 }
-func (this *FD)GoDormant() bool {
+func (this *FD)GoDormant() {
     this.lock.Lock()
     defer this.lock.Unlock()
     this.isInDormant=false
-    //logger.Secretary.LogD("Filehandler "+this.filename+" is going dormant.")
-    if this.status!=1 {
-        // noe active yet.
-        return false
-    }
-    this.status=2
 
-    return true
+    //logger.Secretary.LogD("Filehandler "+this.filename+" is going dormant.")
+    this.__clearContentSansLock()
 }
 
 // If not active yet, will fetch the data from storage.
 // With fetching failure, a nil will be returned.
 // @ Must be Grasped Reader to use
-func (this *FD)Read() *filetype.Kvmap {
+func (this *FD)Read() (*filetype.Kvmap, error) {
     this.contentLock.RLock()
     var t=this.numberZero
     this.contentLock.RUnlock()
     if t!=nil {
-        return t
+        return t, nil
     }
-    if ReadInNumberZero()!=nil {
-        return nil
+    if err:=this.ReadInNumberZero(); err!=nil {
+        return nil, err
     }
     this.contentLock.RLock()
     t=this.numberZero
     this.contentLock.RUnlock()
-    return t
+    return t, nil
 }
 
 // Attentez: this method is asynchonously invoked
@@ -202,6 +217,7 @@ func (this *FD)ReadInNumberZero() error {
         }
     }
     this.status=1
+    this.modified=false
     return nil
 }
 
@@ -209,7 +225,7 @@ var FORMAT_EXCEPTION=errors.New("Kvmap file not suitable.")
 // if return (nil, nil), the file just does not exist.
 // a nil for file and an error instance will be returned for other errors
 // if the file is not nil, the function is invoked successfully
-func readInKvMapfile(io Outapi, filename string) (*Kvmap, error) {
+func readInKvMapfile(io Outapi, filename string) (*filetype.Kvmap, error) {
     var meta, file, err=io.Get(filename)
     if err!=nil {
         return nil, err
@@ -218,7 +234,7 @@ func readInKvMapfile(io Outapi, filename string) (*Kvmap, error) {
         Secretary.Warn("distributedvc::readInKvMapfile()", "Fail in reading file "+filename)
         return nil, nil
     }
-    var result, ok=file.(*Kvmap)
+    var result, ok=file.(*filetype.Kvmap)
     if !ok {
         Secretary.Warn("distributedvc::readInKvMapfile()", "Fail in reading file "+filename)
         return nil, FORMAT_EXCEPTION
@@ -234,12 +250,12 @@ func readInKvMapfile(io Outapi, filename string) (*Kvmap, error) {
     return result, nil
 }
 
-var MERGE_ERROR=errors.New("Merging error").
+var MERGE_ERROR=errors.New("Merging error")
 
 // @ Must be Grasped Reader to use
 func (this *FD)MergeNext() error {
-    if this.Read()==nil {
-        return READ_ZERO_NONEXISTENCE
+    if _, tmpErr:=this.Read(); tmpErr!=nil {
+        return tmpErr
     }
     // Read one patch file , get ready for merge
     this.updateChainLock.RLock()
@@ -268,6 +284,8 @@ func (this *FD)MergeNext() error {
         return err
     }
     this.numberZero=tNew
+    this.modified=true
+    return nil
 }
 
 /*
@@ -280,7 +298,7 @@ func (this *FD)MergeNext() error {
 ** and the dormant fd will store the next available patch number.
 */
 
-func (this *Fd)GetPatchName(patchnumber int, nodenumber int/*-1*/) string {
+func (this *FD)GetPatchName(patchnumber int, nodenumber int/*-1*/) string {
     if nodenumber<0 {
         nodenumber=NODE_NUMBER
     }
@@ -314,7 +332,7 @@ func (this *FD)LoadPointerMap() error {
             return nil
         }
         if tNum, ok:=tMeta[INTRA_PATCH_METAKEY_NEXT_PATCH]; !ok {
-            Secretary.WarnD("File "+this.filename+"'s patch #"+tmpPos+" has broken/invalid metadata. All the patches after it will get lost.")
+            Secretary.WarnD("File "+this.filename+"'s patch #"+strconv.Itoa(tmpPos)+" has broken/invalid metadata. All the patches after it will get lost.")
             if this.status<=0 {
                 this.status=2
             }
@@ -324,7 +342,7 @@ func (this *FD)LoadPointerMap() error {
             var oldPos=tmpPos
             tmpPos, tErr=strconv.Atoi(tNum)
             if tErr!=nil {
-                Secretary.WarnD("File "+this.filename+"'s patch #"+tmpPos+" has broken/invalid metadata. All the patches after it will get lost.")
+                Secretary.WarnD("File "+this.filename+"'s patch #"+strconv.Itoa(tmpPos)+" has broken/invalid metadata. All the patches after it will get lost.")
                 tmpPos=oldPos
             }
             // TODO: consider add it into merge list
@@ -349,13 +367,126 @@ func (this *FD)Submit(object *filetype.Kvmap) error {
                 object,
                 FileMeta(map[string]string {
                     INTRA_PATCH_METAKEY_NEXT_PATCH: strconv.Itoa(this.nextAvailablePosition+1),
-                    METAKEY_TIMESTAMP: GetTimestamp().String()
-                })
-    )
+                    METAKEY_TIMESTAMP: GetTimestamp().String(),
+                }))
     if err!=nil {
         Secretary.Warn("distributedvc::FD.Submit()", "Fail in putting file "+this.GetPatchName(this.nextAvailablePosition, -1))
         return err
     }
     this.nextAvailablePosition++
     // TODO: consider add it into merge list
+
+    return nil
+}
+
+const CONF_FLAG_PREFIX="/*CONF-FLAG*/"
+const NODE_SYNC_TIME_PREFIX="Node-Sync-"
+
+// Will not require any lock in the process, so the function invocation must be
+// strictly protected by lock in caller.
+// @ only can be invoked by this.Sync()
+func (this *FD)combineNodeX(nodenumber int) error {
+    if nodenumber==NODE_NUMBER {
+        return nil
+    }
+    // First, check whether the corresponding version exists or newer than currently
+    // merged version.
+    var keyStoreName=CONF_FLAG_PREFIX+NODE_SYNC_TIME_PREFIX+strconv.Itoa(nodenumber)
+    if this.numberZero.Kvm==nil {
+        this.numberZero.CheckOut()
+    }
+    var lastTime ClxTimestamp
+    if elem, ok:=this.numberZero.Kvm[keyStoreName]; ok {
+        lastTime=elem.Timestamp
+    } else {
+        lastTime=0
+    }
+    if lastTime>0 {
+        var meta, err=this.io.Getinfo(this.GetPatchName(0, nodenumber))
+        if meta==nil || err!=nil {
+            // The file does not exist. Combining ends.
+            return nil
+        }
+        var res, ok=meta[METAKEY_TIMESTAMP]
+        if !ok {
+            // The file does not exist. Combining ends.
+            return nil
+        }
+        var existRecentTS=String2ClxTimestamp(res)
+        if existRecentTS<=lastTime {
+            // no need to fetch the file
+            return nil
+        }
+    }
+
+    var file, err=readInKvMapfile(this.io, this.GetPatchName(0, nodenumber))
+    if err!=nil {
+        return err
+    }
+    if file==nil {
+        return nil
+    }
+    this.numberZero.MergeWith(file)
+    this.numberZero.CheckOut()
+    var newTS=GetTimestamp()
+    var selfName=CONF_FLAG_PREFIX+NODE_SYNC_TIME_PREFIX+strconv.Itoa(NODE_NUMBER)
+    this.numberZero.Kvm[selfName]=&filetype.KvmapEntry {
+        Key: selfName,
+        Val: "",
+        Timestamp: newTS,
+    }
+    this.numberZero.TSet(newTS)
+    this.numberZero.CheckIn()
+    this.modified=true
+
+    return nil
+}
+// Read and combine all the version from other nodes, providing the combined version.
+// @ Get Reader Grasped
+func (this *FD)Sync() error {
+    this.ReadInNumberZero()
+    this.contentLock.Lock()
+    defer this.contentLock.Unlock()
+
+    if this.lastSyncTime+SINGLE_FILE_SYNC_INTERVAL_MIN>time.Now().Unix() {
+        // interval is too small, abort the sync.
+        return nil
+    }
+
+    var myself=this.numberZero
+    if myself==nil {
+        myself=filetype.NewKvMap()
+        this.nextToBeMerge=1
+    }
+    for searchNode:=0; searchNode<NODE_NUMS_IN_ALL; searchNode++ {
+        this.combineNodeX(searchNode)
+    }
+    this.lastSyncTime=time.Now().Unix()
+
+    return nil
+}
+
+// can be invoked after MergeWith(), Sync() or the moment that the FD goes dormant.
+// @ async
+func (this *FD)WriteBack() error {
+    this.contentLock.Lock()
+    defer this.contentLock.Unlock()
+
+    if this.numberZero==nil {
+        return nil
+    }
+    if !this.modified {
+        return nil
+    }
+
+    var meta4Set=NewMeta()
+    meta4Set[METAKEY_TIMESTAMP]=this.numberZero.TGet().String()
+    if err:=this.io.Put(this.GetPatchName(0, -1), this.numberZero, meta4Set); err!=nil {
+        return err
+    }
+
+    this.modified=false
+    this.latestReadableVersionTS=this.numberZero.TGet()
+
+    return nil
 }

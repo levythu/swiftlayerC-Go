@@ -21,6 +21,8 @@ var MAX_NUMBER_OF_CACHED_DORMANT_FD int
 var MAX_NUMBER_OF_TOTAL_ACTIVE_FD int
 var MAX_NUMBER_OF_TOTAL_DORMANT_FD int
 
+var SINGLE_FILE_SYNC_INTERVAL_MIN int64
+
 func maxInt(n1, n2 int) int {
     if n1>n2 {
         return n1
@@ -66,6 +68,12 @@ func InitAll() bool {
         Secretary.WarnD("The configuration variable MAX_NUMBER_OF_TOTAL_DORMANT_FD cannot be smaller than MAX_NUMBER_OF_CACHED_DORMANT_FD. "+
             "It is set to twice the value of MAX_NUMBER_OF_CACHED_DORMANT_FD.")
         MAX_NUMBER_OF_TOTAL_DORMANT_FD=2*MAX_NUMBER_OF_CACHED_DORMANT_FD
+    }
+
+    SINGLE_FILE_SYNC_INTERVAL_MIN   =int64(extractProperty("single_file_sync_interval_min_in_second").(float64))
+    if SINGLE_FILE_SYNC_INTERVAL_MIN<0 {
+        Secretary.WarnD("The configuration variable SINGLE_FILE_SYNC_INTERVAL_MIN cannot be negative. It is set to 0.")
+        SINGLE_FILE_SYNC_INTERVAL_MIN=0
     }
 
     return true
