@@ -62,3 +62,8 @@ func (this *EmptyIO)PutStream(filename string, info FileMeta) (io.WriteCloser, e
 func (this *EmptyIO)EnsureSpace() (bool, error) {
     return false, NOT_IMPLEMENTED_ERROR
 }
+
+
+func (this *EmptyIO)Copy(srcname string, desname string, overrideMeta FileMeta) error {
+    return NOT_IMPLEMENTED_ERROR
+}
