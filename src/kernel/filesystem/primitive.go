@@ -17,6 +17,7 @@ import (
     "outapi"
     "definition/exception"
     dvc "kernel/distributedvc"
+    . "logger"
     "kernel/filetype"
 )
 
@@ -33,6 +34,11 @@ func CheckValidFilename(filename string) bool {
     return true
 }
 
+// generate filename for nnode file
+func GenFileName(inode string, filename string) string {
+    return inode+"::"+filename
+}
+
 // From the parent inode, consult the vfilename and return its corresponding filename
 // With any error, the string returned will be "".
 // However, when the file does not exist, error WILL BE nil
@@ -40,16 +46,14 @@ func lookUp(inode string, vfilename string, io outapi.Outapi) (string, error) {
     if !CheckValidFilename(vfilename) {
         return "", exception.EX_INVALID_FILENAME
     }
-    var tmp=dvc.GetFD(inode, io)
-    inodefile, _:=tmp.GetFile().(*filetype.Kvmap)
-    tmp.Release()
-    if inodefile==nil {
-        return "", exception.EX_INODE_NONEXIST
+    var _, file, err=io.Get(GenFileName(inode, vfilename))
+    if file==nil {
+        return nil, err
     }
-    inodefile.CheckOut()
-    elem, ok:=inodefile.Kvm[vfilename]
-    if !ok {
-        return "", nil
+    if fileNnode, ok:=file.(*filetype.Nnode); !ok {
+        Secretary.Warn("kernel.filesystem::lookUp", "File "+GenFileName(inode, vfilename)+" has a invalid filetype.")
+        return nil, nil
+    } else {
+        return fileNnode.DesName
     }
-    return elem.Val, nil
 }

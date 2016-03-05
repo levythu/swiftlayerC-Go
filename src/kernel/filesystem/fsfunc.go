@@ -20,6 +20,7 @@ const ROOT_INODE_NAME="rootNode"
 
 type Fs struct {
     io outapi.Outapi
+    rootName string
 }
 func __nouse__() {
     fmt.Println("123")
@@ -28,8 +29,11 @@ func __nouse__() {
 func NewFs(_io outapi.Outapi) *Fs {
     return &Fs{
         io: _io,
+        rootName: ROOT_INODE_NAME,
     }
 }
+
+const FOLDER_MAP="/$Folder-Map/"
 
 //==============================================================================
 // Followings are filesystem functions:
@@ -41,7 +45,7 @@ func (this *Fs)Locate(path string, frominode string/*=""*/) (string, error) {
     if strings.HasPrefix(path, "/") || frominode=="" {
         frominode=ROOT_INODE_NAME
     }
-    rawResult:=strings.Split(path, "/")
+    var rawResult=strings.Split(path, "/")
     for _, e:=range rawResult {
         if e!="" {
             frominode, _=lookUp(frominode, e, this.io)
@@ -55,86 +59,97 @@ func (this *Fs)Locate(path string, frominode string/*=""*/) (string, error) {
     return frominode, nil
 }
 
-func (this *Fs)Mkdir(foldername string, frominode string) error {
+// If the file exist and forceMake==false, an error will be returned
+func (this *Fs)Mkdir(foldername string, frominode string, forceMake bool) error {
     if !CheckValidFilename(foldername) {
         return exception.EX_INVALID_FILENAME
     }
 
-    var par=dvc.GetFD(frominode, this.io)
-    defer par.Release()
-    var flist, _=par.GetFile().(*filetype.Kvmap)
-    if flist==nil {
-        return exception.EX_INODE_NONEXIST
-    }
-    flist.CheckOut()
-    if _, ok:=flist.Kvm[foldername]; ok {
-        return exception.EX_FOLDER_ALREADY_EXIST
+    // nnodeName: parentInode::foldername
+    var nnodeName=GenFileName(frominode, foldername)
+    if !forceMake {
+        if tmeta, _:=this.io.Getinfo(nnodeName); tmeta!=nil {
+            return exception.EX_FOLDER_ALREADY_EXIST
+        }
     }
 
-    var newFileName=uniqueid.GenGlobalUniqueName()
-    var newFile=dvc.GetFD(newFileName, this.io)
-    defer newFile.Release()
-
-    fmap:=filetype.NewKvMap()
-    fmap.CheckOut()
-    fmap.Kvm[".."]=&filetype.KvmapEntry{
-        Timestamp: GetTimestamp(0),
-        Key: "..",
-        Val: frominode,
+    // newDomainname: <GENERATED>
+    var newDomainname=uniqueid.GenGlobalUniqueName()
+    var newNnode=filetype.NewNnode(newDomainname)
+    if err:=this.io.Put(nnodeName, newNnode, nil); err!=nil {
+        return err
     }
-    fmap.Kvm["."]=&filetype.KvmapEntry{
-        Timestamp: GetTimestamp(0),
-        Key: ".",
-        Val: newFileName,
-    }
-    fmap.CheckIn()
-
-    if err:=newFile.PutOriginalFile(fmap, nil); err!=nil {
+    // initialize two basic element
+    if err:=this.io.Put(GenFileName(newDomainname, ".."), filetype.NewNnode(frominode), nil); err!=nil {
+        Secretary.ErrorD("kernel.filesystem::Mkdir", "Fail to create .. link for new folder "+nnodeName+".")
         return err
     }
 
-    patcher:=filetype.NewKvMap()
-    patcher.SetTS(GetTimestamp(flist.GetTS()))
-    patcher.CheckOut()
-    patcher.Kvm[foldername]=&filetype.KvmapEntry{
-        Timestamp: GetTimestamp(flist.GetRelativeTS(foldername)),
-        Key: foldername,
-        Val: newFileName,
-    }
-    patcher.CheckIn()
-    if err:=par.CommitPatch(patcher); err!=nil {
+    if err:=this.io.Put(GenFileName(newDomainname, "."), filetype.NewNnode(newDomainname), nil); err!=nil {
+        Secretary.ErrorD("kernel.filesystem::Mkdir", "Fail to create . link for new folder "+nnodeName+".")
         return err
+    }
+
+    // write new folder's map
+    {
+        var newFolderMapFD=dvc.GetFD(GenFileName(newDomainname, FOLDER_MAP), this.io)
+        if newFolderMapFD==nil {
+            Secretary.ErrorD("kernel.filesystem::Mkdir", "Fail to create foldermap fd for new folder "+nnodeName+".")
+            return exception.EX_IO_ERROR
+        }
+        if err:=newFolderMapFD.Submit(filetype.FastMake(".", "..")); err!=nil {
+            Secretary.ErrorD("kernel.filesystem::Mkdir", "Fail to init foldermap for new folder "+nnodeName+".")
+            newFolderMapFD.Release()
+            return err
+        }
+        newFolderMapFD.Release()
+    }
+
+    // submit patch to parent folder's map
+    {
+        var parentFolderMapFD=dvc.GetFD(GenFileName(frominode, FOLDER_MAP), this.io)
+        if parentFolderMapFD==nil {
+            Secretary.ErrorD("kernel.filesystem::Mkdir", "Fail to create foldermap fd for new folder "+nnodeName+"'s parent map'")
+            return exception.EX_IO_ERROR
+        }
+        if err:=parentFolderMapFD.Submit(filetype.FastMake(foldername)); err!=nil {
+            Secretary.ErrorD("kernel.filesystem::Mkdir", "Fail to submit patch to foldermap for new folder "+nnodeName+"'s parent map'")
+            parentFolderMapFD.Release()
+            return err
+        }
+        parentFolderMapFD.Release()
     }
 
     return nil
 }
 
 // Format the filesystem.
-// TODO: Setup clear old fs info
+// TODO: Setup clear old fs info?
 func (this *Fs)FormatFS() error {
-    var nf=dvc.GetFD(ROOT_INODE_NAME, this.io)
-    defer nf.Release()
-    //nf.clear()
-
-    fmap:=filetype.NewKvMap()
-    fmap.CheckOut()
-    fmap.Kvm[".."]=&filetype.KvmapEntry{
-        Timestamp: GetTimestamp(0),
-        Key: "..",
-        Val: ROOT_INODE_NAME,
-    }
-    fmap.Kvm["."]=&filetype.KvmapEntry{
-        Timestamp: GetTimestamp(0),
-        Key: ".",
-        Val: ROOT_INODE_NAME,
-    }
-    fmap.CheckIn()
-
-    if err:=nf.PutOriginalFile(fmap, nil); err!=nil {
+    if err:=this.io.Put(GenFileName(this.rootName, ".."), filetype.NewNnode(this.rootName), nil); err!=nil {
+        Secretary.ErrorD("kernel.filesystem::FormatFS", "Fail to create .. link for Root.")
         return err
     }
 
-    logger.Secretary.Log("kernel.filesystem.Fs::formatfs", "Formatted!")
+    if err:=this.io.Put(GenFileName(this.rootName, "."), filetype.NewNnode(this.rootName), nil); err!=nil {
+        Secretary.ErrorD("kernel.filesystem::FormatFS", "Fail to create . link for Root.")
+        return err
+    }
+
+    {
+        var rootFD=dvc.GetFD(GenFileName(frominode, FOLDER_MAP), this.io)
+        if rootFD==nil {
+            Secretary.ErrorD("kernel.filesystem::FormatFS", "Fail to get FD for Root.")
+            return exception.EX_IO_ERROR
+        }
+        if err:=rootFD.Submit(filetype.FastMake(".", "..")); err!=nil {
+            Secretary.ErrorD("kernel.filesystem::FormatFS", "Fail to submit format patch for Root.")
+            rootFD.Release()
+            return nil
+        }
+        rootFD.Release()
+    }
+
     return nil
 }
 

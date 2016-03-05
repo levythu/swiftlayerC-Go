@@ -167,3 +167,19 @@ func (this *Swiftio)EnsureSpace() (bool, error) {
     }
     return false, err
 }
+
+func (this *Swiftio)Copy(srcname string, desname string, overrideMeta FileMeta) error {
+    var _, err=this.conn.c.ObjectCopy(this.container, srcname, this.container, desname, overrideMeta)
+    return err
+}
+
+func (this *Swiftio)CheckExist(filename string) (bool, error) {
+    _, _, err:=this.conn.c.Object(this.container, filename)
+    if err!=nil {
+        if err==swift.ObjectNotFound {
+            return false, nil
+        }
+        return false, err
+    }
+    return true, nil
+}

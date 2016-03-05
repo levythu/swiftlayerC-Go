@@ -40,4 +40,12 @@ type Outapi interface {
     // Otherwise, (space is not available and fail to create), return a non-nil error.
     EnsureSpace() (bool, error)
 
+    // Copy a file on the server side. With Keys set in FileMeta overriding the
+    // original ones.
+    // If the file does not exist, an error will be returned.
+    Copy(srcname string, desname string, overrideMeta FileMeta) error
+
+    // if error!=nil, bool is always false
+    CheckExist(filename string) (bool, error)
+
 }

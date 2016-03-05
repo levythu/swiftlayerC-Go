@@ -231,7 +231,7 @@ func readInKvMapfile(io Outapi, filename string) (*filetype.Kvmap, error) {
         return nil, err
     }
     if file==nil || meta==nil {
-        Secretary.Warn("distributedvc::readInKvMapfile()", "Fail in reading file "+filename)
+        Secretary.Log("distributedvc::readInKvMapfile()", "File "+filename+"does not exist.")
         return nil, nil
     }
     var result, ok=file.(*filetype.Kvmap)
@@ -351,6 +351,9 @@ func (this *FD)LoadPointerMap() error {
 
     return nil
 }
+
+// object need not have its Timestamp set, 'cause the function will set it to
+// the current systime
 // @ Get Normally Grasped
 func (this *FD)Submit(object *filetype.Kvmap) error {
     this.updateChainLock.Lock()
@@ -363,11 +366,23 @@ func (this *FD)Submit(object *filetype.Kvmap) error {
     }
     defer this.updateChainLock.Unlock()
 
+    var selfName=CONF_FLAG_PREFIX+NODE_SYNC_TIME_PREFIX+strconv.Itoa(NODE_NUMBER)
+    var nowTime=GetTimestamp()
+    if object.Kvm==nil {
+        object.CheckOut()
+    }
+    object.Kvm[selfName]=&filetype.KvmapEntry {
+        Key: selfName,
+        Val: "",
+        Timestamp: nowTime,
+    }
+    object.CheckIn()
+
     var err=this.io.Put(this.GetPatchName(this.nextAvailablePosition, -1),
                 object,
                 FileMeta(map[string]string {
                     INTRA_PATCH_METAKEY_NEXT_PATCH: strconv.Itoa(this.nextAvailablePosition+1),
-                    METAKEY_TIMESTAMP: GetTimestamp().String(),
+                    METAKEY_TIMESTAMP: nowTime.String(),
                 }))
     if err!=nil {
         Secretary.Warn("distributedvc::FD.Submit()", "Fail in putting file "+this.GetPatchName(this.nextAvailablePosition, -1))
@@ -453,9 +468,8 @@ func (this *FD)Sync() error {
         return nil
     }
 
-    var myself=this.numberZero
-    if myself==nil {
-        myself=filetype.NewKvMap()
+    if this.numberZero==nil {
+        this.numberZero=filetype.NewKvMap()
         this.nextToBeMerge=1
     }
     for searchNode:=0; searchNode<NODE_NUMS_IN_ALL; searchNode++ {
@@ -481,6 +495,7 @@ func (this *FD)WriteBack() error {
 
     var meta4Set=NewMeta()
     meta4Set[METAKEY_TIMESTAMP]=this.numberZero.TGet().String()
+    meta4Set[INTRA_PATCH_METAKEY_NEXT_PATCH]=strconv.Itoa(this.nextToBeMerge)
     if err:=this.io.Put(this.GetPatchName(0, -1), this.numberZero, meta4Set); err!=nil {
         return err
     }
