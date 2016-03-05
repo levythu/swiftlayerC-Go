@@ -11,8 +11,9 @@ import (
     . "utils/timestamp"
     . "kernel/distributedvc/filemeta"
     . "kernel/distributedvc/constdef"
-    "logger"
+    . "logger"
     "io"
+    "sync"
     "fmt"
 )
 
@@ -21,6 +22,9 @@ const ROOT_INODE_NAME="rootNode"
 type Fs struct {
     io outapi.Outapi
     rootName string
+
+    cLock *sync.RWMutex
+    trashInode string
 }
 func __nouse__() {
     fmt.Println("123")
@@ -30,10 +34,36 @@ func NewFs(_io outapi.Outapi) *Fs {
     return &Fs{
         io: _io,
         rootName: ROOT_INODE_NAME,
+
+        cLock: &sync.RWMutex{},
+        trashInode: ""
     }
 }
 
 const FOLDER_MAP="/$Folder-Map/"
+const TRASH_BOX=".trash"
+
+func (this *Fs)GetTrashInode() string {
+    this.cLock.RLock()
+    if t:=this.trashInode; t!="" {
+        this.cLock.RUnlock()
+        return t
+    }
+    this.cLock.RUnlock()
+    this.cLock.Lock()
+    defer this.cLock.Unlock()
+    if this.trashInode!="" {
+        return this.trashInode
+    }
+    // fetch it from storage
+    var _, file, _=this.io.Get(GenFileName(this.rootName, TRASH_BOX))
+    var filen, _=file.(*filetype.Nnode)
+    if filen==nil {
+        return ""
+    } else {
+        return filen.DesName
+    }
+}
 
 //==============================================================================
 // Followings are filesystem functions:
@@ -149,84 +179,97 @@ func (this *Fs)FormatFS() error {
         }
         rootFD.Release()
     }
-
-    return nil
+    // setup Trash for users
+    return this.Mkdir(TRASH_BOX, this.rootName, true)
 }
 
 // Only returns file name list of one inode. Innername excluded.
 func (this *Fs)List(frominode string) ([]string, error) {
-    var tmp=dvc.GetFD(frominode, this.io)
-    var inodefile, _=tmp.GetFile().(*filetype.Kvmap)
-    tmp.Release()
+    // TODO
 
-    if inodefile==nil {
-        return nil, exception.EX_INODE_NONEXIST
-    }
-    inodefile.CheckOut()
-
-    var ret=[]string{}
-    for k, _:=range inodefile.Kvm {
-        if CheckValidFilename(k) {
-            ret=append(ret, k)
-        }
-    }
-
-    return ret, nil
-}
-
-// Only returns file name list of one inode. Innername excluded.
-func (this *Fs)ListDetail(frominode string) ([]*filetype.KvmapEntry, error) {
-    var tmp=dvc.GetFD(frominode, this.io)
-    var inodefile, _=tmp.GetFile().(*filetype.Kvmap)
-    tmp.Release()
-
-    if inodefile==nil {
-        return nil, exception.EX_INODE_NONEXIST
-    }
-    inodefile.CheckOut()
-
-    var ret=[]*filetype.KvmapEntry{}
-    for k, v:=range inodefile.Kvm {
-        if CheckValidFilename(k) {
-            ret=append(ret, v)
-        }
-    }
-
-    return ret, nil
+    return nil, nil
 }
 
 // All the folder will be removed. No matter if it is empty or not.
-// Attentez: if the removed object does not exist, a exception.EX_INODE_NONEXIST will be returned.
+// Move it to the trash
 func (this *Fs)Rm(foldername string, frominode string) error {
     if !CheckValidFilename(foldername) {
         return exception.EX_INVALID_FILENAME
     }
 
-    var par=dvc.GetFD(frominode, this.io)
-    defer par.Release()
-    var flist, _=par.GetFile().(*filetype.Kvmap)
-    if flist==nil {
-        return exception.EX_INODE_NONEXIST
+    if tsinode:=this.GetTrashInode(); tsinode=="" {
+        Secretary.Error("IO: "+this.io.GenerateUniqueID()+" has an invalid trashbox, which leads to removing failure.")
+        return exception.EX_TRASHBOX_NOT_INITED
+    } else {
+        return this.MvX(foldername, frominode, tsinode, uniqueid.GenGlobalUniqueNameWithTag("removed"))
+        // TODO: logging the original position for recovery
     }
-    flist.CheckOut()
-    if _, ok:=flist.Kvm[foldername]; !ok {
-        return exception.EX_INODE_NONEXIST
-    }
+}
 
-    var patcher=filetype.NewKvMap()
-    patcher.SetTS(GetTimestamp(flist.GetTS()))
-    patcher.CheckOut()
-    patcher.Kvm[foldername]=&filetype.KvmapEntry{
-        Timestamp: GetTimestamp(flist.GetRelativeTS(foldername)),
-        Key: foldername,
-        Val: filetype.REMOVE_SPECIFIED,
+// Attentez: It is not atomic
+// If byForce set to false and the destination file exists, an EX_FOLDER_ALREADY_EXIST will be returned
+func (this *Fs)MvX(srcName, srcInode, desName, desInode string, byForce bool) error {
+    // Create a mirror at destination position.
+    // Then, remove the old one.
+    // Third, modify the .. pointer.
+
+    if !CheckValidFilename(srcName) || !CheckValidFilename(desName) {
+        return exception.EX_INVALID_FILENAME
     }
-    patcher.CheckIn()
-    if err:=par.CommitPatch(patcher); err!=nil {
+    if !byForce && this.io.CheckExist(GenFileName(desInode, desName)) {
+        return exception.EX_FOLDER_ALREADY_EXIST
+    }
+    if err:=this.io.Copy(GenFileName(srcInode, srcName), GenFileName(desInode, desName), nil); err!=nil {
+        Secretary.ErrorD("kernel.filesystem::MvX", "Fail to issue a copy from "+GenFileName(srcInode, srcName)+" to "+GenFileName(desInode, desName))
         return err
     }
 
+    {
+        var desParentMap=dvc.GetFD(GenFileName(desInode, FOLDER_MAP), this.io)
+        if desParentMap==nil {
+            Secretary.ErrorD("kernel.filesystem::MvX", "Fail to get foldermap fd for folder "+desInode)
+            return exception.EX_IO_ERROR
+        }
+        if err:=desParentMap.Submit(filetype.FastMake(desName)); err!=nil {
+            Secretary.ErrorD("kernel.filesystem::MvX", "Fail to submit foldermap patch for folder "+desInode)
+            desParentMap.Release()
+            return err
+        }
+        desParentMap.Release()
+    }
+
+    // remove the old one.
+    this.io.Delete(GenFileName(srcInode, srcName))
+
+    {
+        var srcParentMap=dvc.GetFD(GenFileName(srcInode, FOLDER_MAP), this.io)
+        if srcParentMap==nil {
+            Secretary.ErrorD("kernel.filesystem::MvX", "Fail to get foldermap fd for folder "+srcInode)
+            return exception.EX_IO_ERROR
+        }
+        if err:=srcParentMap.Submit(filetype.FastAntiMake(srcName)); err!=nil {
+            Secretary.ErrorD("kernel.filesystem::MvX", "Fail to submit foldermap patch for folder "+srcInode)
+            srcParentMap.Release()
+            return err
+        }
+        srcParentMap.Release()
+    }
+
+    // modify the .. pointer
+    var _, dstFileNnodeOriginal, _=this.io.Get(GenFileName(desInode, desName))
+    var dstFileNnode, _=dstFileNnodeOriginal.(*filetype.Nnode)
+    if dstFileNnode==nil {
+        Secretary.ErrorD("kernel.filesystem::MvX", "Fail to read nnode "+GenFileName(desInode, desName)+".")
+        return exception.EX_IO_ERROR
+    }
+    if err:=this.io.Put(GenFileName(dstFileNnode.DesName, ".."), filetype.NewNnode(desInode), nil); err!=nil {
+        Secretary.ErrorD("kernel.filesystem::MvX", "Fail to modify .. link for "+dstFileNnode.DesName+".")
+        return err
+    }
+
+    // ALL DONE!
     return nil
+
 }
 
 // To put a large file and modify its corresponding index.
@@ -234,22 +277,8 @@ func (this *Fs)Rm(foldername string, frominode string) error {
 // will block until data are fully written.
 // It will try to put a file at destination, no matter whether
 // there's already one file, which will be replaced then.
-
-// The para frominode could be used to accerlerate index access.
-// Note that the type/time will be specified in the func, so no need to provide in meta.
-func (this *Fs)Put(destination string, frominode string/*=""*/, meta FileMeta/*=nil*/, dataSource io.Reader, typeoffile string/*=""*/) error {
-    var lastPos=strings.LastIndex(destination, "/")
-
-    var path=destination[:lastPos+1]
-    var filename=destination[lastPos+1:]
-    var basenode, err=this.Locate(path, frominode)
-    if err!=nil {
-        return exception.EX_FILE_NOT_EXIST
-    }
-
-    if typeoffile=="" {
-        typeoffile=(&filetype.Blob{}).GetType()
-    }
+func (this *Fs)Put(fiename string, frominode string, meta FileMeta/*=nil*/, dataSource io.Reader, typeoffile string/*=""*/) error {
+    var basenode=frominode
 
     var newFileName=uniqueid.GenGlobalUniqueNameWithTag("Stream")
     var newFilefd=dvc.GetFD(newFileName, this.io)

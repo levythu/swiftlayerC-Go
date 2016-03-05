@@ -379,3 +379,22 @@ func FastMake(stringList ...string) *Kvmap {
 
     return ret
 }
+
+// Make a Kvmap with following keys in the map and vals set to REMOVED, setting Timestamp to the
+// system time at the present.
+func FastAntiMake(stringList ...string) *Kvmap {
+    var ret=NewKvMap()
+    var nowTime=GetTimestamp()
+    ret.CheckOut()
+    for _, elem:=range stringList {
+        ret.Kvm[elem]=&KvmapEntry {
+            Key: elem,
+            Val: REMOVE_SPECIFIED,
+            Timestamp: nowTime
+        }
+    }
+    ret.CheckIn()
+    ret.TSet(nowTime)
+
+    return ret
+}
