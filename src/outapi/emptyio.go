@@ -67,3 +67,7 @@ func (this *EmptyIO)EnsureSpace() (bool, error) {
 func (this *EmptyIO)Copy(srcname string, desname string, overrideMeta FileMeta) error {
     return NOT_IMPLEMENTED_ERROR
 }
+
+func (this *EmptyIO)CheckExist(filename string) (bool, error) {
+    return false, NOT_IMPLEMENTED_ERROR
+}

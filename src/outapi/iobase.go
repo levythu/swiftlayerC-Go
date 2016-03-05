@@ -45,4 +45,7 @@ type Outapi interface {
     // If the file does not exist, an error will be returned.
     Copy(srcname string, desname string, overrideMeta FileMeta) error
 
+    // if error!=nil, bool is always false
+    CheckExist(filename string) (bool, error)
+
 }
