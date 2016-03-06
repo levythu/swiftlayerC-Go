@@ -169,7 +169,7 @@ func (this *Swiftio)EnsureSpace() (bool, error) {
 }
 
 func (this *Swiftio)Copy(srcname string, desname string, overrideMeta FileMeta) error {
-    var _, err=this.conn.c.ObjectCopy(this.container, srcname, this.container, desname, overrideMeta)
+    var _, err=this.conn.c.ObjectCopy(this.container, srcname, this.container, desname, swift.Metadata(overrideMeta).ObjectHeaders())
     return err
 }
 

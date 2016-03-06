@@ -8,7 +8,6 @@ import (
     "kernel/filetype"
     "utils/uniqueid"
     "strings"
-    . "utils/timestamp"
     . "kernel/distributedvc/filemeta"
     . "kernel/distributedvc/constdef"
     . "logger"
@@ -36,7 +35,7 @@ func NewFs(_io outapi.Outapi) *Fs {
         rootName: ROOT_INODE_NAME,
 
         cLock: &sync.RWMutex{},
-        trashInode: ""
+        trashInode: "",
     }
 }
 
@@ -111,12 +110,12 @@ func (this *Fs)Mkdir(foldername string, frominode string, forceMake bool) error 
     }
     // initialize two basic element
     if err:=this.io.Put(GenFileName(newDomainname, ".."), filetype.NewNnode(frominode), nil); err!=nil {
-        Secretary.ErrorD("kernel.filesystem::Mkdir", "Fail to create .. link for new folder "+nnodeName+".")
+        Secretary.Error("kernel.filesystem::Mkdir", "Fail to create .. link for new folder "+nnodeName+".")
         return err
     }
 
     if err:=this.io.Put(GenFileName(newDomainname, "."), filetype.NewNnode(newDomainname), nil); err!=nil {
-        Secretary.ErrorD("kernel.filesystem::Mkdir", "Fail to create . link for new folder "+nnodeName+".")
+        Secretary.Error("kernel.filesystem::Mkdir", "Fail to create . link for new folder "+nnodeName+".")
         return err
     }
 
@@ -124,11 +123,11 @@ func (this *Fs)Mkdir(foldername string, frominode string, forceMake bool) error 
     {
         var newFolderMapFD=dvc.GetFD(GenFileName(newDomainname, FOLDER_MAP), this.io)
         if newFolderMapFD==nil {
-            Secretary.ErrorD("kernel.filesystem::Mkdir", "Fail to create foldermap fd for new folder "+nnodeName+".")
+            Secretary.Error("kernel.filesystem::Mkdir", "Fail to create foldermap fd for new folder "+nnodeName+".")
             return exception.EX_IO_ERROR
         }
         if err:=newFolderMapFD.Submit(filetype.FastMake(".", "..")); err!=nil {
-            Secretary.ErrorD("kernel.filesystem::Mkdir", "Fail to init foldermap for new folder "+nnodeName+".")
+            Secretary.Error("kernel.filesystem::Mkdir", "Fail to init foldermap for new folder "+nnodeName+".")
             newFolderMapFD.Release()
             return err
         }
@@ -139,11 +138,11 @@ func (this *Fs)Mkdir(foldername string, frominode string, forceMake bool) error 
     {
         var parentFolderMapFD=dvc.GetFD(GenFileName(frominode, FOLDER_MAP), this.io)
         if parentFolderMapFD==nil {
-            Secretary.ErrorD("kernel.filesystem::Mkdir", "Fail to create foldermap fd for new folder "+nnodeName+"'s parent map'")
+            Secretary.Error("kernel.filesystem::Mkdir", "Fail to create foldermap fd for new folder "+nnodeName+"'s parent map'")
             return exception.EX_IO_ERROR
         }
         if err:=parentFolderMapFD.Submit(filetype.FastMake(foldername)); err!=nil {
-            Secretary.ErrorD("kernel.filesystem::Mkdir", "Fail to submit patch to foldermap for new folder "+nnodeName+"'s parent map'")
+            Secretary.Error("kernel.filesystem::Mkdir", "Fail to submit patch to foldermap for new folder "+nnodeName+"'s parent map'")
             parentFolderMapFD.Release()
             return err
         }
@@ -157,23 +156,23 @@ func (this *Fs)Mkdir(foldername string, frominode string, forceMake bool) error 
 // TODO: Setup clear old fs info?
 func (this *Fs)FormatFS() error {
     if err:=this.io.Put(GenFileName(this.rootName, ".."), filetype.NewNnode(this.rootName), nil); err!=nil {
-        Secretary.ErrorD("kernel.filesystem::FormatFS", "Fail to create .. link for Root.")
+        Secretary.Error("kernel.filesystem::FormatFS", "Fail to create .. link for Root.")
         return err
     }
 
     if err:=this.io.Put(GenFileName(this.rootName, "."), filetype.NewNnode(this.rootName), nil); err!=nil {
-        Secretary.ErrorD("kernel.filesystem::FormatFS", "Fail to create . link for Root.")
+        Secretary.Error("kernel.filesystem::FormatFS", "Fail to create . link for Root.")
         return err
     }
 
     {
-        var rootFD=dvc.GetFD(GenFileName(frominode, FOLDER_MAP), this.io)
+        var rootFD=dvc.GetFD(GenFileName(this.rootName, FOLDER_MAP), this.io)
         if rootFD==nil {
-            Secretary.ErrorD("kernel.filesystem::FormatFS", "Fail to get FD for Root.")
+            Secretary.Error("kernel.filesystem::FormatFS", "Fail to get FD for Root.")
             return exception.EX_IO_ERROR
         }
         if err:=rootFD.Submit(filetype.FastMake(".", "..")); err!=nil {
-            Secretary.ErrorD("kernel.filesystem::FormatFS", "Fail to submit format patch for Root.")
+            Secretary.Error("kernel.filesystem::FormatFS", "Fail to submit format patch for Root.")
             rootFD.Release()
             return nil
         }
@@ -198,10 +197,10 @@ func (this *Fs)Rm(foldername string, frominode string) error {
     }
 
     if tsinode:=this.GetTrashInode(); tsinode=="" {
-        Secretary.Error("IO: "+this.io.GenerateUniqueID()+" has an invalid trashbox, which leads to removing failure.")
+        Secretary.ErrorD("IO: "+this.io.GenerateUniqueID()+" has an invalid trashbox, which leads to removing failure.")
         return exception.EX_TRASHBOX_NOT_INITED
     } else {
-        return this.MvX(foldername, frominode, tsinode, uniqueid.GenGlobalUniqueNameWithTag("removed"))
+        return this.MvX(foldername, frominode, tsinode, uniqueid.GenGlobalUniqueNameWithTag("removed"), false)
         // TODO: logging the original position for recovery
     }
 }
@@ -216,22 +215,22 @@ func (this *Fs)MvX(srcName, srcInode, desName, desInode string, byForce bool) er
     if !CheckValidFilename(srcName) || !CheckValidFilename(desName) {
         return exception.EX_INVALID_FILENAME
     }
-    if !byForce && this.io.CheckExist(GenFileName(desInode, desName)) {
+    if !byForce && outapi.ForceCheckExist(this.io.CheckExist(GenFileName(desInode, desName))) {
         return exception.EX_FOLDER_ALREADY_EXIST
     }
     if err:=this.io.Copy(GenFileName(srcInode, srcName), GenFileName(desInode, desName), nil); err!=nil {
-        Secretary.ErrorD("kernel.filesystem::MvX", "Fail to issue a copy from "+GenFileName(srcInode, srcName)+" to "+GenFileName(desInode, desName))
+        Secretary.Error("kernel.filesystem::MvX", "Fail to issue a copy from "+GenFileName(srcInode, srcName)+" to "+GenFileName(desInode, desName))
         return err
     }
 
     {
         var desParentMap=dvc.GetFD(GenFileName(desInode, FOLDER_MAP), this.io)
         if desParentMap==nil {
-            Secretary.ErrorD("kernel.filesystem::MvX", "Fail to get foldermap fd for folder "+desInode)
+            Secretary.Error("kernel.filesystem::MvX", "Fail to get foldermap fd for folder "+desInode)
             return exception.EX_IO_ERROR
         }
         if err:=desParentMap.Submit(filetype.FastMake(desName)); err!=nil {
-            Secretary.ErrorD("kernel.filesystem::MvX", "Fail to submit foldermap patch for folder "+desInode)
+            Secretary.Error("kernel.filesystem::MvX", "Fail to submit foldermap patch for folder "+desInode)
             desParentMap.Release()
             return err
         }
@@ -244,11 +243,11 @@ func (this *Fs)MvX(srcName, srcInode, desName, desInode string, byForce bool) er
     {
         var srcParentMap=dvc.GetFD(GenFileName(srcInode, FOLDER_MAP), this.io)
         if srcParentMap==nil {
-            Secretary.ErrorD("kernel.filesystem::MvX", "Fail to get foldermap fd for folder "+srcInode)
+            Secretary.Error("kernel.filesystem::MvX", "Fail to get foldermap fd for folder "+srcInode)
             return exception.EX_IO_ERROR
         }
         if err:=srcParentMap.Submit(filetype.FastAntiMake(srcName)); err!=nil {
-            Secretary.ErrorD("kernel.filesystem::MvX", "Fail to submit foldermap patch for folder "+srcInode)
+            Secretary.Error("kernel.filesystem::MvX", "Fail to submit foldermap patch for folder "+srcInode)
             srcParentMap.Release()
             return err
         }
@@ -259,11 +258,11 @@ func (this *Fs)MvX(srcName, srcInode, desName, desInode string, byForce bool) er
     var _, dstFileNnodeOriginal, _=this.io.Get(GenFileName(desInode, desName))
     var dstFileNnode, _=dstFileNnodeOriginal.(*filetype.Nnode)
     if dstFileNnode==nil {
-        Secretary.ErrorD("kernel.filesystem::MvX", "Fail to read nnode "+GenFileName(desInode, desName)+".")
+        Secretary.Error("kernel.filesystem::MvX", "Fail to read nnode "+GenFileName(desInode, desName)+".")
         return exception.EX_IO_ERROR
     }
     if err:=this.io.Put(GenFileName(dstFileNnode.DesName, ".."), filetype.NewNnode(desInode), nil); err!=nil {
-        Secretary.ErrorD("kernel.filesystem::MvX", "Fail to modify .. link for "+dstFileNnode.DesName+".")
+        Secretary.Error("kernel.filesystem::MvX", "Fail to modify .. link for "+dstFileNnode.DesName+".")
         return err
     }
 
@@ -289,7 +288,7 @@ func (this *Fs)Put(filename string, frominode string, meta FileMeta/*=nil*/, dat
         }
         targetFileinode=uniqueid.GenGlobalUniqueNameWithTag("Stream")
         if err:=this.io.Put(GenFileName(frominode, filename), filetype.NewNnode(targetFileinode), nil); err!=nil {
-            Secretary.WarnD("kernel.filesystem::Put", "Put nnode for new file "+GenFileName(frominode, filename)+" failed.")
+            Secretary.Warn("kernel.filesystem::Put", "Put nnode for new file "+GenFileName(frominode, filename)+" failed.")
             return err
         }
     } else {
@@ -302,16 +301,16 @@ func (this *Fs)Put(filename string, frominode string, meta FileMeta/*=nil*/, dat
     meta=meta.Clone()
     meta[METAKEY_TYPE]=STREAM_TYPE
     if wc, err:=this.io.PutStream(targetFileinode, meta); err!=nil {
-        Secretary.ErrorD("kernel.filesystem::Put", "Put stream for new file "+GenFileName(frominode, filename)+" failed.")
+        Secretary.Error("kernel.filesystem::Put", "Put stream for new file "+GenFileName(frominode, filename)+" failed.")
         return err
     } else {
         if _, err2:=io.Copy(wc, dataSource); err2!=nil {
             wc.Close()
-            Secretary.ErrorD("kernel.filesystem::Put", "Piping stream for new file "+GenFileName(frominode, filename)+" failed.")
+            Secretary.Error("kernel.filesystem::Put", "Piping stream for new file "+GenFileName(frominode, filename)+" failed.")
             return err2
         }
         if err2:=wc.Close(); err2!=nil {
-            Secretary.ErrorD("kernel.filesystem::Put", "Close writer for new file "+GenFileName(frominode, filename)+" failed.")
+            Secretary.Error("kernel.filesystem::Put", "Close writer for new file "+GenFileName(frominode, filename)+" failed.")
             return err2
         }
     }
@@ -336,7 +335,7 @@ func (this *Fs)Get(filename string, frominode string, w io.Writer) error {
         targetFileinode=frominode
     }
 
-    var meta, rc, err=this.io.GetStream(targetFileinode)
+    var meta, rc, _=this.io.GetStream(targetFileinode)
     if meta==nil || rc==nil {
         return exception.EX_FILE_NOT_EXIST
     }

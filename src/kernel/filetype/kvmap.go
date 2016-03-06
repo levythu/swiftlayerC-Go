@@ -371,7 +371,7 @@ func FastMake(stringList ...string) *Kvmap {
         ret.Kvm[elem]=&KvmapEntry {
             Key: elem,
             Val: "",
-            Timestamp: nowTime
+            Timestamp: nowTime,
         }
     }
     ret.CheckIn()
@@ -390,7 +390,7 @@ func FastAntiMake(stringList ...string) *Kvmap {
         ret.Kvm[elem]=&KvmapEntry {
             Key: elem,
             Val: REMOVE_SPECIFIED,
-            Timestamp: nowTime
+            Timestamp: nowTime,
         }
     }
     ret.CheckIn()

@@ -31,7 +31,7 @@ func FileMeta2UserMeta(fm FileMeta) UserMeta {
     return ret
 }
 
-func (this Filemeta)Clone() Filemeta {
+func (this FileMeta)Clone() FileMeta {
     var ret=NewMeta()
     for k, v:=range this {
         ret[k]=v

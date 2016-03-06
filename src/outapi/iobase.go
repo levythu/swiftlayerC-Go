@@ -49,3 +49,10 @@ type Outapi interface {
     CheckExist(filename string) (bool, error)
 
 }
+
+func ForceCheckExist(ex bool, err error) bool {
+    if err!=nil {
+        return false
+    }
+    return ex
+}
