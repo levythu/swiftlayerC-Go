@@ -90,6 +90,7 @@ func newFD(filename string, io Outapi) *FD {
         nextToBeMerge: -1,
         lastSyncTime: 0,
         latestReadableVersionTS: 0,     // This version is for written version
+        modified: false,
     }
     ret.trashNode=&fdDLinkedListNode {
         carrier: ret,
@@ -125,6 +126,7 @@ func (this *FD)GoDie() {
     this.lock.Lock()
     defer this.lock.Unlock()
 
+    this.WriteBack()
     this.__clearContentSansLock()
     this.status=-1
 
@@ -135,6 +137,7 @@ func (this *FD)GoDormant() {
     defer this.lock.Unlock()
     this.isInDormant=false
 
+    this.WriteBack()
     //logger.Secretary.LogD("Filehandler "+this.filename+" is going dormant.")
     this.__clearContentSansLock()
 }

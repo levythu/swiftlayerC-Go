@@ -35,12 +35,8 @@ func (this *Session)Cd(path string) error {
     return err
 }
 
-func (this *Session)Ls() ([]string, error) {
-    return this.fs.List(this.d)
-}
-
 func (this *Session)Mkdir(foldername string) error {
-    return this.fs.Mkdir(foldername, this.d)
+    return this.fs.Mkdir(foldername, this.d, false)
 }
 
 func (this *Session)Rm(foldername string) error {

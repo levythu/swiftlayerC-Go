@@ -16,7 +16,6 @@ import (
     "strings"
     "outapi"
     "definition/exception"
-    dvc "kernel/distributedvc"
     . "logger"
     "kernel/filetype"
 )
@@ -48,12 +47,12 @@ func lookUp(inode string, vfilename string, io outapi.Outapi) (string, error) {
     }
     var _, file, err=io.Get(GenFileName(inode, vfilename))
     if file==nil {
-        return nil, err
+        return "", err
     }
     if fileNnode, ok:=file.(*filetype.Nnode); !ok {
         Secretary.Warn("kernel.filesystem::lookUp", "File "+GenFileName(inode, vfilename)+" has a invalid filetype.")
-        return nil, nil
+        return "", nil
     } else {
-        return fileNnode.DesName
+        return fileNnode.DesName, nil
     }
 }
