@@ -277,119 +277,80 @@ func (this *Fs)MvX(srcName, srcInode, desName, desInode string, byForce bool) er
 // will block until data are fully written.
 // It will try to put a file at destination, no matter whether
 // there's already one file, which will be replaced then.
-func (this *Fs)Put(fiename string, frominode string, meta FileMeta/*=nil*/, dataSource io.Reader, typeoffile string/*=""*/) error {
-    var basenode=frominode
 
-    var newFileName=uniqueid.GenGlobalUniqueNameWithTag("Stream")
-    var newFilefd=dvc.GetFD(newFileName, this.io)
-    defer newFilefd.Release()
+// if filename!="", a new filename will be assigned and frominode::filename will be set
+// otherwise, frominode indicates the target fileinode and the target file will override it
+const STREAM_TYPE="stream type file"
+func (this *Fs)Put(filename string, frominode string, meta FileMeta/*=nil*/, dataSource io.Reader, typeoffile string/*=""*/) error {
+    var targetFileinode string
+    if filename!="" {
+        if !CheckValidFilename(filename) {
+            return exception.EX_INVALID_FILENAME
+        }
+        targetFileinode=uniqueid.GenGlobalUniqueNameWithTag("Stream")
+        if err:=this.io.Put(GenFileName(frominode, filename), filetype.NewNnode(targetFileinode), nil); err!=nil {
+            Secretary.WarnD("kernel.filesystem::Put", "Put nnode for new file "+GenFileName(frominode, filename)+" failed.")
+            return err
+        }
+    } else {
+        targetFileinode=frominode
+    }
+
     if meta==nil {
         meta=NewMeta()
     }
-    var newFilemeta=meta
-    newFilemeta[METAKEY_TIMESTAMP]=GetTimestamp(0).String()
-    newFilemeta[METAKEY_TYPE]=typeoffile
-    wc, err:=newFilefd.PutOriginalFileStream(newFilemeta)
-    if err!=nil {
+    meta=meta.Clone()
+    meta[METAKEY_TYPE]=STREAM_TYPE
+    if wc, err:=this.io.PutStream(targetFileinode, meta); err!=nil {
+        Secretary.ErrorD("kernel.filesystem::Put", "Put stream for new file "+GenFileName(frominode, filename)+" failed.")
         return err
+    } else {
+        if _, err2:=io.Copy(wc, dataSource); err2!=nil {
+            wc.Close()
+            Secretary.ErrorD("kernel.filesystem::Put", "Piping stream for new file "+GenFileName(frominode, filename)+" failed.")
+            return err2
+        }
+        if err2:=wc.Close(); err2!=nil {
+            Secretary.ErrorD("kernel.filesystem::Put", "Close writer for new file "+GenFileName(frominode, filename)+" failed.")
+            return err2
+        }
     }
-
-    // Streaming
-    _, err=io.Copy(wc, dataSource)
-    var err2=wc.Close()
-    if err!=nil {
-        return err
-    }
-    if err2!=nil {
-        logger.Secretary.Error("kernel.filesystem.Fs::Put", "Error when closing: "+err2.Error())
-        return err2
-    }
-    // Copy successfully. Update the index.
-
-    var par=dvc.GetFD(basenode, this.io)
-    defer par.Release()
-    var flist, _=par.GetFile().(*filetype.Kvmap)
-    if flist==nil {
-        return exception.EX_INODE_NONEXIST
-    }
-    flist.CheckOut()
-
-    var patcher=filetype.NewKvMap()
-    patcher.SetTS(GetTimestamp(flist.GetTS()))
-    patcher.CheckOut()
-    patcher.Kvm[filename]=&filetype.KvmapEntry{
-        Timestamp: GetTimestamp(flist.GetRelativeTS(filename)),
-        Key: filename,
-        Val: newFileName,
-    }
-    patcher.CheckIn()
-    if err:=par.CommitPatch(patcher); err!=nil {
-        return err
-    }
-    logger.Secretary.Log("kernel.filesystem.Fs::put", "Put stream file "+destination+" successfully.")
 
     return nil
 }
 
-
-// To get a large file by streaming.
-// Attentez: it is a two-phase function.
-// The first phase is try to locate the file in repository, and commit the possible
-// error to phase1callback, which will determine the next step by returning a nil or
-// available WriteCloser. In this phase an error code could be returned in the form
-// of HTTP response code.
-// The second phase is data transmission, by returning HTTP 200 the webserver just pipe
-// data to the client. It will be run in another goroutine. So use it synchronously.
-
-// Unlike Put, which handles upstream, Get func must use downstream to return error or
-// valid stream. So the architectures are different.
-
-// Phase1Callback is called when data transmission is ready.
-type Phase1Callback func(error, FileMeta) io.Writer
-// Phase2Callback is called when transmission completed.
-type Phase2Callback func(error)
-
-func (this *Fs)Get(source string, frominode string/*=""*/, phase1 Phase1Callback, phase2 Phase2Callback, isSychronous bool) {
-    // Use this.locate, but not for finding folder. Note the semantic discrepancy.
-    var obj, err=this.Locate(source, frominode)
-    if err!=nil {
-        phase1(exception.EX_FILE_NOT_EXIST, nil)
-        return
-    }
-
-    var objFD=dvc.GetFD(obj, this.io)
-    rc, fm, err:=objFD.GetFileStream()
-    if err!=nil{
-        phase1(err, nil)
-        objFD.Release()
-        return
-    }
-    if rc==nil {
-        // 404
-        phase1(exception.EX_FILE_NOT_EXIST, nil)
-        objFD.Release()
-        return
-    }
-
-    var wc=phase1(nil, fm)
-    if wc==nil {
-        // Phase1 requires to terminate.
-        rc.Close()
-        objFD.Release()
-        return
-    }
-
-    if isSychronous {
-        _, copyError:=io.Copy(wc, rc)
-        rc.Close()
-        objFD.Release()
-        phase2(copyError)
+// If the file does not exist, an EX_FILE_NOT_EXIST will be returned.
+func (this *Fs)Get(filename string, frominode string, w io.Writer) error {
+    var targetFileinode string
+    if filename!="" {
+        if !CheckValidFilename(filename) {
+            return exception.EX_INVALID_FILENAME
+        }
+        var _, file, _=this.io.Get(GenFileName(frominode, filename))
+        var filen, _=file.(*filetype.Nnode)
+        if filen==nil {
+            return exception.EX_FILE_NOT_EXIST
+        }
+        targetFileinode=filen.DesName
     } else {
-        go func() {
-            _, copyError:=io.Copy(wc, rc)
-            rc.Close()
-            phase2(copyError)
-            objFD.Release()
-        }()
+        targetFileinode=frominode
     }
+
+    var meta, rc, err=this.io.GetStream(targetFileinode)
+    if meta==nil || rc==nil {
+        return exception.EX_FILE_NOT_EXIST
+    }
+    if val, ok:=meta[METAKEY_TYPE]; !ok || val!=STREAM_TYPE {
+        rc.Close()
+        return exception.EX_WRONG_FILEFORMAT
+    }
+
+    if _, copyErr:=io.Copy(w, rc); copyErr!=nil {
+        rc.Close()
+        return copyErr
+    }
+    if err2:=rc.Close(); err2!=nil {
+        return err2
+    }
+    return nil
 }

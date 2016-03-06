@@ -15,3 +15,4 @@
     - [ ] Consider reconstruct kvmap to allow fast access to timestamp
     - [ ] Add auto mergenext
     - [ ] Prepare to auto-fix folders that have not got a proper ../.
+    - [ ] Consider modify Fs.Put() So that existing file could be removed
