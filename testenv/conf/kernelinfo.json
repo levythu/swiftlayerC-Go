@@ -30,5 +30,14 @@
     "thread_utilised": 1,
 
     /*  */
-    "single_file_sync_interval_min_in_second": 60
+    "single_file_sync_interval_min_in_second": 60,
+
+    "auto_merger_task_queue_capacity": 10000,
+
+    "max_merging_worker": 10,
+
+    "rest_interval_of_worker_in_ms": 0,
+
+    /* <=0 for no deamon */
+    "auto_merger_deamon_period_in_seconds": 10
 }
