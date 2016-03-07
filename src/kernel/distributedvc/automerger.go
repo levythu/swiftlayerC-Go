@@ -7,7 +7,9 @@ import (
     "sync"
     "errors"
     conf "definition/configinfo"
+    . "outapi"
     . "logger"
+    "strconv"
     "time"
 )
 
@@ -20,7 +22,7 @@ type taskNode struct {
 // This class is used for maintaining marging task order for a lot of merging requests
 // from FDs
 type MergingScheduler struct {
-    lock *sync.RWMutex{}
+    lock *sync.RWMutex
 
     // existMap, if map[key]==true, the key has not been checked-out or has been and
     // no new identical task is checked in during the working time
@@ -51,6 +53,9 @@ var QUEUE_CAPACITY_REACHED=errors.New("The task queue is filled up.")
 func (this *MergingScheduler)CheckInATask(filename string, io Outapi) error {
     this.lock.Lock()
     defer this.lock.Unlock()
+
+    var id=genID_static(filename, io)
+
     if _, ok:=this.existMap[id]; ok {
         // the task has existed in the queue. DO NOT NEED to check in it again.
         this.existMap[id]=false
@@ -58,7 +63,7 @@ func (this *MergingScheduler)CheckInATask(filename string, io Outapi) error {
     }
 
 
-    if this.taskInTotal>=SINGLE_FILE_SYNC_INTERVAL_MIN {
+    if this.taskInTotal>=conf.AUTO_MERGER_TASK_QUEUE_CAPACITY {
         return QUEUE_CAPACITY_REACHED
     }
     this.taskInTotal++
@@ -120,12 +125,14 @@ type MergingSupervisor struct {
 
     workersAlive int
     scheduler *MergingScheduler
+    deamoned bool
 }
 
 var MergeManager=&MergingSupervisor {
-    lock: &sync.Mutex{},
+    lock: &sync.RWMutex{},
     workersAlive: 0,
     scheduler: NewScheduler(),
+    deamoned: false,
 }
 
 
@@ -158,7 +165,7 @@ func (this *MergingSupervisor)spawnWorker() {
         return
     }
     this.workersAlive++
-    go workerProcess(this)
+    go workerProcess(this, this.workersAlive)
 }
 
 // periodically spawn a worker to finish unadopted tasks
@@ -166,13 +173,13 @@ func (this *MergingSupervisor)Deamon() {
     if conf.AUTO_MERGER_DEAMON_PERIOD<=0 {
         return
     }
-    Secretary.Log("kernel.distributedvc::Deamon", "Auto merger deamon is running at period "+conf.AUTO_MERGER_DEAMON_PERIOD+" second(s)")
-    var period=time.Second*conf.AUTO_MERGER_DEAMON_PERIOD
+    Secretary.Log("kernel.distributedvc::Deamon", "Auto merger deamon is running at period "+strconv.Itoa(conf.AUTO_MERGER_DEAMON_PERIOD)+" second(s)")
+    var period=time.Second*time.Duration(conf.AUTO_MERGER_DEAMON_PERIOD)
     for {
         // RUN FOREVER
         this.lock.RLock()
         var t=this.workersAlive
-        this.lock.RUnLock()
+        this.lock.RUnlock()
         if t==0 {
             this.spawnWorker()
         }
@@ -181,8 +188,76 @@ func (this *MergingSupervisor)Deamon() {
     }
 }
 
+func (this *MergingSupervisor)LaunchDeamon() {
+    this.lock.Lock()
+    defer this.lock.Unlock()
+
+    if this.deamoned {
+        return
+    }
+    this.deamoned=true
+    go this.Deamon()
+}
+
 // =============================================================================
 
-func workerProcess(supervisor *MergingSupervisor) {
+var worker_Sleep_Duration=time.Millisecond*time.Duration(conf.REST_INTERVAL_OF_WORKER_IN_MS)
+func workerProcess(supervisor *MergingSupervisor, numbered int) {
+    var myName="Merger worker #"+strconv.Itoa(numbered)
+    Secretary.Log(myName, "Worker is launched.")
+    for {
+        // loop until there is no task available
+        var task, err=supervisor.scheduler.ChechOutATask()
+        if err!=nil {
+            if err==NO_TASK_AVAILABLE {
+                // no task available. Suicide.
+                Secretary.Log(myName, "No available task is available. Worker is commiting suicide.")
+                supervisor.reportDeath()
+                return
+            }
+            // other bizzare error. Sleep for a while to get it
+            Secretary.Log(myName, "Encountered error when fetching new task. Sleep.")
+            time.Sleep(worker_Sleep_Duration)
+            continue
+        }
+
+        Secretary.Log(myName, "Got task:   "+task)
+        var writeBackCount=0
+        for {
+            // loop until the task is removed from tasklist
+            var thisFD=PeepFDX(task)
+            if thisFD!=nil {
+                thisFD.GraspReader()
+                for {
+                    // loop until there's nothing to merge for the fd
+                    var merr=thisFD.MergeNext()
+                    if merr!=nil {
+                        Secretary.Log(myName, "FD "+task+" has been merged once.")
+                        if merr==NOTHING_TO_MERGE {
+                            break
+                        }
+                        // ERROR when merge
+                        break
+                    }
+                    writeBackCount++
+                    if writeBackCount>=conf.AUTO_COMMIT_PER_INTRAMERGE {
+                        writeBackCount=0
+                        thisFD.WriteBack()
+                        Secretary.Log(myName, "FD "+task+" has been written back once.")
+                    }
+                    time.Sleep(worker_Sleep_Duration)
+                }
+                thisFD.ReleaseReader()
+                thisFD.Release()
+            } else {
+                Secretary.Log(myName, "FD "+task+" is not in the fdPool. Abort.")
+            }
+            if supervisor.scheduler.FinishTask(task) {
+                Secretary.Log(myName, "Successfully accomplished task:    "+task)
+                break
+            }
+        }
+    }
+
     return
 }
