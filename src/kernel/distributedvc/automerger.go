@@ -165,7 +165,7 @@ func (this *MergingSupervisor)spawnWorker() {
         return
     }
     this.workersAlive++
-    go workerProcess(this)
+    go workerProcess(this, this.workersAlive)
 }
 
 // periodically spawn a worker to finish unadopted tasks
@@ -201,6 +201,63 @@ func (this *MergingSupervisor)LaunchDeamon() {
 
 // =============================================================================
 
-func workerProcess(supervisor *MergingSupervisor) {
+var worker_Sleep_Duration=time.Millisecond*time.Duration(conf.REST_INTERVAL_OF_WORKER_IN_MS)
+func workerProcess(supervisor *MergingSupervisor, numbered int) {
+    var myName="Merger worker #"+strconv.Itoa(numbered)
+    Secretary.Log(myName, "Worker is launched.")
+    for {
+        // loop until there is no task available
+        var task, err=supervisor.scheduler.ChechOutATask()
+        if err!=nil {
+            if err==NO_TASK_AVAILABLE {
+                // no task available. Suicide.
+                Secretary.Log(myName, "No available task is available. Worker is commiting suicide.")
+                supervisor.reportDeath()
+                return
+            }
+            // other bizzare error. Sleep for a while to get it
+            Secretary.Log(myName, "Encountered error when fetching new task. Sleep.")
+            time.Sleep(worker_Sleep_Duration)
+            continue
+        }
+
+        Secretary.Log(myName, "Got task:   "+task)
+        var writeBackCount=0
+        for {
+            // loop until the task is removed from tasklist
+            var thisFD=PeepFDX(task)
+            if thisFD!=nil {
+                thisFD.GraspReader()
+                for {
+                    // loop until there's nothing to merge for the fd
+                    var merr=thisFD.MergeNext()
+                    if merr!=nil {
+                        Secretary.Log(myName, "FD "+task+" has been merged once.")
+                        if merr==NOTHING_TO_MERGE {
+                            break
+                        }
+                        // ERROR when merge
+                        break
+                    }
+                    writeBackCount++
+                    if writeBackCount>=conf.AUTO_COMMIT_PER_INTRAMERGE {
+                        writeBackCount=0
+                        thisFD.WriteBack()
+                        Secretary.Log(myName, "FD "+task+" has been written back once.")
+                    }
+                    time.Sleep(worker_Sleep_Duration)
+                }
+                thisFD.ReleaseReader()
+                thisFD.Release()
+            } else {
+                Secretary.Log(myName, "FD "+task+" is not in the fdPool. Abort.")
+            }
+            if supervisor.scheduler.FinishTask(task) {
+                Secretary.Log(myName, "Successfully accomplished task:    "+task)
+                break
+            }
+        }
+    }
+
     return
 }

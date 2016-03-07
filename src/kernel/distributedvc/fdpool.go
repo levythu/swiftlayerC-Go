@@ -74,6 +74,16 @@ func PeepFD(filename string, io Outapi) *FD {
     }
     return nil
 }
+func PeepFDX(identifier string) *FD {
+    locks[0].RLock()
+    defer locks[0].RUnlock()
+    var elem, ok=fdPool[identifier]
+    if ok {
+        elem.Grasp()
+        return elem
+    }
+    return nil
+}
 
 func ClearTrash() {
     locks[0].Lock()

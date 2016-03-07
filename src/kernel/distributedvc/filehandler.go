@@ -256,6 +256,7 @@ func readInKvMapfile(io Outapi, filename string) (*filetype.Kvmap, error) {
 var MERGE_ERROR=errors.New("Merging error")
 
 // @ Must be Grasped Reader to use
+var NOTHING_TO_MERGE=errors.New("Nothing to merge.")
 func (this *FD)MergeNext() error {
     if _, tmpErr:=this.Read(); tmpErr!=nil {
         return tmpErr
@@ -269,7 +270,7 @@ func (this *FD)MergeNext() error {
     defer this.contentLock.Unlock()
 
     if nextEmptyPatch==this.nextToBeMerge {
-        return nil
+        return NOTHING_TO_MERGE
     }
 
     var thePatch, err=readInKvMapfile(this.io, this.GetPatchName(this.nextToBeMerge, -1))
