@@ -120,12 +120,14 @@ type MergingSupervisor struct {
 
     workersAlive int
     scheduler *MergingScheduler
+    deamoned bool
 }
 
 var MergeManager=&MergingSupervisor {
     lock: &sync.Mutex{},
     workersAlive: 0,
     scheduler: NewScheduler(),
+    deamoned: false,
 }
 
 
@@ -179,6 +181,17 @@ func (this *MergingSupervisor)Deamon() {
 
         time.Sleep(period)
     }
+}
+
+func (this *MergingSupervisor)LaunchDeamon() {
+    this.lock.Lock()
+    defer this.lock.Unlock()
+
+    if this.deamoned {
+        return
+    }
+    this.deamoned=true
+    go this.Deamon()
 }
 
 // =============================================================================
