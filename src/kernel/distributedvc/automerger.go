@@ -7,7 +7,9 @@ import (
     "sync"
     "errors"
     conf "definition/configinfo"
+    . "outapi"
     . "logger"
+    "strconv"
     "time"
 )
 
@@ -20,7 +22,7 @@ type taskNode struct {
 // This class is used for maintaining marging task order for a lot of merging requests
 // from FDs
 type MergingScheduler struct {
-    lock *sync.RWMutex{}
+    lock *sync.RWMutex
 
     // existMap, if map[key]==true, the key has not been checked-out or has been and
     // no new identical task is checked in during the working time
@@ -51,6 +53,9 @@ var QUEUE_CAPACITY_REACHED=errors.New("The task queue is filled up.")
 func (this *MergingScheduler)CheckInATask(filename string, io Outapi) error {
     this.lock.Lock()
     defer this.lock.Unlock()
+
+    var id=genID_static(filename, io)
+
     if _, ok:=this.existMap[id]; ok {
         // the task has existed in the queue. DO NOT NEED to check in it again.
         this.existMap[id]=false
@@ -58,7 +63,7 @@ func (this *MergingScheduler)CheckInATask(filename string, io Outapi) error {
     }
 
 
-    if this.taskInTotal>=SINGLE_FILE_SYNC_INTERVAL_MIN {
+    if this.taskInTotal>=conf.AUTO_MERGER_TASK_QUEUE_CAPACITY {
         return QUEUE_CAPACITY_REACHED
     }
     this.taskInTotal++
@@ -124,7 +129,7 @@ type MergingSupervisor struct {
 }
 
 var MergeManager=&MergingSupervisor {
-    lock: &sync.Mutex{},
+    lock: &sync.RWMutex{},
     workersAlive: 0,
     scheduler: NewScheduler(),
     deamoned: false,
@@ -168,13 +173,13 @@ func (this *MergingSupervisor)Deamon() {
     if conf.AUTO_MERGER_DEAMON_PERIOD<=0 {
         return
     }
-    Secretary.Log("kernel.distributedvc::Deamon", "Auto merger deamon is running at period "+conf.AUTO_MERGER_DEAMON_PERIOD+" second(s)")
-    var period=time.Second*conf.AUTO_MERGER_DEAMON_PERIOD
+    Secretary.Log("kernel.distributedvc::Deamon", "Auto merger deamon is running at period "+strconv.Itoa(conf.AUTO_MERGER_DEAMON_PERIOD)+" second(s)")
+    var period=time.Second*time.Duration(conf.AUTO_MERGER_DEAMON_PERIOD)
     for {
         // RUN FOREVER
         this.lock.RLock()
         var t=this.workersAlive
-        this.lock.RUnLock()
+        this.lock.RUnlock()
         if t==0 {
             this.spawnWorker()
         }
