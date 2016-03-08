@@ -18,6 +18,7 @@ import (
     "definition/exception"
     . "logger"
     "kernel/filetype"
+    //"fmt"
 )
 
 // It is the primary function of filesystem, responsible for basic fs operation
@@ -53,6 +54,7 @@ func lookUp(inode string, vfilename string, io outapi.Outapi) (string, error) {
         Secretary.Warn("kernel.filesystem::lookUp", "File "+GenFileName(inode, vfilename)+" has a invalid filetype.")
         return "", nil
     } else {
+        //fmt.Println("+++++++++++++++++++++", GenFileName(inode, vfilename), "=", fileNnode.DesName)
         return fileNnode.DesName, nil
     }
 }

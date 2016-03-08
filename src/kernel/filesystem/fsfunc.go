@@ -72,7 +72,7 @@ func (this *Fs)GetTrashInode() string {
 // For any error, a blank string and error will be returned.
 func (this *Fs)Locate(path string, frominode string/*=""*/) (string, error) {
     if strings.HasPrefix(path, "/") || frominode=="" {
-        frominode=ROOT_INODE_NAME
+        frominode=this.rootName
     }
     var rawResult=strings.Split(path, "/")
     for _, e:=range rawResult {
