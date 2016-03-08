@@ -370,7 +370,9 @@ func (this *FD)LoadPointerMap() error {
                 Secretary.WarnD("File "+this.filename+"'s patch #"+strconv.Itoa(tmpPos)+" has broken/invalid metadata. All the patches after it will get lost.")
                 tmpPos=oldPos
             } else {
-                needMerge=true
+                if oldPos!=0 {
+                    needMerge=true
+                }
             }
         }
     }
