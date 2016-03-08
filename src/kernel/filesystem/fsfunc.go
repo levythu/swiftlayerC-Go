@@ -222,7 +222,7 @@ func (this *Fs)Rm(foldername string, frominode string) error {
         Secretary.ErrorD("IO: "+this.io.GenerateUniqueID()+" has an invalid trashbox, which leads to removing failure.")
         return exception.EX_TRASHBOX_NOT_INITED
     } else {
-        return this.MvX(foldername, frominode, tsinode, uniqueid.GenGlobalUniqueNameWithTag("removed"), false)
+        return this.MvX(foldername, frominode, uniqueid.GenGlobalUniqueNameWithTag("removed"), tsinode, false)
         // TODO: logging the original position for recovery
     }
 }

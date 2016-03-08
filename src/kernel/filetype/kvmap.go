@@ -143,7 +143,9 @@ func (this *Kvmap)CheckOutReadOnly() map[string]*KvmapEntry {
 
     var ret=make(map[string]*KvmapEntry)
     for _, elem:=range this.readData {
-        ret[elem.Key]=elem
+        if elem.Val!=REMOVE_SPECIFIED {
+            ret[elem.Key]=elem
+        }
     }
 
     return ret

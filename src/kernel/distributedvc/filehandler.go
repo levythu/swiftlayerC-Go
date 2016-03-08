@@ -420,7 +420,9 @@ func (this *FD)Submit(object *filetype.Kvmap) error {
         return err
     }
     this.nextAvailablePosition++
-    MergeManager.SubmitTask(this.filename, this.io)
+    if this.nextAvailablePosition!=1 {
+        MergeManager.SubmitTask(this.filename, this.io)
+    }
 
     return nil
 }
