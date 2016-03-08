@@ -185,8 +185,30 @@ func (this *Fs)FormatFS() error {
 // Only returns file name list of one inode. Innername excluded.
 func (this *Fs)List(frominode string) ([]string, error) {
     // TODO
+    var fd=dvc.GetFD(GenFileName(frominode, FOLDER_MAP), this.io)
+    if fd==nil {
+        Secretary.Error("kernel.filesystem::List", "Fail to get FD for "+frominode)
+        return nil, exception.EX_IO_ERROR
+    }
+    defer fd.Release()
+    fd.GraspReader()
+    defer fd.ReleaseReader()
 
-    return nil, nil
+    if err:=fd.Sync(); err!=nil {
+        Secretary.Error("kernel.filesystem::List", "SYNC error for "+frominode+": "+err.Error())
+    }
+    if content, err:=fd.Read(); err!=nil {
+        Secretary.Error("kernel.filesystem::List", "Read error for "+frominode+": "+err.Error())
+        return nil, err
+    } else {
+        var ret=[]string{}
+        for k, _:=range content {
+            if CheckValidFilename(k) {
+                ret=append(ret, k)
+            }
+        }
+        return ret, nil
+    }
 }
 
 // All the folder will be removed. No matter if it is empty or not.
@@ -200,7 +222,7 @@ func (this *Fs)Rm(foldername string, frominode string) error {
         Secretary.ErrorD("IO: "+this.io.GenerateUniqueID()+" has an invalid trashbox, which leads to removing failure.")
         return exception.EX_TRASHBOX_NOT_INITED
     } else {
-        return this.MvX(foldername, frominode, tsinode, uniqueid.GenGlobalUniqueNameWithTag("removed"), false)
+        return this.MvX(foldername, frominode, uniqueid.GenGlobalUniqueNameWithTag("removed"), tsinode, false)
         // TODO: logging the original position for recovery
     }
 }
@@ -261,9 +283,12 @@ func (this *Fs)MvX(srcName, srcInode, desName, desInode string, byForce bool) er
         Secretary.Error("kernel.filesystem::MvX", "Fail to read nnode "+GenFileName(desInode, desName)+".")
         return exception.EX_IO_ERROR
     }
-    if err:=this.io.Put(GenFileName(dstFileNnode.DesName, ".."), filetype.NewNnode(desInode), nil); err!=nil {
+    var target=GenFileName(dstFileNnode.DesName, "..")
+    if err:=this.io.Put(target, filetype.NewNnode(desInode), nil); err!=nil {
         Secretary.Error("kernel.filesystem::MvX", "Fail to modify .. link for "+dstFileNnode.DesName+".")
         return err
+    } else {
+        Secretary.Log("kernel.filesystem::MvX", "Update file "+target)
     }
 
     // ALL DONE!

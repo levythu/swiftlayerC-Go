@@ -42,3 +42,11 @@ func (this *Session)Mkdir(foldername string) error {
 func (this *Session)Rm(foldername string) error {
     return this.fs.Rm(foldername, this.d)
 }
+
+func (this *Session)Ls() ([]string, error) {
+    return this.fs.List(this.d)
+}
+
+func (this *Session)PwdInode() string {
+    return this.d
+}

@@ -16,3 +16,5 @@
     - [ ] Add auto mergenext
     - [ ] Prepare to auto-fix folders that have not got a proper ../.
     - [ ] Consider modify Fs.Put() So that existing file could be removed
+    - [x] Set up auto invocation of task CHECK-IN
+    - [ ] Set up logging level

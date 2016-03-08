@@ -9,22 +9,27 @@ import (
     . "definition/configinfo"
     . "kernel/filetype"
     . "utils/timestamp"
+    "time"
 )
 
 var swiftc=ConnectbyAuth(KEYSTONE_USERNAME, KEYSTONE_PASSWORD, KEYSTONE_TENANT)
 var io=NewSwiftio(swiftc, "testcon")
 
-func TestFDGet(t *testing.T) {
+func _TestFDGet(t *testing.T) {
     fmt.Println("+++++ TestFDGet::start")
     var huahua=GetFD("huahuad", io)
     huahua.GraspReader()
     fmt.Println(huahua.Read())
     huahua.ReleaseReader()
     huahua.Release()
-    fmt.Println("----- TestFDGet::start")
+    fmt.Println("----- TestFDGet::end")
+
+    for {
+        time.Sleep(time.Hour)
+    }
 }
 
-func _TestFDSubmit(t *testing.T) {
+func TestFDSubmit(t *testing.T) {
     fmt.Println("+++++ TestFDSubmit::start")
     var huahua=GetFD("huahuad", io)
     var toSubmit=NewKvMap()
@@ -41,18 +46,9 @@ func _TestFDSubmit(t *testing.T) {
 
     huahua.Release()
     fmt.Println("----- TestFDSubmit::start")
-}
 
-func TestFDSync(t *testing.T) {
-    fmt.Println("+++++ TestFDSync::start")
-    var huahua=GetFD("huahuad", io)
-    huahua.GraspReader()
 
-    fmt.Println(huahua.Sync())
-    var x, _=huahua.Read()
-    fmt.Println(x.CheckOut()["huahuax"])
-
-    huahua.ReleaseReader()
-    huahua.Release()
-    fmt.Println("----- TestFDSync::end")
+    for {
+        time.Sleep(time.Hour)
+    }
 }

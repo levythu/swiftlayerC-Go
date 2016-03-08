@@ -56,6 +56,7 @@ type Kvmap struct {
 
     fileTS ClxTimestamp
 
+    // Attentez: the lock does not protect Kvm & rmed
     lock *sync.RWMutex
 }
 
@@ -130,6 +131,24 @@ func (this *Kvmap)CheckOut() map[string]*KvmapEntry {
     }
 
     return this.Kvm
+}
+func (this *Kvmap)CheckOutReadOnly() map[string]*KvmapEntry {
+    // Attentez: All the modification will not be stored before executing CheckIn
+    if this.LoadIntoMem()!=nil {
+        return nil
+    }
+
+    this.lock.RLock()
+    defer this.lock.RUnlock()
+
+    var ret=make(map[string]*KvmapEntry)
+    for _, elem:=range this.readData {
+        if elem.Val!=REMOVE_SPECIFIED {
+            ret[elem.Key]=elem
+        }
+    }
+
+    return ret
 }
 func (this *Kvmap)CheckIn() {
     this.lock.Lock()

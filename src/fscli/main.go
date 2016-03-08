@@ -1,41 +1,21 @@
-package filesystem
+package main
 
 import (
-    "testing"
-    "time"
-    "fmt"
-    "strings"
+    . "mainpkg/public"
     . "github.com/levythu/gurgling"
+    . "outapi"
+    conf "definition/configinfo"
+    fs "kernel/filesystem"
+    "strings"
+    . "logger"
+    "fmt"
 )
 
-var fs4test=NewFs(Testio)
+func main() {
+    StartUp()
 
-func _TestFormat(t *testing.T) {
-    fmt.Println(fs4test.FormatFS())
-
-    for {
-        time.Sleep(time.Hour)
-    }
-}
-
-func _TestMkDir(t *testing.T) {
-    fmt.Println(fs4test.Mkdir("directory1", fs4test.rootName, false))
-
-    for {
-        time.Sleep(time.Hour)
-    }
-}
-
-func _TestLS(t *testing.T) {
-    fmt.Println(fs4test.List(fs4test.rootName))
-
-    for {
-        time.Sleep(time.Hour)
-    }
-}
-
-func TestSession(t *testing.T) {
-    var session=NewSession(Testio)
+    var Testio=NewSwiftio(ConnectbyAuth(conf.KEYSTONE_USERNAME, conf.KEYSTONE_PASSWORD, conf.KEYSTONE_TENANT), "testcon")
+    var session=fs.NewSession(Testio)
     var router=ARouter().Use(func(req Request, res Response) {
         var cmd=req.Path()[1:]
         fmt.Println(cmd)
@@ -67,11 +47,13 @@ func TestSession(t *testing.T) {
             } else {
                 res.Send("OK.")
             }
+        } else if len(cmd)==4 && cmd=="pwdx" {
+            res.Send(session.PwdInode())
         } else {
             res.Status("404 NOT FOUND", 404)
         }
     })
 
-    fmt.Println("Running on port 8192.")
+    Secretary.LogD("Running on port 8192.")
     router.Launch(":8192")
 }

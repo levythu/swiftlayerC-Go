@@ -2,6 +2,7 @@ package main
 
 import (
     "inapi"
+    . "mainpkg/public"
 )
 
 func _no_use_() {
@@ -9,7 +10,7 @@ func _no_use_() {
 }
 
 func main() {
-    startUp()
+    StartUp()
     inapi.Entry()
     //forDBG()
 }

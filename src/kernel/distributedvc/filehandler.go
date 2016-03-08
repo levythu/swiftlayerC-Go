@@ -145,20 +145,23 @@ func (this *FD)GoDormant() {
 // If not active yet, will fetch the data from storage.
 // With fetching failure, a nil will be returned.
 // @ Must be Grasped Reader to use
-func (this *FD)Read() (*filetype.Kvmap, error) {
+func (this *FD)Read() (map[string]*filetype.KvmapEntry, error) {
     this.contentLock.RLock()
     var t=this.numberZero
-    this.contentLock.RUnlock()
     if t!=nil {
-        return t, nil
+        var q=t.CheckOutReadOnly()
+        this.contentLock.RUnlock()
+        return q, nil
     }
+    this.contentLock.RUnlock()
+
     if err:=this.ReadInNumberZero(); err!=nil {
         return nil, err
     }
     this.contentLock.RLock()
+    defer this.contentLock.RUnlock()
     t=this.numberZero
-    this.contentLock.RUnlock()
-    return t, nil
+    return t.CheckOutReadOnly(), nil
 }
 
 // Attentez: this method is asynchonously invoked
@@ -228,19 +231,19 @@ var FORMAT_EXCEPTION=errors.New("Kvmap file not suitable.")
 // if return (nil, nil), the file just does not exist.
 // a nil for file and an error instance will be returned for other errors
 // if the file is not nil, the function is invoked successfully
-func readInKvMapfile(io Outapi, filename string) (*filetype.Kvmap, error) {
+func readInKvMapfile(io Outapi, filename string) (*filetype.Kvmap, FileMeta, error) {
     var meta, file, err=io.Get(filename)
     if err!=nil {
-        return nil, err
+        return nil, nil, err
     }
     if file==nil || meta==nil {
-        Secretary.Log("distributedvc::readInKvMapfile()", "File "+filename+"does not exist.")
-        return nil, nil
+        Secretary.Log("distributedvc::readInKvMapfile()", "File "+filename+" does not exist.")
+        return nil, nil, nil
     }
     var result, ok=file.(*filetype.Kvmap)
     if !ok {
         Secretary.Warn("distributedvc::readInKvMapfile()", "Fail in reading file "+filename)
-        return nil, FORMAT_EXCEPTION
+        return nil, nil, FORMAT_EXCEPTION
     }
 
     if tTS, tOK:=meta[METAKEY_TIMESTAMP]; !tOK {
@@ -250,7 +253,7 @@ func readInKvMapfile(io Outapi, filename string) (*filetype.Kvmap, error) {
         result.TSet(String2ClxTimestamp(tTS))
     }
 
-    return result, nil
+    return result, meta, nil
 }
 
 var MERGE_ERROR=errors.New("Merging error")
@@ -258,7 +261,7 @@ var MERGE_ERROR=errors.New("Merging error")
 // @ Must be Grasped Reader to use
 var NOTHING_TO_MERGE=errors.New("Nothing to merge.")
 func (this *FD)MergeNext() error {
-    if _, tmpErr:=this.Read(); tmpErr!=nil {
+    if tmpErr:=this.ReadInNumberZero(); tmpErr!=nil {
         return tmpErr
     }
     // Read one patch file , get ready for merge
@@ -273,7 +276,8 @@ func (this *FD)MergeNext() error {
         return NOTHING_TO_MERGE
     }
 
-    var thePatch, err=readInKvMapfile(this.io, this.GetPatchName(this.nextToBeMerge, -1))
+    var oldMerged=this.nextToBeMerge
+    var thePatch, meta, err=readInKvMapfile(this.io, this.GetPatchName(this.nextToBeMerge, -1))
     if thePatch==nil {
         Secretary.Warn("distributedvc::FD.MergeNext()", "Fail to get a supposed-to-be patch for file "+this.filename)
         if err==nil {
@@ -282,13 +286,29 @@ func (this *FD)MergeNext() error {
             return err
         }
     }
+    var theNext int
+    if tNext, ok:=meta[INTRA_PATCH_METAKEY_NEXT_PATCH]; !ok {
+        Secretary.Warn("distributedvc::FD.MergeNext()", "Fail to get INTRA_PATCH_METAKEY_NEXT_PATCH for file "+this.filename)
+        theNext=this.nextToBeMerge+1
+    } else {
+        if intTNext, err:=strconv.Atoi(tNext); err!=nil {
+            Secretary.Warn("distributedvc::FD.MergeNext()", "Fail to get INTRA_PATCH_METAKEY_NEXT_PATCH for file "+this.filename)
+            theNext=this.nextToBeMerge+1
+        } else {
+            theNext=intTNext
+        }
+    }
     tNew, err:=this.numberZero.MergeWith(thePatch)
     if err!=nil {
         Secretary.Warn("distributedvc::FD.MergeNext()", "Fail to merge patches for file "+this.filename)
         return err
     }
+
     this.numberZero=tNew
+    this.nextToBeMerge=theNext
     this.modified=true
+
+    Secretary.Log("distributedvc::FD.MergeNext()", "Successfully merged in patch #"+strconv.Itoa(oldMerged)+" for "+this.filename)
     return nil
 }
 
@@ -322,6 +342,7 @@ func (this *FD)LoadPointerMap() error {
     }
 
     var tmpPos=0
+    var needMerge=false
     for {
         tMeta, tErr:=this.io.Getinfo(this.GetPatchName(tmpPos, -1))
         if tErr!=nil {
@@ -333,6 +354,9 @@ func (this *FD)LoadPointerMap() error {
                 this.status=2
             }
             this.nextAvailablePosition=tmpPos
+            if needMerge {
+                MergeManager.SubmitTask(this.filename, this.io)
+            }
             return nil
         }
         if tNum, ok:=tMeta[INTRA_PATCH_METAKEY_NEXT_PATCH]; !ok {
@@ -348,8 +372,11 @@ func (this *FD)LoadPointerMap() error {
             if tErr!=nil {
                 Secretary.WarnD("File "+this.filename+"'s patch #"+strconv.Itoa(tmpPos)+" has broken/invalid metadata. All the patches after it will get lost.")
                 tmpPos=oldPos
+            } else {
+                if oldPos!=0 {
+                    needMerge=true
+                }
             }
-            // TODO: consider add it into merge list
         }
     }
 
@@ -393,7 +420,9 @@ func (this *FD)Submit(object *filetype.Kvmap) error {
         return err
     }
     this.nextAvailablePosition++
-    // TODO: consider add it into merge list
+    if this.nextAvailablePosition!=1 {
+        MergeManager.SubmitTask(this.filename, this.io)
+    }
 
     return nil
 }
@@ -438,7 +467,7 @@ func (this *FD)combineNodeX(nodenumber int) error {
         }
     }
 
-    var file, err=readInKvMapfile(this.io, this.GetPatchName(0, nodenumber))
+    var file, _, err=readInKvMapfile(this.io, this.GetPatchName(0, nodenumber))
     if err!=nil {
         return err
     }
