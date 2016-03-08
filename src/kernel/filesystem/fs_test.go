@@ -16,8 +16,16 @@ func _TestFormat(t *testing.T) {
     }
 }
 
-func TestMkDir(t *testing.T) {
+func _TestMkDir(t *testing.T) {
     fmt.Println(fs4test.Mkdir("directory1", fs4test.rootName, false))
+
+    for {
+        time.Sleep(time.Hour)
+    }
+}
+
+func TestLS(t *testing.T) {
+    fmt.Println(fs4test.List(fs4test.rootName))
 
     for {
         time.Sleep(time.Hour)

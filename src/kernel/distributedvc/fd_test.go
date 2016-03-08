@@ -50,19 +50,5 @@ func TestFDSubmit(t *testing.T) {
 
     for {
         time.Sleep(time.Hour)
-    }    
-}
-
-func _TestFDSync(t *testing.T) {
-    fmt.Println("+++++ TestFDSync::start")
-    var huahua=GetFD("huahuad", io)
-    huahua.GraspReader()
-
-    fmt.Println(huahua.Sync())
-    var x, _=huahua.Read()
-    fmt.Println(x.CheckOut()["huahuax"])
-
-    huahua.ReleaseReader()
-    huahua.Release()
-    fmt.Println("----- TestFDSync::end")
+    }
 }

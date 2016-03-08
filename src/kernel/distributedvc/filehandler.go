@@ -145,20 +145,23 @@ func (this *FD)GoDormant() {
 // If not active yet, will fetch the data from storage.
 // With fetching failure, a nil will be returned.
 // @ Must be Grasped Reader to use
-func (this *FD)Read() (*filetype.Kvmap, error) {
+func (this *FD)Read() (map[string]*filetype.KvmapEntry, error) {
     this.contentLock.RLock()
     var t=this.numberZero
-    this.contentLock.RUnlock()
     if t!=nil {
-        return t, nil
+        var q=t.CheckOutReadOnly()
+        this.contentLock.RUnlock()
+        return q, nil
     }
+    this.contentLock.RUnlock()
+
     if err:=this.ReadInNumberZero(); err!=nil {
         return nil, err
     }
     this.contentLock.RLock()
+    defer this.contentLock.RUnlock()
     t=this.numberZero
-    this.contentLock.RUnlock()
-    return t, nil
+    return t.CheckOutReadOnly(), nil
 }
 
 // Attentez: this method is asynchonously invoked
@@ -234,7 +237,7 @@ func readInKvMapfile(io Outapi, filename string) (*filetype.Kvmap, FileMeta, err
         return nil, nil, err
     }
     if file==nil || meta==nil {
-        Secretary.Log("distributedvc::readInKvMapfile()", "File "+filename+"does not exist.")
+        Secretary.Log("distributedvc::readInKvMapfile()", "File "+filename+" does not exist.")
         return nil, nil, nil
     }
     var result, ok=file.(*filetype.Kvmap)
@@ -258,7 +261,7 @@ var MERGE_ERROR=errors.New("Merging error")
 // @ Must be Grasped Reader to use
 var NOTHING_TO_MERGE=errors.New("Nothing to merge.")
 func (this *FD)MergeNext() error {
-    if _, tmpErr:=this.Read(); tmpErr!=nil {
+    if tmpErr:=this.ReadInNumberZero(); tmpErr!=nil {
         return tmpErr
     }
     // Read one patch file , get ready for merge
