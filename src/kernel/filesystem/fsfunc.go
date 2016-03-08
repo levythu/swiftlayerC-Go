@@ -283,9 +283,12 @@ func (this *Fs)MvX(srcName, srcInode, desName, desInode string, byForce bool) er
         Secretary.Error("kernel.filesystem::MvX", "Fail to read nnode "+GenFileName(desInode, desName)+".")
         return exception.EX_IO_ERROR
     }
-    if err:=this.io.Put(GenFileName(dstFileNnode.DesName, ".."), filetype.NewNnode(desInode), nil); err!=nil {
+    var target=GenFileName(dstFileNnode.DesName, "..")
+    if err:=this.io.Put(target, filetype.NewNnode(desInode), nil); err!=nil {
         Secretary.Error("kernel.filesystem::MvX", "Fail to modify .. link for "+dstFileNnode.DesName+".")
         return err
+    } else {
+        Secretary.Log("kernel.filesystem::MvX", "Update file "+target)
     }
 
     // ALL DONE!
