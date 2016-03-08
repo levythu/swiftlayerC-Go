@@ -322,6 +322,7 @@ func (this *FD)LoadPointerMap() error {
     }
 
     var tmpPos=0
+    var needMerge=false
     for {
         tMeta, tErr:=this.io.Getinfo(this.GetPatchName(tmpPos, -1))
         if tErr!=nil {
@@ -333,6 +334,9 @@ func (this *FD)LoadPointerMap() error {
                 this.status=2
             }
             this.nextAvailablePosition=tmpPos
+            if needMerge {
+                MergeManager.SubmitTask(this.filename, this.io)
+            }
             return nil
         }
         if tNum, ok:=tMeta[INTRA_PATCH_METAKEY_NEXT_PATCH]; !ok {
@@ -348,8 +352,9 @@ func (this *FD)LoadPointerMap() error {
             if tErr!=nil {
                 Secretary.WarnD("File "+this.filename+"'s patch #"+strconv.Itoa(tmpPos)+" has broken/invalid metadata. All the patches after it will get lost.")
                 tmpPos=oldPos
+            } else {
+                needMerge=true
             }
-            // TODO: consider add it into merge list
         }
     }
 
@@ -393,7 +398,7 @@ func (this *FD)Submit(object *filetype.Kvmap) error {
         return err
     }
     this.nextAvailablePosition++
-    // TODO: consider add it into merge list
+    MergeManager.SubmitTask(this.filename, this.io)
 
     return nil
 }
