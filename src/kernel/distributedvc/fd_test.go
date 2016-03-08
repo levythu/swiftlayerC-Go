@@ -9,6 +9,7 @@ import (
     . "definition/configinfo"
     . "kernel/filetype"
     . "utils/timestamp"
+    "time"
 )
 
 var swiftc=ConnectbyAuth(KEYSTONE_USERNAME, KEYSTONE_PASSWORD, KEYSTONE_TENANT)
@@ -21,7 +22,11 @@ func TestFDGet(t *testing.T) {
     fmt.Println(huahua.Read())
     huahua.ReleaseReader()
     huahua.Release()
-    fmt.Println("----- TestFDGet::start")
+    fmt.Println("----- TestFDGet::end")
+
+    for {
+        time.Sleep(time.Hour)
+    }
 }
 
 func _TestFDSubmit(t *testing.T) {
@@ -43,7 +48,7 @@ func _TestFDSubmit(t *testing.T) {
     fmt.Println("----- TestFDSubmit::start")
 }
 
-func TestFDSync(t *testing.T) {
+func _TestFDSync(t *testing.T) {
     fmt.Println("+++++ TestFDSync::start")
     var huahua=GetFD("huahuad", io)
     huahua.GraspReader()

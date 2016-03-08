@@ -232,13 +232,13 @@ func workerProcess(supervisor *MergingSupervisor, numbered int) {
                     // loop until there's nothing to merge for the fd
                     var merr=thisFD.MergeNext()
                     if merr!=nil {
-                        Secretary.Log(myName, "FD "+task+" has been merged once.")
                         if merr==NOTHING_TO_MERGE {
                             break
                         }
                         // ERROR when merge
                         break
                     }
+                    Secretary.Log(myName, "FD "+task+" has been merged once.")
                     writeBackCount++
                     if writeBackCount>=conf.AUTO_COMMIT_PER_INTRAMERGE {
                         writeBackCount=0

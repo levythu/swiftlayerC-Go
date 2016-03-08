@@ -228,19 +228,19 @@ var FORMAT_EXCEPTION=errors.New("Kvmap file not suitable.")
 // if return (nil, nil), the file just does not exist.
 // a nil for file and an error instance will be returned for other errors
 // if the file is not nil, the function is invoked successfully
-func readInKvMapfile(io Outapi, filename string) (*filetype.Kvmap, error) {
+func readInKvMapfile(io Outapi, filename string) (*filetype.Kvmap, FileMeta, error) {
     var meta, file, err=io.Get(filename)
     if err!=nil {
-        return nil, err
+        return nil, nil, err
     }
     if file==nil || meta==nil {
         Secretary.Log("distributedvc::readInKvMapfile()", "File "+filename+"does not exist.")
-        return nil, nil
+        return nil, nil, nil
     }
     var result, ok=file.(*filetype.Kvmap)
     if !ok {
         Secretary.Warn("distributedvc::readInKvMapfile()", "Fail in reading file "+filename)
-        return nil, FORMAT_EXCEPTION
+        return nil, nil, FORMAT_EXCEPTION
     }
 
     if tTS, tOK:=meta[METAKEY_TIMESTAMP]; !tOK {
@@ -250,7 +250,7 @@ func readInKvMapfile(io Outapi, filename string) (*filetype.Kvmap, error) {
         result.TSet(String2ClxTimestamp(tTS))
     }
 
-    return result, nil
+    return result, meta, nil
 }
 
 var MERGE_ERROR=errors.New("Merging error")
@@ -273,7 +273,8 @@ func (this *FD)MergeNext() error {
         return NOTHING_TO_MERGE
     }
 
-    var thePatch, err=readInKvMapfile(this.io, this.GetPatchName(this.nextToBeMerge, -1))
+    var oldMerged=this.nextToBeMerge
+    var thePatch, meta, err=readInKvMapfile(this.io, this.GetPatchName(this.nextToBeMerge, -1))
     if thePatch==nil {
         Secretary.Warn("distributedvc::FD.MergeNext()", "Fail to get a supposed-to-be patch for file "+this.filename)
         if err==nil {
@@ -282,13 +283,29 @@ func (this *FD)MergeNext() error {
             return err
         }
     }
+    var theNext int
+    if tNext, ok:=meta[INTRA_PATCH_METAKEY_NEXT_PATCH]; !ok {
+        Secretary.Warn("distributedvc::FD.MergeNext()", "Fail to get INTRA_PATCH_METAKEY_NEXT_PATCH for file "+this.filename)
+        theNext=this.nextToBeMerge+1
+    } else {
+        if intTNext, err:=strconv.Atoi(tNext); err!=nil {
+            Secretary.Warn("distributedvc::FD.MergeNext()", "Fail to get INTRA_PATCH_METAKEY_NEXT_PATCH for file "+this.filename)
+            theNext=this.nextToBeMerge+1
+        } else {
+            theNext=intTNext
+        }
+    }
     tNew, err:=this.numberZero.MergeWith(thePatch)
     if err!=nil {
         Secretary.Warn("distributedvc::FD.MergeNext()", "Fail to merge patches for file "+this.filename)
         return err
     }
+
     this.numberZero=tNew
+    this.nextToBeMerge=theNext
     this.modified=true
+
+    Secretary.Log("distributedvc::FD.MergeNext()", "Successfully merged in patch #"+strconv.Itoa(oldMerged)+" for "+this.filename)
     return nil
 }
 
@@ -443,7 +460,7 @@ func (this *FD)combineNodeX(nodenumber int) error {
         }
     }
 
-    var file, err=readInKvMapfile(this.io, this.GetPatchName(0, nodenumber))
+    var file, _, err=readInKvMapfile(this.io, this.GetPatchName(0, nodenumber))
     if err!=nil {
         return err
     }
