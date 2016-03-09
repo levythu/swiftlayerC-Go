@@ -12,5 +12,4 @@ func _no_use_() {
 func main() {
     StartUp()
     inapi.Entry()
-    //forDBG()
 }

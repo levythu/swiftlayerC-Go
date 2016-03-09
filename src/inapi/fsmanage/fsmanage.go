@@ -75,7 +75,7 @@ func lsDirectory(req Request, res Response) {
         return
     }
     var resultList []*filetype.KvmapEntry
-    resultList, err=fs.ListDetail(nodeName)
+    resultList, err=fs.List(nodeName)
     if err!=nil {
         res.Status("Nonexist container or path. "+err.Error(), 404)
         return
