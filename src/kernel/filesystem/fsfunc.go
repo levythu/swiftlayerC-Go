@@ -72,7 +72,7 @@ func (this *Fs)GetTrashInode() string {
 // For any error, a blank string and error will be returned.
 func (this *Fs)Locate(path string, frominode string/*=""*/) (string, error) {
     if strings.HasPrefix(path, "/") || frominode=="" {
-        frominode=ROOT_INODE_NAME
+        frominode=this.rootName
     }
     var rawResult=strings.Split(path, "/")
     for _, e:=range rawResult {
@@ -184,7 +184,6 @@ func (this *Fs)FormatFS() error {
 
 // Only returns file name list of one inode. Innername excluded.
 func (this *Fs)List(frominode string) ([]string, error) {
-    // TODO
     var fd=dvc.GetFD(GenFileName(frominode, FOLDER_MAP), this.io)
     if fd==nil {
         Secretary.Error("kernel.filesystem::List", "Fail to get FD for "+frominode)
@@ -305,7 +304,7 @@ func (this *Fs)MvX(srcName, srcInode, desName, desInode string, byForce bool) er
 // if filename!="", a new filename will be assigned and frominode::filename will be set
 // otherwise, frominode indicates the target fileinode and the target file will override it
 const STREAM_TYPE="stream type file"
-func (this *Fs)Put(filename string, frominode string, meta FileMeta/*=nil*/, dataSource io.Reader, typeoffile string/*=""*/) error {
+func (this *Fs)Put(filename string, frominode string, meta FileMeta/*=nil*/, dataSource io.Reader) error {
     var targetFileinode string
     if filename!="" {
         if !CheckValidFilename(filename) {
@@ -344,7 +343,7 @@ func (this *Fs)Put(filename string, frominode string, meta FileMeta/*=nil*/, dat
 }
 
 // If the file does not exist, an EX_FILE_NOT_EXIST will be returned.
-func (this *Fs)Get(filename string, frominode string, w io.Writer) error {
+func (this *Fs)Get(filename string, frominode string, beforePipe func(string) io.Writer) error {
     var targetFileinode string
     if filename!="" {
         if !CheckValidFilename(filename) {
@@ -369,6 +368,11 @@ func (this *Fs)Get(filename string, frominode string, w io.Writer) error {
         return exception.EX_WRONG_FILEFORMAT
     }
 
+    if beforePipe==nil {
+        rc.Close()
+        return nil
+    }
+    var w=beforePipe(frominode)
     if _, copyErr:=io.Copy(w, rc); copyErr!=nil {
         rc.Close()
         return copyErr

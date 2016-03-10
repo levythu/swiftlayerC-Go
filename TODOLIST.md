@@ -18,3 +18,4 @@
     - [ ] Consider modify Fs.Put() So that existing file could be removed
     - [x] Set up auto invocation of task CHECK-IN
     - [ ] Set up logging level
+    - [ ] Multi-routine fs functions

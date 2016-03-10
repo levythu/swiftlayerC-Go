@@ -4,13 +4,13 @@ package streamio
 
 import (
     . "github.com/levythu/gurgling"
-    . "kernel/distributedvc/filemeta"
     "outapi"
     "kernel/filesystem"
     //"kernel/filetype"
     "definition/exception"
     "io"
     "fmt"
+    "utils/pathman"
     //"logger"
 )
 
@@ -20,7 +20,7 @@ func __iohandlergo_nouse() {
 
 func IORouter() Router {
     var rootRouter=ARegexpRouter()
-    rootRouter.Use(`/([^/]+)/\[\[SC\](.+)\]/(.*)`, handlingShortcut)
+    rootRouter.Use(`/([^/]+)/\[\[SC\](.+)\]/?(.*)`, handlingShortcut)
 
     rootRouter.Get(`/([^/]+)/(.*)`, downloader)
     rootRouter.Put(`/([^/]+)/(.*)`, uploader)
@@ -30,6 +30,11 @@ func IORouter() Router {
 
 // Handling shortcut retrieve. It's applied to all the api in the field
 // format: /fs/{contianer}/[[SC]{rootnode}]/{followingpath}
+
+// Note: In Shortcut Access([SC[inode]]/...), the trailing path can be empty, so that
+// the operation will be directly conducted on the inode itself.
+// If the inode is a folder and a PUT is conducted, the folder will be3 both a
+// directory and a file
 func handlingShortcut(req Request, res Response) bool {
     // After the midware,
     // req.F()["HandledRR"][1]=={container},
@@ -45,6 +50,9 @@ func handlingShortcut(req Request, res Response) bool {
     return true
 }
 
+const PARENT_NODE="Parent-Node"
+const FILE_NODE="File-Node"
+
 // ==========================API DOCS=======================================
 // API Name: Stream data from specified path
 // Action: Read the destination data and return it as a file by streaming
@@ -55,6 +63,8 @@ func handlingShortcut(req Request, res Response) bool {
 //      - followingpath(in URL): the path to be listed
 // Returns:
 //      - HTTP 200: No error and the result will be returned in raw-data streaming.
+//                  if successfully, the returned header Parent-Node(if accessed) will
+//                  contain its parent inode and File-Node will indicate the file itself.
 //      - HTTP 404: Either the container or the filepath does not exist.
 //      - HTTP 500: Error. The body is supposed to return error info.
 // ==========================API DOCS END===================================
@@ -66,23 +76,42 @@ func downloader(req Request, res Response) {
     }
 
     var fs=filesystem.NewFs(outapi.NewSwiftio(outapi.DefaultConnector, pathDetail[1]))
-    fs.Get(pathDetail[2], pathDetail[3], func(err error, fm FileMeta) io.Writer {
-        if err!=nil {
+    var hasSent bool=false
+    if base, filename:=pathman.SplitPath(pathDetail[2]); filename=="" {
+        var err=fs.Get("", pathDetail[3], func(fileInode string) io.Writer {
+            res.Set(FILE_NODE, fileInode)
+            res.SendCode(200)
+            hasSent=true
+            return res.R()
+        })
+        if err!=nil && !hasSent {
             if err==exception.EX_FILE_NOT_EXIST {
-                res.Status("Nonexist container or path.", 404)
-                return nil
+                res.Status("File Not Found.", 404)
+            } else {
+                res.Status("Internal Error: "+err.Error(), 500)
             }
-            res.Status("Internal Error: "+err.Error(), 500)
-            return nil
         }
-        // TODO: consider setting Content-Type
-        res.SendCode(200)
-        return res.R()
-    }, func(err error) {
+    } else {
+        var nodeName, err=fs.Locate(base, pathDetail[3])
         if err!=nil {
-            // TODO: logging the file sending error
+            res.Status("Nonexist container or path. "+err.Error(), 404)
+            return
         }
-    }, true)
+        err=fs.Get(filename, nodeName, func(fileInode string) io.Writer {
+            res.Set(PARENT_NODE, nodeName)
+            res.Set(FILE_NODE, fileInode)
+            res.SendCode(200)
+            hasSent=true
+            return res.R()
+        })
+        if err!=nil && !hasSent {
+            if err==exception.EX_FILE_NOT_EXIST {
+                res.Status("File Not Found.", 404)
+            } else {
+                res.Status("Internal Error: "+err.Error(), 500)
+            }
+        }
+    }
 }
 
 // ==========================API DOCS=======================================
@@ -106,13 +135,26 @@ func uploader(req Request, res Response) {
     }
 
     var fs=filesystem.NewFs(outapi.NewSwiftio(outapi.DefaultConnector, pathDetail[1]))
-    var err=fs.Put(pathDetail[2], pathDetail[3], nil, req.R().Body, "")
-    if err!=nil {
-        if err==exception.EX_FILE_NOT_EXIST {
+    var putErr error
+    if base, filename:=pathman.SplitPath(pathDetail[2]); filename=="" {
+        // TODO: glean user meta
+        putErr=fs.Put("", pathDetail[3], nil, req.R().Body)
+    } else {
+        var nodeName, err=fs.Locate(base, pathDetail[3])
+        if err!=nil {
+            res.Status("Nonexist container or path. "+err.Error(), 404)
+            return
+        }
+        // TODO: glean user meta
+        putErr=fs.Put(filename, nodeName, nil, req.R().Body)
+    }
+
+    if putErr!=nil {
+        if putErr==exception.EX_FILE_NOT_EXIST {
             res.Status("Nonexist container or path.", 404)
             return
         }
-        res.Status("Internal Error: "+err.Error(), 500)
+        res.Status("Internal Error: "+putErr.Error(), 500)
         return
     }
     res.SendCode(200)

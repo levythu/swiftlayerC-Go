@@ -5,6 +5,7 @@ import (
     "inapi/containermanage"
     "inapi/fsmanage"
     "inapi/streamio"
+    conf "definition/configinfo"
 )
 
 func Entry() {
@@ -13,5 +14,5 @@ func Entry() {
     rootRouter.Use("/io", streamio.IORouter())
     rootRouter.Use("/cn", containermanage.CMRouter())
 
-    rootRouter.Launch(":9144")
+    rootRouter.Launch(conf.OUTER_SERVICE_LISTENER)
 }
