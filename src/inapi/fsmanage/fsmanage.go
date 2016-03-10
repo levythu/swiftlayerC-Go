@@ -6,7 +6,6 @@ import (
     . "github.com/levythu/gurgling"
     "outapi"
     "kernel/filesystem"
-    "kernel/filetype"
     "definition/exception"
     "fmt"
     //"logger"
@@ -19,16 +18,17 @@ func __fsmanagego_nouse() {
 
 func FMRouter() Router {
     var rootRouter=ARegexpRouter()
-    rootRouter.Use(`/([^/]+)/\[\[SC\](.+)\]/(.*)`, handlingShortcut)
+    rootRouter.Use(`/([^/]+)/\[\[SC\](.+)\]/?(.*)`, handlingShortcut)
 
     rootRouter.Get(`/([^/]+)/(.*)`, lsDirectory)
-    rootRouter.Put(`/([^/]+)/(.*)`, mkDirectory)
+    rootRouter.Put(`/([^/]+)/(.*)`, mkDirectoryByForce)
+    rootRouter.Post(`/([^/]+)/(.*)`, mkDirectory)
     rootRouter.Delete(`/([^/]+)/(.*)`, rmDirectory)
 
     return rootRouter
 }
 
-const LAST_PARENT_NODE="Manipulated-Node"
+const LAST_PARENT_NODE="Parent-Node"
 
 // Handling shortcut retrieve. It's applied to all the api in the field
 // format: /fs/{contianer}/[[SC]{rootnode}]/{followingpath}
@@ -57,7 +57,7 @@ func handlingShortcut(req Request, res Response) bool {
 //      - followingpath(in URL): the path to be listed
 // Returns:
 //      - HTTP 200: No error and the result will be returned in JSON in the body.
-//              When success, 'Manipulated-Node' will indicate the listed directory.
+//              When success, 'Parent-Node' will indicate the listed directory.
 //      - HTTP 404: Either the container or the filepath does not exist.
 //      - HTTP 500: Error. The body is supposed to return error info.
 // ==========================API DOCS END===================================
@@ -74,17 +74,16 @@ func lsDirectory(req Request, res Response) {
         res.Status("Nonexist container or path. "+err.Error(), 404)
         return
     }
-    var resultList []*filetype.KvmapEntry
+    var resultList []string
     resultList, err=fs.List(nodeName)
     if err!=nil {
-        res.Status("Nonexist container or path. "+err.Error(), 404)
+        res.Status("Reading error: "+err.Error(), 404)
         return
     }
 
     res.Set(LAST_PARENT_NODE, nodeName)
     res.JSON(resultList)
 }
-
 
 // ==========================API DOCS=======================================
 // API Name: Make one directory
@@ -97,14 +96,14 @@ func lsDirectory(req Request, res Response) {
 // Returns:
 //      - HTTP 201: No error and the directory creation application has been submitted.
 //        to ensure created, another list operation should be carried.
-//              When success, 'Manipulated-Node' will indicate the parent of created directory.
+//              When success, 'Parent-Node' will indicate the parent of created directory.
 //      - HTTP 202: No error but the directory has existed before.
-//              When success, 'Manipulated-Node' will indicate the parent of already exist directory.
+//              When success, 'Parent-Node' will indicate the parent of already exist directory.
 //      - HTTP 404: Either the container or the parent filepath does not exist.
 //      - HTTP 405: Parameters not specifed. Info will be provided in body.
 //      - HTTP 500: Error. The body is supposed to return error info.
 // ==========================API DOCS END===================================
-func mkDirectory(req Request, res Response) {
+func mkDirectoryX(req Request, res Response, byforce bool) {
     var pathDetail, _=req.F()["HandledRR"].([]string)
     if pathDetail==nil {
         pathDetail=req.F()["RR"].([]string)
@@ -123,6 +122,9 @@ func mkDirectory(req Request, res Response) {
         return
     }
     trimer=trimer[:i+1]
+
+    // Now trimmer eleminates all the trailing slashes
+
     var j int
     for j=i; j>=0; j-- {
         if trimer[j]=='/' {
@@ -142,7 +144,7 @@ func mkDirectory(req Request, res Response) {
     }
 
     res.Set(LAST_PARENT_NODE, nodeName)
-    err=fs.Mkdir(trimer, nodeName)
+    err=fs.Mkdir(trimer, nodeName, byforce)
     if err!=nil {
         if err==exception.EX_INODE_NONEXIST {
             res.Status("Nonexist container or path.", 404)
@@ -158,6 +160,12 @@ func mkDirectory(req Request, res Response) {
 
     res.SendCode(201)
 }
+func mkDirectoryByForce(req Request, res Response) {
+    mkDirectoryX(req, res, true)
+}
+func mkDirectory(req Request, res Response) {
+    mkDirectoryX(req, res, false)
+}
 
 
 // ==========================API DOCS=======================================
@@ -171,7 +179,7 @@ func mkDirectory(req Request, res Response) {
 // Returns:
 //      - HTTP 204: The deletion succeeds but it is only a patch. to ensure created, another list
 //        operation should be carried.
-//              When success, 'Manipulated-Node' will indicate the parent of removed directory.
+//              When success, 'Parent-Node' will indicate the parent of removed directory.
 //      - HTTP 404: Either the container or the parent filepath does not exist.
 //      - HTTP 500: Error. The body is supposed to return error info.
 // ==========================API DOCS END===================================
@@ -213,6 +221,7 @@ func rmDirectory(req Request, res Response) {
     }
 
     res.Set(LAST_PARENT_NODE, nodeName)
+    // TODO: what if the src file does not exist?
     err=fs.Rm(trimer, nodeName)
     if err!=nil {
         if err==exception.EX_INODE_NONEXIST {
