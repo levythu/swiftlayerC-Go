@@ -9,6 +9,9 @@ var NODE_NUMS_IN_ALL int
 var AUTO_COMMIT_PER_INTRAMERGE int
 var SWIFT_AUTH_URL string
 var SWIFT_PROXY_URL string
+var OUTER_SERVICE_LISTENER string
+
+
 var INDEX_FILE_CHECK_MD5 bool
 var THREAD_UTILISED int
 
@@ -47,6 +50,9 @@ func InitAll() bool {
     AUTO_COMMIT_PER_INTRAMERGE      =int(extractProperty("auto_commit_per_intramerge").(float64))
     SWIFT_AUTH_URL                  =extractProperty("swift_auth_url").(string)
     SWIFT_PROXY_URL                 =extractProperty("swift_proxy_url").(string)
+    OUTER_SERVICE_LISTENER          =extractProperty("outer_service_listener").(string)
+
+
     INDEX_FILE_CHECK_MD5            =extractProperty("index_file_check_md5").(bool)
     THREAD_UTILISED                 =int(extractProperty("thread_utilised").(float64))
 
