@@ -19,5 +19,5 @@
     - [x] Set up auto invocation of task CHECK-IN
     - [x] Set up logging level
     - [ ] Multi-routine fs functions
-    - [ ] Set default file name and extension
+    - [x] Set default file name and extension
     - [ ] user meta support

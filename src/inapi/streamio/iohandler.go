@@ -68,6 +68,8 @@ const FILE_NODE="File-Node"
 //      - HTTP 404: Either the container or the filepath does not exist.
 //      - HTTP 500: Error. The body is supposed to return error info.
 // ==========================API DOCS END===================================
+
+const HEADER_CONTENT_DISPOSE="Content-Disposition"
 func downloader(req Request, res Response) {
     var pathDetail, _=req.F()["HandledRR"].([]string)
     if pathDetail==nil {
@@ -78,8 +80,9 @@ func downloader(req Request, res Response) {
     var fs=filesystem.NewFs(outapi.NewSwiftio(outapi.DefaultConnector, pathDetail[1]))
     var hasSent bool=false
     if base, filename:=pathman.SplitPath(pathDetail[2]); filename=="" {
-        var err=fs.Get("", pathDetail[3], func(fileInode string) io.Writer {
+        var err=fs.Get("", pathDetail[3], func(fileInode string, oriName string) io.Writer {
             res.Set(FILE_NODE, fileInode)
+            res.Set(HEADER_CONTENT_DISPOSE, "attachment; filename=\""+oriName+"\"")
             res.SendCode(200)
             hasSent=true
             return res.R()
@@ -97,8 +100,9 @@ func downloader(req Request, res Response) {
             res.Status("Nonexist container or path. "+err.Error(), 404)
             return
         }
-        err=fs.Get(filename, nodeName, func(fileInode string) io.Writer {
+        err=fs.Get(filename, nodeName, func(fileInode string, oriName string) io.Writer {
             res.Set(PARENT_NODE, nodeName)
+            res.Set(HEADER_CONTENT_DISPOSE, "attachment; filename=\""+oriName+"\"")
             res.Set(FILE_NODE, fileInode)
             res.SendCode(200)
             hasSent=true
@@ -158,7 +162,7 @@ func uploader(req Request, res Response) {
 
     if putErr!=nil {
         if putErr==exception.EX_FILE_NOT_EXIST {
-            res.Status("Nonexist container or path.", 404)
+            res.Status("Nonexist container or path. Or you cannot refer to a non-existing inode in ovveride mode.", 404)
             return
         }
         res.Status("Internal Error: "+putErr.Error(), 500)
