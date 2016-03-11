@@ -4,7 +4,11 @@ import (
     . "definition"
 )
 
-var Secretary Logger=&ConsoleLogger{}
+var Secretary Logger=&ConsoleLogger{
+    doLog: true,
+    doWarn: true,
+    doErr: true,
+}
 
 type Logger interface {
     LogD(c Tout)
@@ -13,4 +17,8 @@ type Logger interface {
     Log(pos string, c Tout)
     Warn(pos string, c Tout)
     Error(pos string, c Tout)
+
+    // 000 stands for log, warn, error
+    // the larger, the more verbose
+    SetLevel(level int)
 }
