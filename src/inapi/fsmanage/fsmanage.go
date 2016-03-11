@@ -89,7 +89,7 @@ func lsDirectory(req Request, res Response) {
 // API Name: Make one directory
 // Action: make the directory only if it does not exist and its parent path exists
 // API URL: /fs/{contianer}/{followingpath}
-// REQUEST: PUT
+// REQUEST: POST
 // Parameters:
 //      - contianer(in URL): the container name
 //      - followingpath(in URL): the path to be create. Please guarantee its parent node exists.
@@ -99,6 +99,22 @@ func lsDirectory(req Request, res Response) {
 //              When success, 'Parent-Node' will indicate the parent of created directory.
 //      - HTTP 202: No error but the directory has existed before.
 //              When success, 'Parent-Node' will indicate the parent of already exist directory.
+//      - HTTP 404: Either the container or the parent filepath does not exist.
+//      - HTTP 405: Parameters not specifed. Info will be provided in body.
+//      - HTTP 500: Error. The body is supposed to return error info.
+// ==========================API DOCS END===================================
+// ==========================API DOCS=======================================
+// API Name: Make one directory by force
+// Action: make the directory by force if its parent path exists
+// API URL: /fs/{contianer}/{followingpath}
+// REQUEST: PUT
+// Parameters:
+//      - contianer(in URL): the container name
+//      - followingpath(in URL): the path to be create. Please guarantee its parent node exists.
+// Returns:
+//      - HTTP 201: No error and the directory creation application has been submitted.
+//        to ensure created, another list operation should be carried.
+//              When success, 'Parent-Node' will indicate the parent of created directory.
 //      - HTTP 404: Either the container or the parent filepath does not exist.
 //      - HTTP 405: Parameters not specifed. Info will be provided in body.
 //      - HTTP 500: Error. The body is supposed to return error info.
@@ -180,7 +196,7 @@ func mkDirectory(req Request, res Response) {
 //      - HTTP 204: The deletion succeeds but it is only a patch. to ensure created, another list
 //        operation should be carried.
 //              When success, 'Parent-Node' will indicate the parent of removed directory.
-//      - HTTP 404: Either the container or the parent filepath does not exist.
+//      - HTTP 404: Either the container or the parent filepath or the file itself does not exist.
 //      - HTTP 500: Error. The body is supposed to return error info.
 // ==========================API DOCS END===================================
 func rmDirectory(req Request, res Response) {

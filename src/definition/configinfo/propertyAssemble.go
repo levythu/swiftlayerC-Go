@@ -4,6 +4,8 @@ import (
     . "logger"
 )
 
+var LOG_LEVEL int
+
 var NODE_NUMBER int
 var NODE_NUMS_IN_ALL int
 var AUTO_COMMIT_PER_INTRAMERGE int
@@ -43,6 +45,9 @@ func InitAll() bool {
     errorAssert(AppendFileToJSON("conf/accountinfo.debug.noupload.json", conf), "Reading conf/accountinfo.debug.noupload.json")
     errorAssert(AppendFileToJSON("conf/kernelinfo.json", conf), "Reading conf/kernelinfo.json")
 
+
+    LOG_LEVEL                       =int(extractProperty("log_level").(float64))
+    Secretary.SetLevel(LOG_LEVEL)
 
 
     NODE_NUMBER                     =int(extractProperty("node_number").(float64))

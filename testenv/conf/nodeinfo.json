@@ -28,6 +28,15 @@
     "swift_proxy_url": "http://58.205.208.81:8080/v1/",
 
     /*  To which([hostname]:port) the outer server listens */
-    "outer_service_listener": ":9144"
+    "outer_service_listener": ":9144",
+
+    /*
+        log_level is a three digit binary b2b1b0:
+        b2 set to 1 enables info log
+        b1 set to 1 enables warning
+        b0 set to 1 enables error
+        the larger the value is, the more verbose logger will be
+    */
+    "log_level": 7
 
 }

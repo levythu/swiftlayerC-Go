@@ -428,6 +428,7 @@ func (this *FD)Submit(object *filetype.Kvmap) error {
 }
 
 const CONF_FLAG_PREFIX="/*CONF-FLAG*/"
+// NOT for header, so can be camaralized
 const NODE_SYNC_TIME_PREFIX="Node-Sync-"
 
 // Will not require any lock in the process, so the function invocation must be

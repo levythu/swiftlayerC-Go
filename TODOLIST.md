@@ -13,9 +13,13 @@
     - [x] modify the way to access files
     - [ ] add inter-communication mechanism
     - [ ] Consider reconstruct kvmap to allow fast access to timestamp
-    - [ ] Add auto mergenext
+    - [x] Add auto mergenext
     - [ ] Prepare to auto-fix folders that have not got a proper ../.
     - [ ] Consider modify Fs.Put() So that existing file could be removed
     - [x] Set up auto invocation of task CHECK-IN
-    - [ ] Set up logging level
+    - [x] Set up logging level
     - [ ] Multi-routine fs functions
+    - [x] Set default file name and extension
+    - [ ] user meta support
+    - [x] **DO NEVER USE UPPER CASE FOR FILE META!!!**
+    - [ ] Take advantage of Parent-Node meta to implement shortcut remove

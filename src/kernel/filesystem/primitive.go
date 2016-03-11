@@ -18,7 +18,6 @@ import (
     "definition/exception"
     . "logger"
     "kernel/filetype"
-    //"fmt"
 )
 
 // It is the primary function of filesystem, responsible for basic fs operation
@@ -46,8 +45,11 @@ func lookUp(inode string, vfilename string, io outapi.Outapi) (string, error) {
     if !CheckValidFilename(vfilename) {
         return "", exception.EX_INVALID_FILENAME
     }
-    var _, file, err=io.Get(GenFileName(inode, vfilename))
+    var meta, file, err=io.Get(GenFileName(inode, vfilename))
     if file==nil {
+        return "", err
+    }
+    if meta==nil || meta[META_INODE_TYPE]!=META_INODE_TYPE_FOLDER {
         return "", err
     }
     if fileNnode, ok:=file.(*filetype.Nnode); !ok {

@@ -68,6 +68,8 @@ const FILE_NODE="File-Node"
 //      - HTTP 404: Either the container or the filepath does not exist.
 //      - HTTP 500: Error. The body is supposed to return error info.
 // ==========================API DOCS END===================================
+
+const HEADER_CONTENT_DISPOSE="Content-Disposition"
 func downloader(req Request, res Response) {
     var pathDetail, _=req.F()["HandledRR"].([]string)
     if pathDetail==nil {
@@ -78,8 +80,9 @@ func downloader(req Request, res Response) {
     var fs=filesystem.NewFs(outapi.NewSwiftio(outapi.DefaultConnector, pathDetail[1]))
     var hasSent bool=false
     if base, filename:=pathman.SplitPath(pathDetail[2]); filename=="" {
-        var err=fs.Get("", pathDetail[3], func(fileInode string) io.Writer {
+        var err=fs.Get("", pathDetail[3], func(fileInode string, oriName string) io.Writer {
             res.Set(FILE_NODE, fileInode)
+            res.Set(HEADER_CONTENT_DISPOSE, "inline; filename=\""+oriName+"\"")
             res.SendCode(200)
             hasSent=true
             return res.R()
@@ -97,8 +100,9 @@ func downloader(req Request, res Response) {
             res.Status("Nonexist container or path. "+err.Error(), 404)
             return
         }
-        err=fs.Get(filename, nodeName, func(fileInode string) io.Writer {
+        err=fs.Get(filename, nodeName, func(fileInode string, oriName string) io.Writer {
             res.Set(PARENT_NODE, nodeName)
+            res.Set(HEADER_CONTENT_DISPOSE, "inline; filename=\""+oriName+"\"")
             res.Set(FILE_NODE, fileInode)
             res.SendCode(200)
             hasSent=true
@@ -123,7 +127,8 @@ func downloader(req Request, res Response) {
 //      - contianer(in URL): the container name
 // Returns:
 //      - HTTP 200: No error, the file is written by force
-//              When success, 'Manipulated-Node' will indicate the parent directory.
+//              When success, the returned header Parent-Node(if accessed) will
+//              contain its parent inode and File-Node will indicate the file itself.
 //      - HTTP 404: Either the container or the filepath does not exist.
 //      - HTTP 500: Error. The body is supposed to return error info.
 // ==========================API DOCS END===================================
@@ -138,7 +143,8 @@ func uploader(req Request, res Response) {
     var putErr error
     if base, filename:=pathman.SplitPath(pathDetail[2]); filename=="" {
         // TODO: glean user meta
-        putErr=fs.Put("", pathDetail[3], nil, req.R().Body)
+        putErr, _=fs.Put("", pathDetail[3], nil, req.R().Body)
+        res.Set(FILE_NODE, pathDetail[3])
     } else {
         var nodeName, err=fs.Locate(base, pathDetail[3])
         if err!=nil {
@@ -146,12 +152,17 @@ func uploader(req Request, res Response) {
             return
         }
         // TODO: glean user meta
-        putErr=fs.Put(filename, nodeName, nil, req.R().Body)
+        var targetNode string
+        putErr, targetNode=fs.Put(filename, nodeName, nil, req.R().Body)
+        if targetNode!="" {
+            res.Set(FILE_NODE, targetNode)
+        }
+        res.Set(PARENT_NODE, nodeName)
     }
 
     if putErr!=nil {
         if putErr==exception.EX_FILE_NOT_EXIST {
-            res.Status("Nonexist container or path.", 404)
+            res.Status("Nonexist container or path. Or you cannot refer to a non-existing inode in ovveride mode.", 404)
             return
         }
         res.Status("Internal Error: "+putErr.Error(), 500)

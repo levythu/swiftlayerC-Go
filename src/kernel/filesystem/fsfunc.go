@@ -16,6 +16,22 @@ import (
     "fmt"
 )
 
+// ## META_PARENT_INODE & META_INODE_TYPE are set to inode
+
+// Parent inode meta changes faster than inode::.. file, and when moved, it is
+// synchronously updated. So it can be used for more reliable and faster check
+const META_PARENT_INODE="parent-inode"
+
+// can be file or a folder
+const META_INODE_TYPE="inode-type"
+const META_INODE_TYPE_FOLDER="DIR"
+const META_INODE_TYPE_FILE="FILE"
+
+// ## META_ORIGINAL_NAME is set to object node
+// Identical info which can be inferred by its namenode in its parent inode.
+// It is synchronously updated in move operation
+const META_ORIGINAL_NAME="file-original-name"
+
 const ROOT_INODE_NAME="rootNode"
 
 type Fs struct {
@@ -105,16 +121,24 @@ func (this *Fs)Mkdir(foldername string, frominode string, forceMake bool) error 
     // newDomainname: <GENERATED>
     var newDomainname=uniqueid.GenGlobalUniqueName()
     var newNnode=filetype.NewNnode(newDomainname)
-    if err:=this.io.Put(nnodeName, newNnode, nil); err!=nil {
+    var initMeta=FileMeta(map[string]string {
+        META_INODE_TYPE:    META_INODE_TYPE_FOLDER,
+        META_PARENT_INODE:  frominode,
+    })
+    if err:=this.io.Put(nnodeName, newNnode, initMeta); err!=nil {
         return err
     }
     // initialize two basic element
-    if err:=this.io.Put(GenFileName(newDomainname, ".."), filetype.NewNnode(frominode), nil); err!=nil {
+    var initMetaSelf=FileMeta(map[string]string {
+        META_INODE_TYPE:    META_INODE_TYPE_FOLDER,
+        META_PARENT_INODE:  newDomainname,
+    })
+    if err:=this.io.Put(GenFileName(newDomainname, ".."), filetype.NewNnode(frominode), initMetaSelf); err!=nil {
         Secretary.Error("kernel.filesystem::Mkdir", "Fail to create .. link for new folder "+nnodeName+".")
         return err
     }
 
-    if err:=this.io.Put(GenFileName(newDomainname, "."), filetype.NewNnode(newDomainname), nil); err!=nil {
+    if err:=this.io.Put(GenFileName(newDomainname, "."), filetype.NewNnode(newDomainname), initMetaSelf); err!=nil {
         Secretary.Error("kernel.filesystem::Mkdir", "Fail to create . link for new folder "+nnodeName+".")
         return err
     }
@@ -153,14 +177,19 @@ func (this *Fs)Mkdir(foldername string, frominode string, forceMake bool) error 
 }
 
 // Format the filesystem.
-// TODO: Setup clear old fs info?
+// TODO: Setup clear old fs info? Up to now set up will not clear old data and will not
+// remove the old folder map
 func (this *Fs)FormatFS() error {
-    if err:=this.io.Put(GenFileName(this.rootName, ".."), filetype.NewNnode(this.rootName), nil); err!=nil {
+    var initMetaSelf=FileMeta(map[string]string {
+        META_INODE_TYPE:    META_INODE_TYPE_FOLDER,
+        META_PARENT_INODE:  this.rootName,
+    })
+    if err:=this.io.Put(GenFileName(this.rootName, ".."), filetype.NewNnode(this.rootName), initMetaSelf); err!=nil {
         Secretary.Error("kernel.filesystem::FormatFS", "Fail to create .. link for Root.")
         return err
     }
 
-    if err:=this.io.Put(GenFileName(this.rootName, "."), filetype.NewNnode(this.rootName), nil); err!=nil {
+    if err:=this.io.Put(GenFileName(this.rootName, "."), filetype.NewNnode(this.rootName), initMetaSelf); err!=nil {
         Secretary.Error("kernel.filesystem::FormatFS", "Fail to create . link for Root.")
         return err
     }
@@ -239,9 +268,12 @@ func (this *Fs)MvX(srcName, srcInode, desName, desInode string, byForce bool) er
     if !byForce && outapi.ForceCheckExist(this.io.CheckExist(GenFileName(desInode, desName))) {
         return exception.EX_FOLDER_ALREADY_EXIST
     }
-    if err:=this.io.Copy(GenFileName(srcInode, srcName), GenFileName(desInode, desName), nil); err!=nil {
-        Secretary.Error("kernel.filesystem::MvX", "Fail to issue a copy from "+GenFileName(srcInode, srcName)+" to "+GenFileName(desInode, desName))
-        return err
+
+    var modifiedMeta=FileMeta(map[string]string {
+        META_PARENT_INODE: desInode,
+    })
+    if err:=this.io.Copy(GenFileName(srcInode, srcName), GenFileName(desInode, desName), modifiedMeta); err!=nil {
+        return exception.EX_FILE_NOT_EXIST
     }
 
     {
@@ -301,58 +333,104 @@ func (this *Fs)MvX(srcName, srcInode, desName, desInode string, byForce bool) er
 // It will try to put a file at destination, no matter whether
 // there's already one file, which will be replaced then.
 
-// if filename!="", a new filename will be assigned and frominode::filename will be set
-// otherwise, frominode indicates the target fileinode and the target file will override it
+// if filename!="", a new filename will be assigned and frominode::filename will be set (create mode)
+// otherwise, frominode indicates the target fileinode and the target file will override it (override mode)
+
+// the second value indicates the manipulated file inode. It may be some valid value
+// or just empty no matter whether error==nil, however, when error==nil, the second value
+// must be valid
 const STREAM_TYPE="stream type file"
-func (this *Fs)Put(filename string, frominode string, meta FileMeta/*=nil*/, dataSource io.Reader) error {
+func (this *Fs)Put(filename string, frominode string, meta FileMeta/*=nil*/, dataSource io.Reader) (error, string) {
     var targetFileinode string
+    var oldOriName string
     if filename!="" {
+        // CREATE MODE
         if !CheckValidFilename(filename) {
-            return exception.EX_INVALID_FILENAME
+            return exception.EX_INVALID_FILENAME, ""
         }
+        // set inode
         targetFileinode=uniqueid.GenGlobalUniqueNameWithTag("Stream")
-        if err:=this.io.Put(GenFileName(frominode, filename), filetype.NewNnode(targetFileinode), nil); err!=nil {
+        var metaToSet=FileMeta(map[string]string {
+            META_PARENT_INODE:  frominode,
+            META_INODE_TYPE:    META_INODE_TYPE_FILE,
+        })
+        if err:=this.io.Put(GenFileName(frominode, filename), filetype.NewNnode(targetFileinode), metaToSet); err!=nil {
             Secretary.Warn("kernel.filesystem::Put", "Put nnode for new file "+GenFileName(frominode, filename)+" failed.")
-            return err
+            return err, ""
         }
     } else {
+        // OVERRIDE MODE
+        var oldMeta, err=this.io.Getinfo(frominode)
+        if oldMeta==nil {
+            if err!=nil {
+                return err, ""
+            }
+            return exception.EX_FILE_NOT_EXIST, ""
+        }
+        oldOriName=oldMeta[META_ORIGINAL_NAME]
         targetFileinode=frominode
     }
 
+    // set object node
     if meta==nil {
         meta=NewMeta()
     }
     meta=meta.Clone()
     meta[METAKEY_TYPE]=STREAM_TYPE
+    if filename!="" {
+        meta[META_ORIGINAL_NAME]=filename
+    } else {
+        meta[META_ORIGINAL_NAME]=oldOriName
+    }
+
     if wc, err:=this.io.PutStream(targetFileinode, meta); err!=nil {
         Secretary.Error("kernel.filesystem::Put", "Put stream for new file "+GenFileName(frominode, filename)+" failed.")
-        return err
+        return err, targetFileinode
     } else {
         if _, err2:=io.Copy(wc, dataSource); err2!=nil {
             wc.Close()
             Secretary.Error("kernel.filesystem::Put", "Piping stream for new file "+GenFileName(frominode, filename)+" failed.")
-            return err2
+            return err2, targetFileinode
         }
         if err2:=wc.Close(); err2!=nil {
             Secretary.Error("kernel.filesystem::Put", "Close writer for new file "+GenFileName(frominode, filename)+" failed.")
-            return err2
+            return err2, targetFileinode
         }
     }
 
-    return nil
+    if filename!="" {
+        // CREATE MODE. Set its parent node's foldermap
+        var parentFD=dvc.GetFD(GenFileName(frominode, FOLDER_MAP), this.io)
+        if parentFD==nil {
+            Secretary.Error("kernel.filesystem::Put", "Get FD for "+GenFileName(frominode, FOLDER_MAP)+" failed.")
+            return exception.EX_INDEX_ERROR, targetFileinode
+        }
+        if err:=parentFD.Submit(filetype.FastMake(filename)); err!=nil {
+            Secretary.Error("kernel.filesystem::Put", "Submit patch for "+GenFileName(frominode, filename)+" failed: "+err.Error())
+            parentFD.Release()
+            return exception.EX_INDEX_ERROR, targetFileinode
+        }
+        parentFD.Release()
+    }
+
+    return nil, targetFileinode
 }
 
 // If the file does not exist, an EX_FILE_NOT_EXIST will be returned.
-func (this *Fs)Get(filename string, frominode string, beforePipe func(string) io.Writer) error {
+// the callback parameters are (objectNode, originalName)
+func (this *Fs)Get(filename string, frominode string, beforePipe func(string, string) io.Writer) error {
     var targetFileinode string
     if filename!="" {
         if !CheckValidFilename(filename) {
             return exception.EX_INVALID_FILENAME
         }
-        var _, file, _=this.io.Get(GenFileName(frominode, filename))
+        var meta, file, _=this.io.Get(GenFileName(frominode, filename))
         var filen, _=file.(*filetype.Nnode)
         if filen==nil {
             return exception.EX_FILE_NOT_EXIST
+        }
+        if meta==nil || meta[META_INODE_TYPE]!=META_INODE_TYPE_FILE {
+            return exception.EX_WRONG_FILEFORMAT
         }
         targetFileinode=filen.DesName
     } else {
@@ -372,7 +450,7 @@ func (this *Fs)Get(filename string, frominode string, beforePipe func(string) io
         rc.Close()
         return nil
     }
-    var w=beforePipe(frominode)
+    var w=beforePipe(targetFileinode, meta[META_ORIGINAL_NAME])
     if _, copyErr:=io.Copy(w, rc); copyErr!=nil {
         rc.Close()
         return copyErr

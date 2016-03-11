@@ -26,3 +26,7 @@ func (_ *VoidLogger)Warn(pos string, c Tout) {
 func (_ *VoidLogger)Error(pos string, c Tout) {
     // NOTHING
 }
+
+func (_ *VoidLogger)SetLevel(level int) {
+    // NOTHING
+}
