@@ -21,3 +21,4 @@
     - [ ] Multi-routine fs functions
     - [x] Set default file name and extension
     - [ ] user meta support
+    - [ ] **DO NEVER USE UPPER CASE FOR FILE META!!!**

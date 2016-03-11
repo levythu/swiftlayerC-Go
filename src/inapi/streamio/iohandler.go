@@ -82,7 +82,7 @@ func downloader(req Request, res Response) {
     if base, filename:=pathman.SplitPath(pathDetail[2]); filename=="" {
         var err=fs.Get("", pathDetail[3], func(fileInode string, oriName string) io.Writer {
             res.Set(FILE_NODE, fileInode)
-            res.Set(HEADER_CONTENT_DISPOSE, "attachment; filename=\""+oriName+"\"")
+            res.Set(HEADER_CONTENT_DISPOSE, "inline; filename=\""+oriName+"\"")
             res.SendCode(200)
             hasSent=true
             return res.R()
@@ -102,7 +102,7 @@ func downloader(req Request, res Response) {
         }
         err=fs.Get(filename, nodeName, func(fileInode string, oriName string) io.Writer {
             res.Set(PARENT_NODE, nodeName)
-            res.Set(HEADER_CONTENT_DISPOSE, "attachment; filename=\""+oriName+"\"")
+            res.Set(HEADER_CONTENT_DISPOSE, "inline; filename=\""+oriName+"\"")
             res.Set(FILE_NODE, fileInode)
             res.SendCode(200)
             hasSent=true

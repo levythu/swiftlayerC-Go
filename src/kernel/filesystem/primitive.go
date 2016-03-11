@@ -18,7 +18,6 @@ import (
     "definition/exception"
     . "logger"
     "kernel/filetype"
-    //"fmt"
 )
 
 // It is the primary function of filesystem, responsible for basic fs operation

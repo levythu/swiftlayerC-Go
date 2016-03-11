@@ -11,7 +11,8 @@ import (
 
 func CMRouter() Router {
     var rootRouter=ARouter()
-    rootRouter.UseSpecified("/", "PUT", createContainerHandler, false)
+    rootRouter.UseSpecified("/", "PUT", createContainerHandlerByForce, false)
+    rootRouter.UseSpecified("/", "POST", createContainerHandler, false)
 
     return rootRouter
 }
@@ -20,7 +21,7 @@ func CMRouter() Router {
 // API Name: Create & Initiate Container
 // Action: Create a new container and format it for pseudo-fs
 // API URL: /cn/{Container-Name}
-// REQUEST: PUT
+// REQUEST: POST
 // Parameters:
 //      - Container-Name(in URL): the container name to create
 // Returns:
@@ -29,7 +30,6 @@ func CMRouter() Router {
 //      - HTTP 405: Parameters not specifed. Info will be provided in body.
 //      - HTTP 500: Error. The body is supposed to return error info.
 // ==========================API DOCS END===================================
-const HEADER_CONTAINER_NAME="Container-Name"
 func createContainerHandler(req Request, res Response) {
     var containerName=req.Path()
     if containerName=="" || containerName[0]!='/' {
@@ -50,6 +50,43 @@ func createContainerHandler(req Request, res Response) {
         return
     }
     // The container is newly created. Now format it.
+    if err=filesystem.NewFs(ioAPI).FormatFS(); err!=nil {
+        logger.Secretary.Error("inapi.container.create", err)
+        res.Status("Internal Error: "+err.Error(), 500)
+        return
+    }
+
+    res.SendCode(201)
+}
+
+// ==========================API DOCS=======================================
+// API Name: Create & Initiate Container by Force
+// Action: Create a new container and format it for pseudo-fs by force
+// API URL: /cn/{Container-Name}
+// REQUEST: PUT
+// Parameters:
+//      - Container-Name(in URL): the container name to create
+// Returns:
+//      - HTTP 201: No problem and the container has been created.
+//      - HTTP 405: Parameters not specifed. Info will be provided in body.
+//      - HTTP 500: Error. The body is supposed to return error info.
+// ==========================API DOCS END===================================
+func createContainerHandlerByForce(req Request, res Response) {
+    var containerName=req.Path()
+    if containerName=="" || containerName[0]!='/' {
+        res.Status("Path /container/{Container-Name} is required.", 405)
+        return
+    }
+    containerName=containerName[1:]
+
+    var ioAPI=outapi.NewSwiftio(outapi.DefaultConnector, containerName)
+    var _, err=ioAPI.EnsureSpace()
+    if err!=nil {
+        logger.Secretary.Error("inapi.container.create", err)
+        res.Status("Internal Error: "+err.Error(), 500)
+        return
+    }
+    // Format it.
     if err=filesystem.NewFs(ioAPI).FormatFS(); err!=nil {
         logger.Secretary.Error("inapi.container.create", err)
         res.Status("Internal Error: "+err.Error(), 500)

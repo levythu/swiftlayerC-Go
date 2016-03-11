@@ -20,17 +20,17 @@ import (
 
 // Parent inode meta changes faster than inode::.. file, and when moved, it is
 // synchronously updated. So it can be used for more reliable and faster check
-const META_PARENT_INODE="Parent-Inode"
+const META_PARENT_INODE="parent-inode"
 
 // can be file or a folder
-const META_INODE_TYPE="Inode-Type"
+const META_INODE_TYPE="inode-type"
 const META_INODE_TYPE_FOLDER="DIR"
 const META_INODE_TYPE_FILE="FILE"
 
 // ## META_ORIGINAL_NAME is set to object node
 // Identical info which can be inferred by its namenode in its parent inode.
 // It is synchronously updated in move operation
-const META_ORIGINAL_NAME="File-Original-Name"
+const META_ORIGINAL_NAME="file-original-name"
 
 const ROOT_INODE_NAME="rootNode"
 
@@ -451,7 +451,7 @@ func (this *Fs)Get(filename string, frominode string, beforePipe func(string, st
         rc.Close()
         return nil
     }
-    var w=beforePipe(frominode, meta[META_ORIGINAL_NAME])
+    var w=beforePipe(targetFileinode, meta[META_ORIGINAL_NAME])
     if _, copyErr:=io.Copy(w, rc); copyErr!=nil {
         rc.Close()
         return copyErr
