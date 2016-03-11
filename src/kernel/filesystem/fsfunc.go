@@ -339,6 +339,20 @@ func (this *Fs)Put(filename string, frominode string, meta FileMeta/*=nil*/, dat
         }
     }
 
+    {
+        var parentFD=dvc.GetFD(GenFileName(frominode, FOLDER_MAP), this.io)
+        if parentFD==nil {
+            Secretary.Error("kernel.filesystem::Put", "Get FD for "+GenFileName(frominode, FOLDER_MAP)+" failed.")
+            return exception.EX_INDEX_ERROR
+        }
+        if err:=parentFD.Submit(filetype.FastMake(filename)); err!=nil {
+            Secretary.Error("kernel.filesystem::Put", "Submit patch for "+GenFileName(frominode, filename)+" failed: "+err.Error())
+            parentFD.Release()
+            return exception.EX_INDEX_ERROR
+        }
+        parentFD.Release()
+    }
+
     return nil
 }
 
