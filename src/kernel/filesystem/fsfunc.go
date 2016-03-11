@@ -273,8 +273,7 @@ func (this *Fs)MvX(srcName, srcInode, desName, desInode string, byForce bool) er
         META_PARENT_INODE: desInode,
     })
     if err:=this.io.Copy(GenFileName(srcInode, srcName), GenFileName(desInode, desName), modifiedMeta); err!=nil {
-        Secretary.Error("kernel.filesystem::MvX", "Fail to issue a copy from "+GenFileName(srcInode, srcName)+" to "+GenFileName(desInode, desName))
-        return err
+        return exception.EX_FILE_NOT_EXIST
     }
 
     {

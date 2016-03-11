@@ -21,4 +21,5 @@
     - [ ] Multi-routine fs functions
     - [x] Set default file name and extension
     - [ ] user meta support
-    - [ ] **DO NEVER USE UPPER CASE FOR FILE META!!!**
+    - [x] **DO NEVER USE UPPER CASE FOR FILE META!!!**
+    - [ ] Take advantage of Parent-Node meta to implement shortcut remove

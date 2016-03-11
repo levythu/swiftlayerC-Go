@@ -196,7 +196,7 @@ func mkDirectory(req Request, res Response) {
 //      - HTTP 204: The deletion succeeds but it is only a patch. to ensure created, another list
 //        operation should be carried.
 //              When success, 'Parent-Node' will indicate the parent of removed directory.
-//      - HTTP 404: Either the container or the parent filepath does not exist.
+//      - HTTP 404: Either the container or the parent filepath or the file itself does not exist.
 //      - HTTP 500: Error. The body is supposed to return error info.
 // ==========================API DOCS END===================================
 func rmDirectory(req Request, res Response) {
