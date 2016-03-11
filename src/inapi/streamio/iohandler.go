@@ -123,7 +123,8 @@ func downloader(req Request, res Response) {
 //      - contianer(in URL): the container name
 // Returns:
 //      - HTTP 200: No error, the file is written by force
-//              When success, 'Manipulated-Node' will indicate the parent directory.
+//              When success, the returned header Parent-Node(if accessed) will
+//              contain its parent inode and File-Node will indicate the file itself.
 //      - HTTP 404: Either the container or the filepath does not exist.
 //      - HTTP 500: Error. The body is supposed to return error info.
 // ==========================API DOCS END===================================
@@ -138,7 +139,8 @@ func uploader(req Request, res Response) {
     var putErr error
     if base, filename:=pathman.SplitPath(pathDetail[2]); filename=="" {
         // TODO: glean user meta
-        putErr=fs.Put("", pathDetail[3], nil, req.R().Body)
+        putErr, _=fs.Put("", pathDetail[3], nil, req.R().Body)
+        res.Set(FILE_NODE, pathDetail[3])
     } else {
         var nodeName, err=fs.Locate(base, pathDetail[3])
         if err!=nil {
@@ -146,7 +148,12 @@ func uploader(req Request, res Response) {
             return
         }
         // TODO: glean user meta
-        putErr=fs.Put(filename, nodeName, nil, req.R().Body)
+        var targetNode string
+        putErr, targetNode=fs.Put(filename, nodeName, nil, req.R().Body)
+        if targetNode!="" {
+            res.Set(FILE_NODE, targetNode)
+        }
+        res.Set(PARENT_NODE, nodeName)
     }
 
     if putErr!=nil {

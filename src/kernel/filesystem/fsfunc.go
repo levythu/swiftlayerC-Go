@@ -303,17 +303,21 @@ func (this *Fs)MvX(srcName, srcInode, desName, desInode string, byForce bool) er
 
 // if filename!="", a new filename will be assigned and frominode::filename will be set
 // otherwise, frominode indicates the target fileinode and the target file will override it
+
+// the second value indicates the manipulated file inode. It may be some valid value
+// or just empty no matter whether error==nil, however, when error==nil, the second value
+// must be valid
 const STREAM_TYPE="stream type file"
-func (this *Fs)Put(filename string, frominode string, meta FileMeta/*=nil*/, dataSource io.Reader) error {
+func (this *Fs)Put(filename string, frominode string, meta FileMeta/*=nil*/, dataSource io.Reader) (error, string) {
     var targetFileinode string
     if filename!="" {
         if !CheckValidFilename(filename) {
-            return exception.EX_INVALID_FILENAME
+            return exception.EX_INVALID_FILENAME, ""
         }
         targetFileinode=uniqueid.GenGlobalUniqueNameWithTag("Stream")
         if err:=this.io.Put(GenFileName(frominode, filename), filetype.NewNnode(targetFileinode), nil); err!=nil {
             Secretary.Warn("kernel.filesystem::Put", "Put nnode for new file "+GenFileName(frominode, filename)+" failed.")
-            return err
+            return err, ""
         }
     } else {
         targetFileinode=frominode
@@ -326,16 +330,16 @@ func (this *Fs)Put(filename string, frominode string, meta FileMeta/*=nil*/, dat
     meta[METAKEY_TYPE]=STREAM_TYPE
     if wc, err:=this.io.PutStream(targetFileinode, meta); err!=nil {
         Secretary.Error("kernel.filesystem::Put", "Put stream for new file "+GenFileName(frominode, filename)+" failed.")
-        return err
+        return err, targetFileinode
     } else {
         if _, err2:=io.Copy(wc, dataSource); err2!=nil {
             wc.Close()
             Secretary.Error("kernel.filesystem::Put", "Piping stream for new file "+GenFileName(frominode, filename)+" failed.")
-            return err2
+            return err2, targetFileinode
         }
         if err2:=wc.Close(); err2!=nil {
             Secretary.Error("kernel.filesystem::Put", "Close writer for new file "+GenFileName(frominode, filename)+" failed.")
-            return err2
+            return err2, targetFileinode
         }
     }
 
@@ -343,17 +347,17 @@ func (this *Fs)Put(filename string, frominode string, meta FileMeta/*=nil*/, dat
         var parentFD=dvc.GetFD(GenFileName(frominode, FOLDER_MAP), this.io)
         if parentFD==nil {
             Secretary.Error("kernel.filesystem::Put", "Get FD for "+GenFileName(frominode, FOLDER_MAP)+" failed.")
-            return exception.EX_INDEX_ERROR
+            return exception.EX_INDEX_ERROR, targetFileinode
         }
         if err:=parentFD.Submit(filetype.FastMake(filename)); err!=nil {
             Secretary.Error("kernel.filesystem::Put", "Submit patch for "+GenFileName(frominode, filename)+" failed: "+err.Error())
             parentFD.Release()
-            return exception.EX_INDEX_ERROR
+            return exception.EX_INDEX_ERROR, targetFileinode
         }
         parentFD.Release()
     }
 
-    return nil
+    return nil, targetFileinode
 }
 
 // If the file does not exist, an EX_FILE_NOT_EXIST will be returned.
