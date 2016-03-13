@@ -104,7 +104,7 @@ func (this *Fs)Locate(path string, frominode string/*=""*/) (string, error) {
     return frominode, nil
 }
 
-// If the file exist and forceMake==false, an error will be returned
+// If the file exist and forceMake==false, an error EX_FOLDER_ALREADY_EXIST will be returned
 func (this *Fs)Mkdir(foldername string, frominode string, forceMake bool) error {
     if !CheckValidFilename(foldername) {
         return exception.EX_INVALID_FILENAME
@@ -242,15 +242,11 @@ func (this *Fs)List(frominode string) ([]string, error) {
 // All the folder will be removed. No matter if it is empty or not.
 // Move it to the trash
 func (this *Fs)Rm(foldername string, frominode string) error {
-    if !CheckValidFilename(foldername) {
-        return exception.EX_INVALID_FILENAME
-    }
-
     if tsinode:=this.GetTrashInode(); tsinode=="" {
         Secretary.ErrorD("IO: "+this.io.GenerateUniqueID()+" has an invalid trashbox, which leads to removing failure.")
         return exception.EX_TRASHBOX_NOT_INITED
     } else {
-        return this.MvX(foldername, frominode, uniqueid.GenGlobalUniqueNameWithTag("removed"), tsinode, false)
+        return this.MvX(foldername, frominode, uniqueid.GenGlobalUniqueNameWithTag("removed"), tsinode, true)
         // TODO: logging the original position for recovery
     }
 }
@@ -319,7 +315,7 @@ func (this *Fs)MvX(srcName, srcInode, desName, desInode string, byForce bool) er
         Secretary.Error("kernel.filesystem::MvX", "Fail to modify .. link for "+dstFileNnode.DesName+".")
         return err
     } else {
-        Secretary.Log("kernel.filesystem::MvX", "Update file "+target)
+        //Secretary.Log("kernel.filesystem::MvX", "Update file "+target)
     }
 
     // ALL DONE!

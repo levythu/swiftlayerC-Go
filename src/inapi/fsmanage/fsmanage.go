@@ -8,6 +8,9 @@ import (
     "kernel/filesystem"
     "definition/exception"
     "fmt"
+    "utils/pathman"
+    egg "definition/errorgroup"
+    "sync"
     //"logger"
 )
 
@@ -24,6 +27,7 @@ func FMRouter() Router {
     rootRouter.Put(`/([^/]+)/(.*)`, mkDirectoryByForce)
     rootRouter.Post(`/([^/]+)/(.*)`, mkDirectory)
     rootRouter.Delete(`/([^/]+)/(.*)`, rmDirectory)
+    rootRouter.UseSpecified(`/([^/]+)/(.*)`, "PATCH", mvDirectory, true)
 
     return rootRouter
 }
@@ -85,6 +89,8 @@ func lsDirectory(req Request, res Response) {
     res.JSON(resultList)
 }
 
+const HEADER_DISTABLE_PARALLEL="Disable-Parallel"
+
 // ==========================API DOCS=======================================
 // API Name: Make one directory
 // Action: make the directory only if it does not exist and its parent path exists
@@ -93,6 +99,8 @@ func lsDirectory(req Request, res Response) {
 // Parameters:
 //      - contianer(in URL): the container name
 //      - followingpath(in URL): the path to be create. Please guarantee its parent node exists.
+//      - Disable-Parallel(in Header): if set to TRUE, a non-parallelized mkdir will be
+//              operated. Default to FALSE, it is only for test and not recommend to set.
 // Returns:
 //      - HTTP 201: No error and the directory creation application has been submitted.
 //        to ensure created, another list operation should be carried.
@@ -100,7 +108,6 @@ func lsDirectory(req Request, res Response) {
 //      - HTTP 202: No error but the directory has existed before.
 //              When success, 'Parent-Node' will indicate the parent of already exist directory.
 //      - HTTP 404: Either the container or the parent filepath does not exist.
-//      - HTTP 405: Parameters not specifed. Info will be provided in body.
 //      - HTTP 500: Error. The body is supposed to return error info.
 // ==========================API DOCS END===================================
 // ==========================API DOCS=======================================
@@ -111,12 +118,13 @@ func lsDirectory(req Request, res Response) {
 // Parameters:
 //      - contianer(in URL): the container name
 //      - followingpath(in URL): the path to be create. Please guarantee its parent node exists.
+//      - Disable-Parallel(in Header): if set to TRUE, a non-parallelized mkdir will be
+//              operated. Default to FALSE, it is only for test and not recommend to set.
 // Returns:
 //      - HTTP 201: No error and the directory creation application has been submitted.
 //        to ensure created, another list operation should be carried.
 //              When success, 'Parent-Node' will indicate the parent of created directory.
 //      - HTTP 404: Either the container or the parent filepath does not exist.
-//      - HTTP 405: Parameters not specifed. Info will be provided in body.
 //      - HTTP 500: Error. The body is supposed to return error info.
 // ==========================API DOCS END===================================
 func mkDirectoryX(req Request, res Response, byforce bool) {
@@ -134,7 +142,7 @@ func mkDirectoryX(req Request, res Response, byforce bool) {
         }
     }
     if i<0 {
-        res.Status("The directory to create should be specified.", 405)
+        res.Status("The directory to create should be specified.", 404)
         return
     }
     trimer=trimer[:i+1]
@@ -160,13 +168,18 @@ func mkDirectoryX(req Request, res Response, byforce bool) {
     }
 
     res.Set(LAST_PARENT_NODE, nodeName)
-    err=fs.Mkdir(trimer, nodeName, byforce)
-    if err!=nil {
-        if err==exception.EX_INODE_NONEXIST {
+    if req.Get(HEADER_DISTABLE_PARALLEL)=="TRUE" {
+        err=fs.Mkdir(trimer, nodeName, byforce)
+    } else {
+        err=fs.MkdirParalleled(trimer, nodeName, byforce)
+    }
+    fmt.Println(err, err==nil)
+    if !egg.Nil(err) {
+        if egg.In(err, exception.EX_INODE_NONEXIST) {
             res.Status("Nonexist container or path.", 404)
             return
         }
-        if err==exception.EX_FOLDER_ALREADY_EXIST {
+        if egg.In(err, exception.EX_FOLDER_ALREADY_EXIST) {
             res.SendCode(202)
             return
         }
@@ -192,6 +205,8 @@ func mkDirectory(req Request, res Response) {
 // Parameters:
 //      - contianer(in URL): the container name
 //      - followingpath(in URL): the path to be removed. Please guarantee its parent node exists.
+//      - Disable-Parallel(in Header): if set to TRUE, a non-parallelized mkdir will be
+//              operated. Default to FALSE, it is only for test and not recommend to set.
 // Returns:
 //      - HTTP 204: The deletion succeeds but it is only a patch. to ensure created, another list
 //        operation should be carried.
@@ -214,7 +229,7 @@ func rmDirectory(req Request, res Response) {
         }
     }
     if i<0 {
-        res.Status("The directory to create should be specified.", 405)
+        res.Status("The directory to remove should be specified.", 404)
         return
     }
     trimer=trimer[:i+1]
@@ -238,9 +253,13 @@ func rmDirectory(req Request, res Response) {
 
     res.Set(LAST_PARENT_NODE, nodeName)
     // TODO: what if the src file does not exist?
-    err=fs.Rm(trimer, nodeName)
-    if err!=nil {
-        if err==exception.EX_INODE_NONEXIST {
+    if req.Get(HEADER_DISTABLE_PARALLEL)=="TRUE" {
+        err=fs.Rm(trimer, nodeName)
+    } else {
+        err=fs.RmParalleled(trimer, nodeName)
+    }
+    if !egg.Nil(err) {
+        if egg.In(err, exception.EX_INODE_NONEXIST) {
             res.Status("Nonexist container or path.", 404)
             return
         }
@@ -249,4 +268,126 @@ func rmDirectory(req Request, res Response) {
     }
 
     res.SendCode(204)
+}
+
+// ==========================API DOCS=======================================
+// API Name: Move one directory
+// Action: move the directory only if it exists and its parent path exists
+// API URL: /fs/{contianer}/{followingpath}
+// REQUEST: PATCH
+// Parameters:
+//      - contianer(in URL): the container name
+//      - followingpath(in URL): the path to be removed. Please guarantee its parent node exists.
+//      - Disable-Parallel(in Header): if set to TRUE, a non-parallelized mkdir will be
+//              operated. Default to FALSE, it is only for test and not recommend to set.
+//      - C-Destination(in Header): the destination path, must be in the same container.
+//                               shortcut is allowed.
+//      - C-By-Force(in Header): if set to "TRUE", a force move will override any existing
+//                               destination file. Default value is FALSE
+// Returns:
+//      - HTTP 201: The moving has been successfully carried.
+//      - HTTP 202: Only returns when C-By-Force is not TRUE and the destination
+//                  has already existed.
+//      - HTTP 403: Destination should be specified in the header.
+//      - HTTP 404: the file or direcory does not exist.
+//      - HTTP 500: Internal error. The body is supposed to return error info.
+// ==========================API DOCS END===================================
+const HEADER_DESTINATION="C-Destination"
+const HEADER_MOVE_BY_FORCE="C-By-Force"
+func mvDirectory(req Request, res Response) {
+    var pathDetail, _=req.F()["HandledRR"].([]string)
+    if pathDetail==nil {
+        pathDetail=req.F()["RR"].([]string)
+        pathDetail=append(pathDetail, filesystem.ROOT_INODE_NAME)
+    }
+
+    var base, filename=pathman.SplitPath(pathDetail[2])
+    if filename=="" {
+        res.Status("The directory/file to move should be specified.", 404)
+        return
+    }
+    var destinationALL=req.Get(HEADER_DESTINATION)
+    if destinationALL=="" {
+        res.Status("Destination path should be specified in the Header "+HEADER_DESTINATION, 403)
+        return
+    }
+    var destinationSC, destinationPath=pathman.ShortcutResolver(destinationALL)
+    if destinationSC=="" {
+        destinationSC=filesystem.ROOT_INODE_NAME
+    }
+    var desBase, desFilename=pathman.SplitPath(destinationPath)
+    if desFilename=="" {
+        res.Status("The destination directory/file should be specified.", 404)
+        return
+    }
+
+    var fs=filesystem.NewFs(outapi.NewSwiftio(outapi.DefaultConnector, pathDetail[1]))
+
+    var srcNodeNames, desNodeNames string
+    var err error
+
+    if req.Get(HEADER_DISTABLE_PARALLEL)=="TRUE" {
+        srcNodeNames, err=fs.Locate(base, pathDetail[3])
+        if err!=nil {
+            res.Status("Nonexist container or path. "+err.Error(), 404)
+            return
+        }
+        desNodeNames, err=fs.Locate(desBase, destinationSC)
+    } else {
+        var wg sync.WaitGroup
+        var lock sync.Mutex
+        wg.Add(2)
+        go (func() {
+            defer wg.Done()
+
+            var err2 error
+            srcNodeNames, err2=fs.Locate(base, pathDetail[3])
+            if err2!=nil {
+                lock.Lock()
+                if err==nil {
+                    err=err2
+                }
+                lock.Unlock()
+            }
+        })()
+        go (func() {
+            defer wg.Done()
+
+            var err2 error
+            desNodeNames, err=fs.Locate(desBase, destinationSC)
+            if err2!=nil {
+                lock.Lock()
+                if err==nil {
+                    err=err2
+                }
+                lock.Unlock()
+            }
+        })()
+        wg.Wait()
+    }
+    if err!=nil {
+        res.Status("Nonexist container or path. "+err.Error(), 404)
+        return
+    }
+
+    var byForce=req.Get(HEADER_MOVE_BY_FORCE)=="TRUE"
+    if req.Get(HEADER_DISTABLE_PARALLEL)=="TRUE" {
+        err=fs.MvX(filename, srcNodeNames, desFilename, desNodeNames, byForce)
+    } else {
+        err=fs.MvXParalleled(filename, srcNodeNames, desFilename, desNodeNames, byForce)
+    }
+    if !egg.Nil(err) {
+        if egg.In(err, exception.EX_FILE_NOT_EXIST) {
+            res.Status("Not Found", 404)
+            return
+        }
+        if egg.In(err, exception.EX_FOLDER_ALREADY_EXIST) {
+            res.Status("The destination has already existed.", 202)
+            return
+        }
+        res.Status("Internal error: "+err.Error(), 500)
+        return
+    }
+
+    res.SendCode(201)
 }

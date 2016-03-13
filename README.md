@@ -1,5 +1,5 @@
-# swiftlayerC-Go
-The Golang version of Swift Layer-C
+# Metaless H2
+The Golang version of Swift Layer-C, which has been renamed to Metaless H2
 
 Dependencies:
 
