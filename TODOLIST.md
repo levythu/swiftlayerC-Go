@@ -14,7 +14,9 @@
 - [ ] user meta support
 - [x] **DO NEVER USE UPPER CASE FOR FILE META!!!**
 - [ ] Take advantage of Parent-Node meta to implement shortcut remove
-- [ ] Implement MOVE
+- [x] Implement MOVE
+- [ ] Test MOVE
+- [ ] Implement parallel Sync
 
 ## Known Bugs
 - [ ] InApi: use constant rootNode instead of filesystem one
