@@ -17,7 +17,7 @@
 - [x] Implement MOVE
 - [x] Test MOVE
 - [ ] Implement parallel Sync
-- [ ] Check parallelbility of outapi/fd operators
+- [x] Check parallelbility of outapi/fd operators
 
 ## Known Bugs
 - [ ] InApi: use constant rootNode instead of filesystem one

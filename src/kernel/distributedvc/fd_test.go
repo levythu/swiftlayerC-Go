@@ -29,7 +29,7 @@ func _TestFDGet(t *testing.T) {
     }
 }
 
-func TestFDSubmit(t *testing.T) {
+func _TestFDSubmit(t *testing.T) {
     fmt.Println("+++++ TestFDSubmit::start")
     var huahua=GetFD("huahuad", io)
     var toSubmit=NewKvMap()
