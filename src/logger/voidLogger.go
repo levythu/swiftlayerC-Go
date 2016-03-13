@@ -4,29 +4,29 @@ import (
     . "definition"
 )
 
-type VoidLogger struct {
+type voidLogger struct {
     // Nothing
 }
 
-func (_ *VoidLogger)LogD(c Tout) {
+func (_ *voidLogger)LogD(c Tout) {
     // NOTHING
 }
-func (_ *VoidLogger)WarnD(c Tout) {
+func (_ *voidLogger)WarnD(c Tout) {
     // NOTHING
 }
-func (_ *VoidLogger)ErrorD(c Tout) {
+func (_ *voidLogger)ErrorD(c Tout) {
     // NOTHING
 }
-func (_ *VoidLogger)Log(pos string, c Tout) {
+func (_ *voidLogger)Log(pos string, c Tout) {
     // NOTHING
 }
-func (_ *VoidLogger)Warn(pos string, c Tout) {
+func (_ *voidLogger)Warn(pos string, c Tout) {
     // NOTHING
 }
-func (_ *VoidLogger)Error(pos string, c Tout) {
+func (_ *voidLogger)Error(pos string, c Tout) {
     // NOTHING
 }
 
-func (_ *VoidLogger)SetLevel(level int) {
+func (_ *voidLogger)SetLevel(level int) {
     // NOTHING
 }

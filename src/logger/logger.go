@@ -4,7 +4,7 @@ import (
     . "definition"
 )
 
-var Secretary Logger=&ConsoleLogger{
+var Secretary Logger=&consoleLogger{
     doLog: true,
     doWarn: true,
     doErr: true,

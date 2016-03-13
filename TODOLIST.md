@@ -9,14 +9,15 @@
 - [ ] Consider modify Fs.Put() So that existing file could be removed
 - [x] Set up auto invocation of task CHECK-IN
 - [x] Set up logging level
-- [ ] Multi-routine fs functions
+- [x] Multi-routine fs functions
 - [x] Set default file name and extension
 - [ ] user meta support
 - [x] **DO NEVER USE UPPER CASE FOR FILE META!!!**
 - [ ] Take advantage of Parent-Node meta to implement shortcut remove
 - [x] Implement MOVE
-- [ ] Test MOVE
+- [x] Test MOVE
 - [ ] Implement parallel Sync
+- [ ] Check parallelbility of outapi/fd operators
 
 ## Known Bugs
 - [ ] InApi: use constant rootNode instead of filesystem one

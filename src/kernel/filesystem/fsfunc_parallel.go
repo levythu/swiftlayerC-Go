@@ -14,8 +14,12 @@ import (
     "utils/uniqueid"
     . "kernel/distributedvc/filemeta"
     . "logger"
+    "fmt"
 )
 
+func _fsfunc_parallel_nouse() {
+    fmt.Println("NO USE")
+}
 // If the file exist and forceMake==false, an error EX_FOLDER_ALREADY_EXIST will be returned
 func (this *Fs)MkdirParalleled(foldername string, frominode string, forceMake bool) error {
     if !CheckValidFilename(foldername) {
