@@ -44,3 +44,11 @@ func (this *ErrorAssembly)Error() string {
     result+="]"
     return result
 }
+
+func In(container error, obj error) bool {
+    if container==obj {
+        return true
+    }
+    var des, _=container.(*ErrorAssembly)
+    return des.Exist(obj)
+}

@@ -9,6 +9,8 @@ import (
     "definition/exception"
     "fmt"
     "utils/pathman"
+    egg "definition/errorgroup"
+    "sync"
     //"logger"
 )
 
@@ -87,6 +89,8 @@ func lsDirectory(req Request, res Response) {
     res.JSON(resultList)
 }
 
+const HEADER_DISTABLE_PARALLEL="Disable-Parallel"
+
 // ==========================API DOCS=======================================
 // API Name: Make one directory
 // Action: make the directory only if it does not exist and its parent path exists
@@ -95,6 +99,8 @@ func lsDirectory(req Request, res Response) {
 // Parameters:
 //      - contianer(in URL): the container name
 //      - followingpath(in URL): the path to be create. Please guarantee its parent node exists.
+//      - Disable-Parallel(in Header): if set to TRUE, a non-parallelized mkdir will be
+//              operated. Default to FALSE, it is only for test and not recommend to set.
 // Returns:
 //      - HTTP 201: No error and the directory creation application has been submitted.
 //        to ensure created, another list operation should be carried.
@@ -112,6 +118,8 @@ func lsDirectory(req Request, res Response) {
 // Parameters:
 //      - contianer(in URL): the container name
 //      - followingpath(in URL): the path to be create. Please guarantee its parent node exists.
+//      - Disable-Parallel(in Header): if set to TRUE, a non-parallelized mkdir will be
+//              operated. Default to FALSE, it is only for test and not recommend to set.
 // Returns:
 //      - HTTP 201: No error and the directory creation application has been submitted.
 //        to ensure created, another list operation should be carried.
@@ -160,13 +168,17 @@ func mkDirectoryX(req Request, res Response, byforce bool) {
     }
 
     res.Set(LAST_PARENT_NODE, nodeName)
-    err=fs.Mkdir(trimer, nodeName, byforce)
+    if req.Get(HEADER_DISTABLE_PARALLEL)=="TRUE" {
+        err=fs.Mkdir(trimer, nodeName, byforce)
+    } else {
+        err=fs.MkdirParalleled(trimer, nodeName, byforce)
+    }
     if err!=nil {
-        if err==exception.EX_INODE_NONEXIST {
+        if egg.In(err, exception.EX_INODE_NONEXIST) {
             res.Status("Nonexist container or path.", 404)
             return
         }
-        if err==exception.EX_FOLDER_ALREADY_EXIST {
+        if egg.In(err, exception.EX_FOLDER_ALREADY_EXIST) {
             res.SendCode(202)
             return
         }
@@ -192,6 +204,8 @@ func mkDirectory(req Request, res Response) {
 // Parameters:
 //      - contianer(in URL): the container name
 //      - followingpath(in URL): the path to be removed. Please guarantee its parent node exists.
+//      - Disable-Parallel(in Header): if set to TRUE, a non-parallelized mkdir will be
+//              operated. Default to FALSE, it is only for test and not recommend to set.
 // Returns:
 //      - HTTP 204: The deletion succeeds but it is only a patch. to ensure created, another list
 //        operation should be carried.
@@ -238,9 +252,13 @@ func rmDirectory(req Request, res Response) {
 
     res.Set(LAST_PARENT_NODE, nodeName)
     // TODO: what if the src file does not exist?
-    err=fs.Rm(trimer, nodeName)
+    if req.Get(HEADER_DISTABLE_PARALLEL)=="TRUE" {
+        err=fs.Rm(trimer, nodeName)
+    } else {
+        err=fs.RmParalleled(trimer, nodeName)
+    }
     if err!=nil {
-        if err==exception.EX_INODE_NONEXIST {
+        if egg.In(err, exception.EX_INODE_NONEXIST) {
             res.Status("Nonexist container or path.", 404)
             return
         }
@@ -259,6 +277,8 @@ func rmDirectory(req Request, res Response) {
 // Parameters:
 //      - contianer(in URL): the container name
 //      - followingpath(in URL): the path to be removed. Please guarantee its parent node exists.
+//      - Disable-Parallel(in Header): if set to TRUE, a non-parallelized mkdir will be
+//              operated. Default to FALSE, it is only for test and not recommend to set.
 //      - C-Destination(in Header): the destination path, must be in the same container.
 //                               shortcut is allowed.
 //      - C-By-Force(in Header): if set to "TRUE", a force move will override any existing
@@ -301,19 +321,61 @@ func mvDirectory(req Request, res Response) {
     }
 
     var fs=filesystem.NewFs(outapi.NewSwiftio(outapi.DefaultConnector, pathDetail[1]))
-    var srcNodeNames, err=fs.Locate(base, pathDetail[3])
-    if err!=nil {
-        res.Status("Nonexist container or path. "+err.Error(), 404)
-        return
+
+    var srcNodeNames, desNodeNames string
+    var err error
+
+    if req.Get(HEADER_DISTABLE_PARALLEL)=="TRUE" {
+        srcNodeNames, err=fs.Locate(base, pathDetail[3])
+        if err!=nil {
+            res.Status("Nonexist container or path. "+err.Error(), 404)
+            return
+        }
+        desNodeNames, err=fs.Locate(desBase, destinationSC)
+    } else {
+        var wg sync.WaitGroup
+        var lock sync.Mutex
+        wg.Add(2)
+        go (func() {
+            defer wg.Done()
+
+            var err2 error
+            srcNodeNames, err2=fs.Locate(base, pathDetail[3])
+            if err2!=nil {
+                lock.Lock()
+                if err==nil {
+                    err=err2
+                }
+                lock.Unlock()
+            }
+        })()
+        go (func() {
+            defer wg.Done()
+
+            var err2 error
+            desNodeNames, err=fs.Locate(desBase, destinationSC)
+            if err2!=nil {
+                lock.Lock()
+                if err==nil {
+                    err=err2
+                }
+                lock.Unlock()
+            }
+        })()
+        wg.Wait()
     }
-    desNodeNames, err:=fs.Locate(desBase, destinationSC)
     if err!=nil {
         res.Status("Nonexist container or path. "+err.Error(), 404)
         return
     }
 
     var byForce=req.Get(HEADER_MOVE_BY_FORCE)=="TRUE"
-    if err:=fs.MvX(filename, srcNodeNames, desFilename, desNodeNames, byForce); err!=nil {
+    if req.Get(HEADER_DISTABLE_PARALLEL)=="TRUE" {
+        err=fs.MvX(filename, srcNodeNames, desFilename, desNodeNames, byForce)
+    } else {
+        err=fs.MvXParalleled(filename, srcNodeNames, desFilename, desNodeNames, byForce)
+    }
+    if err!=nil {
         if err==exception.EX_FILE_NOT_EXIST {
             res.Status("Not Found", 404)
             return
