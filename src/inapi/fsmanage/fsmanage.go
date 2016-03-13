@@ -173,7 +173,8 @@ func mkDirectoryX(req Request, res Response, byforce bool) {
     } else {
         err=fs.MkdirParalleled(trimer, nodeName, byforce)
     }
-    if err!=nil {
+    fmt.Println(err, err==nil)
+    if !egg.Nil(err) {
         if egg.In(err, exception.EX_INODE_NONEXIST) {
             res.Status("Nonexist container or path.", 404)
             return
@@ -257,7 +258,7 @@ func rmDirectory(req Request, res Response) {
     } else {
         err=fs.RmParalleled(trimer, nodeName)
     }
-    if err!=nil {
+    if !egg.Nil(err) {
         if egg.In(err, exception.EX_INODE_NONEXIST) {
             res.Status("Nonexist container or path.", 404)
             return
@@ -375,12 +376,12 @@ func mvDirectory(req Request, res Response) {
     } else {
         err=fs.MvXParalleled(filename, srcNodeNames, desFilename, desNodeNames, byForce)
     }
-    if err!=nil {
-        if err==exception.EX_FILE_NOT_EXIST {
+    if !egg.Nil(err) {
+        if egg.In(err, exception.EX_FILE_NOT_EXIST) {
             res.Status("Not Found", 404)
             return
         }
-        if err==exception.EX_FOLDER_ALREADY_EXIST {
+        if egg.In(err, exception.EX_FOLDER_ALREADY_EXIST) {
             res.Status("The destination has already existed.", 202)
             return
         }

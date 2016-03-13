@@ -52,3 +52,11 @@ func In(container error, obj error) bool {
     var des, _=container.(*ErrorAssembly)
     return des.Exist(obj)
 }
+func Nil(obj error) bool {
+    switch obj:=obj.(type) {
+	case *ErrorAssembly:
+		return obj==nil
+	default:
+		return obj==nil
+	}
+}
