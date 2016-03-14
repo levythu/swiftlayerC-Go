@@ -122,7 +122,7 @@ func (this *Swiftio)Put(filename string, content filetype.Filetype, info FileMet
     if info==nil {
         info=FileMeta(map[string]string{})
     }
-    meta:=swift.Metadata(info)
+    meta:=swift.Metadata(info.Clone())
     meta[METAKEY_TYPE]=content.GetType()
 
     buffer:=&bytes.Buffer{}
