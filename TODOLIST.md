@@ -19,7 +19,9 @@
 - [ ] Implement parallel Sync
 - [ ] Implement parallel Put
 - [x] Check parallelbility of outapi/fd operators
-- [ ] Linux test
+- [x] Linux test
+- [ ] Handle submission gap
+- [ ] Pressure test
 
 ## Known Bugs
 - [ ] InApi: use constant rootNode instead of filesystem one

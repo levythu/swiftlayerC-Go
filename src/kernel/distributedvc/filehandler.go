@@ -421,7 +421,19 @@ func (this *FD)Submit(object *filetype.Kvmap) error {
     if err!=nil {
         Secretary.Warn("distributedvc::FD.Submit()", "Fail in putting file "+this.GetPatchName(nAP, -1))
         go (func() {
-            // TODO: failure warning
+            // failure rollback
+            this.updateChainLock.Lock()
+            if nAP+1==this.nextAvailablePosition {
+                // up to now, no new patch has been submitted. Just rollback the number.
+                this.nextAvailablePosition--
+                this.updateChainLock.Unlock()
+                return
+            }
+            this.updateChainLock.Unlock()
+            Secretary.Error("distributedvc::FD.Submit()", "Submission gap occurs! Trying to fix it: "+this.GetPatchName(nAP, -1)+" TRIAL ")
+
+            //TODO: write in auto fix local log.
+
         })()
         return err
     }
