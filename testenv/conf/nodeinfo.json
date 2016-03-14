@@ -1,6 +1,6 @@
 /* Configure file for Swift Layer-C.
 **
-** Note that all the line begin with  is macro-ed and will be removed
+** Note that all the comments are macro-ed and will be removed
 ** before JSON parse. So it is totally used for comments, and has no
 ** effect on the configure value itself.
 **
