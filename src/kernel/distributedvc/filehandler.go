@@ -278,6 +278,7 @@ func (this *FD)MergeNext() error {
 
     var oldMerged=this.nextToBeMerge
     var thePatch, meta, err=readInKvMapfile(this.io, this.GetPatchName(this.nextToBeMerge, -1))
+    // may happen due to the unsubmission of Submit() function
     if thePatch==nil {
         Secretary.Warn("distributedvc::FD.MergeNext()", "Fail to get a supposed-to-be patch for file "+this.filename)
         if err==nil {
@@ -395,7 +396,9 @@ func (this *FD)Submit(object *filetype.Kvmap) error {
         }
         this.updateChainLock.Lock()
     }
-    defer this.updateChainLock.Unlock()
+    var nAP=this.nextAvailablePosition
+    this.nextAvailablePosition=nAP+1
+    this.updateChainLock.Unlock()
 
     var selfName=CONF_FLAG_PREFIX+NODE_SYNC_TIME_PREFIX+strconv.Itoa(NODE_NUMBER)
     var nowTime=GetTimestamp()
@@ -409,18 +412,21 @@ func (this *FD)Submit(object *filetype.Kvmap) error {
     }
     object.CheckIn()
 
-    var err=this.io.Put(this.GetPatchName(this.nextAvailablePosition, -1),
+    var err=this.io.Put(this.GetPatchName(nAP, -1),
                 object,
                 FileMeta(map[string]string {
-                    INTRA_PATCH_METAKEY_NEXT_PATCH: strconv.Itoa(this.nextAvailablePosition+1),
+                    INTRA_PATCH_METAKEY_NEXT_PATCH: strconv.Itoa(nAP+1),
                     METAKEY_TIMESTAMP: nowTime.String(),
                 }))
     if err!=nil {
-        Secretary.Warn("distributedvc::FD.Submit()", "Fail in putting file "+this.GetPatchName(this.nextAvailablePosition, -1))
+        Secretary.Warn("distributedvc::FD.Submit()", "Fail in putting file "+this.GetPatchName(nAP, -1))
+        go (func() {
+            // TODO: failure warning
+        })()
         return err
     }
-    this.nextAvailablePosition++
-    if this.nextAvailablePosition!=1 {
+
+    if nAP!=1 {
         MergeManager.SubmitTask(this.filename, this.io)
     }
 
