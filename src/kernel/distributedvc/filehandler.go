@@ -626,6 +626,11 @@ func (this *FD)combineNodeX(nodenumber int) error {
 // Read and combine all the version from other nodes, providing the combined version.
 // @ Get Reader Grasped
 func (this *FD)Sync() error {
+    var nowTime=time.Now().Unix()
+    if this.lastSyncTime+SINGLE_FILE_SYNC_INTERVAL_MIN>nowTime {
+        // interval is too small, abort the sync.
+        return nil
+    }
     // Submit #0 patch if needed
     this._LoadPointerMap_SyncUseOnly()
 
@@ -636,7 +641,7 @@ func (this *FD)Sync() error {
     this.contentLock.Lock()
     defer this.contentLock.Unlock()
 
-    if this.lastSyncTime+SINGLE_FILE_SYNC_INTERVAL_MIN>time.Now().Unix() {
+    if this.lastSyncTime+SINGLE_FILE_SYNC_INTERVAL_MIN>nowTime {
         // interval is too small, abort the sync.
         return nil
     }
@@ -646,6 +651,9 @@ func (this *FD)Sync() error {
         Secretary.Error("distributedvc::FD.Sync()", "Looks like a logical isle: this.numberZero==nil")
         return ex.LOGICAL_ERROR
     }
+
+    // phase1: glean information from different nodes
+    // phase2: fetch corresponding patch as need
     for searchNode:=0; searchNode<NODE_NUMS_IN_ALL; searchNode++ {
         this.combineNodeX(searchNode)
     }
