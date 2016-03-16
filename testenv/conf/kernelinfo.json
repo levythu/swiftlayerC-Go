@@ -26,6 +26,8 @@
     "single_file_sync_interval_min_in_second": 60,
 
 
+    "trial_interval_in_unrevocable_io_error_in_ms": 1000,
+
 
     /*  =================== FOR FILEHANDLER POOL =================== */
 

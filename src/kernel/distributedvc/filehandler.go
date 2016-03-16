@@ -8,6 +8,7 @@ import (
     . "kernel/distributedvc/constdef"
     . "outapi"
     "strconv"
+    ex "definition/exception"
     . "definition/configinfo"
     . "utils/timestamp"
     "time"
@@ -366,6 +367,9 @@ func (this *FD)LoadPointerMap() error {
                 this.status=2
             }
             this.nextAvailablePosition=tmpPos+1
+            if needMerge {
+                MergeManager.SubmitTask(this.filename, this.io)
+            }
             return nil
         } else {
             var oldPos=tmpPos
@@ -373,6 +377,14 @@ func (this *FD)LoadPointerMap() error {
             if tErr!=nil {
                 Secretary.WarnD("File "+this.filename+"'s patch #"+strconv.Itoa(tmpPos)+" has broken/invalid metadata. All the patches after it will get lost.")
                 tmpPos=oldPos
+                if this.status<=0 {
+                    this.status=2
+                }
+                this.nextAvailablePosition=tmpPos+1
+                if needMerge {
+                    MergeManager.SubmitTask(this.filename, this.io)
+                }
+                return nil
             } else {
                 if oldPos!=0 {
                     needMerge=true
@@ -428,12 +440,12 @@ func (this *FD)Submit(object *filetype.Kvmap) error {
                 this.nextAvailablePosition--
                 this.updateChainLock.Unlock()
                 return
+            } else {
+                Secretary.Error("distributedvc::FD.Submit()", "Submission gap occurs! Trying to fix it: "+this.GetPatchName(nAP, -1)+" TRIAL ")
+
+                //TODO: write in auto fix local log.
             }
             this.updateChainLock.Unlock()
-            Secretary.Error("distributedvc::FD.Submit()", "Submission gap occurs! Trying to fix it: "+this.GetPatchName(nAP, -1)+" TRIAL ")
-
-            //TODO: write in auto fix local log.
-
         })()
         return err
     }
@@ -449,6 +461,109 @@ const CONF_FLAG_PREFIX="/*CONF-FLAG*/"
 // NOT for header, so can be camaralized
 const NODE_SYNC_TIME_PREFIX="Node-Sync-"
 
+func (this *FD)_checkAndSubmitNumberZero_SansLock() {
+    if this.nextAvailablePosition>0 {
+        return
+    }
+
+    this.nextAvailablePosition++
+    // submit a empty patch to number zero
+
+    var selfName=CONF_FLAG_PREFIX+NODE_SYNC_TIME_PREFIX+strconv.Itoa(NODE_NUMBER)
+    var object=filetype.NewKvMap()
+    object.TSet(0)
+    object.CheckOut()
+    object.Kvm[selfName]=&filetype.KvmapEntry {
+        Key: selfName,
+        Val: "",
+        Timestamp: 0,
+    }
+    object.CheckIn()
+
+    var err error
+    var unrevocable_io_sleep_time_dur=time.Duration(TRIAL_INTERVAL_IN_UNREVOCABLE_IOERROR)*time.Millisecond
+    for {
+        err=this.io.Put(this.GetPatchName(0, -1), object,
+                    FileMeta(map[string]string {
+                        INTRA_PATCH_METAKEY_NEXT_PATCH: strconv.Itoa(1),
+                        METAKEY_TIMESTAMP: "0",
+                    }))
+        if err!=nil {
+            Secretary.Error("distributedvc::FD._checkAndSubmitNumberZero_SansLock", "Error trying to write an empty zero patch: "+
+                err.Error()+
+                ". Subsequent patches may lost. TRYING to resubmit...")
+            time.Sleep(unrevocable_io_sleep_time_dur)
+        } else {
+            break
+        }
+    }
+
+    this.contentLock.Lock()
+    defer this.contentLock.Unlock()
+
+    this.numberZero=object
+    this.nextToBeMerge=1
+    this.latestReadableVersionTS=0
+    this.modified=false
+}
+// will not update the status
+// used by sync() only
+// the function will load pointer map as LoadPointerMap() does
+// however, if there's no #0 patch. It will create one and move
+// nextAvailablePosition to 1
+func (this *FD)_LoadPointerMap_SyncUseOnly() error {
+    this.updateChainLock.Lock()
+    defer this.updateChainLock.Unlock()
+
+    if this.nextAvailablePosition>=0 {
+        this._checkAndSubmitNumberZero_SansLock()
+        return nil
+    }
+
+    var tmpPos=0
+    var needMerge=false
+    for {
+        tMeta, tErr:=this.io.Getinfo(this.GetPatchName(tmpPos, -1))
+        if tErr!=nil {
+            return tErr
+        }
+        if tMeta==nil {
+            // the file does not exist
+            this.nextAvailablePosition=tmpPos
+            if needMerge {
+                MergeManager.SubmitTask(this.filename, this.io)
+            }
+            this._checkAndSubmitNumberZero_SansLock()
+            return nil
+        }
+        if tNum, ok:=tMeta[INTRA_PATCH_METAKEY_NEXT_PATCH]; !ok {
+            Secretary.WarnD("File "+this.filename+"'s patch #"+strconv.Itoa(tmpPos)+" has broken/invalid metadata. All the patches after it will get lost.")
+            this.nextAvailablePosition=tmpPos+1
+            if needMerge {
+                MergeManager.SubmitTask(this.filename, this.io)
+            }
+            return nil
+        } else {
+            var oldPos=tmpPos
+            tmpPos, tErr=strconv.Atoi(tNum)
+            if tErr!=nil {
+                Secretary.WarnD("File "+this.filename+"'s patch #"+strconv.Itoa(tmpPos)+" has broken/invalid metadata. All the patches after it will get lost.")
+                tmpPos=oldPos
+                this.nextAvailablePosition=tmpPos+1
+                if needMerge {
+                    MergeManager.SubmitTask(this.filename, this.io)
+                }
+                return nil
+            } else {
+                if oldPos!=0 {
+                    needMerge=true
+                }
+            }
+        }
+    }
+
+    return nil
+}
 // Will not require any lock in the process, so the function invocation must be
 // strictly protected by lock in caller.
 // @ only can be invoked by this.Sync()
@@ -511,7 +626,13 @@ func (this *FD)combineNodeX(nodenumber int) error {
 // Read and combine all the version from other nodes, providing the combined version.
 // @ Get Reader Grasped
 func (this *FD)Sync() error {
+    // Submit #0 patch if needed
+    this._LoadPointerMap_SyncUseOnly()
+
+    // read patch 0 from container. If just submit, the function will exit immediately
     this.ReadInNumberZero()
+
+
     this.contentLock.Lock()
     defer this.contentLock.Unlock()
 
@@ -521,8 +642,9 @@ func (this *FD)Sync() error {
     }
 
     if this.numberZero==nil {
-        this.numberZero=filetype.NewKvMap()
-        this.nextToBeMerge=1
+        Insider.Log("distributedvc::FD.Sync()", "Looks like a logical isle: this.numberZero==nil")
+        Secretary.Error("distributedvc::FD.Sync()", "Looks like a logical isle: this.numberZero==nil")
+        return ex.LOGICAL_ERROR
     }
     for searchNode:=0; searchNode<NODE_NUMS_IN_ALL; searchNode++ {
         this.combineNodeX(searchNode)

@@ -22,6 +22,9 @@
 - [x] Linux test
 - [ ] Handle submission gap
 - [ ] Pressure test
+- [ ] Dynamic setting for ls interval
+- [ ] Configuration value validation
 
 ## Known Bugs
 - [ ] InApi: use constant rootNode instead of filesystem one
+- [ ] kernel/distributedvc::Fd: resolving no-zero-patch conflict

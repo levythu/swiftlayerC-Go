@@ -33,6 +33,8 @@ var MAX_MERGING_WORKER int
 var REST_INTERVAL_OF_WORKER_IN_MS int
 var AUTO_MERGER_DEAMON_PERIOD int
 
+var TRIAL_INTERVAL_IN_UNREVOCABLE_IOERROR int
+
 func maxInt(n1, n2 int) int {
     if n1>n2 {
         return n1
@@ -118,6 +120,12 @@ func InitAll() bool {
         REST_INTERVAL_OF_WORKER_IN_MS=0
     }
     AUTO_MERGER_DEAMON_PERIOD       =int(extractProperty("auto_merger_deamon_period_in_seconds").(float64))
+
+
+    TRIAL_INTERVAL_IN_UNREVOCABLE_IOERROR   =int(extractProperty("trial_interval_in_unrevocable_io_error_in_ms").(float64))
+    if TRIAL_INTERVAL_IN_UNREVOCABLE_IOERROR<0 {
+        TRIAL_INTERVAL_IN_UNREVOCABLE_IOERROR=0
+    }
 
 
     return true
