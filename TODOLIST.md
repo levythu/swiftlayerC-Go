@@ -27,4 +27,5 @@
 
 ## Known Bugs
 - [ ] InApi: use constant rootNode instead of filesystem one
-- [ ] kernel/distributedvc::Fd: resolving no-zero-patch conflict
+- [x] kernel/distributedvc::Fd: resolving no-zero-patch conflict
+- [ ] kernel/filesystem::Fs.MvX: Modifying the header ORIGINAL_NAME of the object
