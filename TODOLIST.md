@@ -17,13 +17,14 @@
 - [x] Implement MOVE
 - [x] Test MOVE
 - [x] Implement parallel Sync
-- [ ] Implement parallel Put
+- [x] Implement parallel Put
 - [x] Check parallelbility of outapi/fd operators
 - [x] Linux test
 - [ ] Handle submission gap
 - [ ] Pressure test
 - [ ] Dynamic setting for ls interval
 - [ ] Configuration value validation
+- [ ] Optimize trashbox position cache
 
 ## Known Bugs
 - [ ] InApi: use constant rootNode instead of filesystem one

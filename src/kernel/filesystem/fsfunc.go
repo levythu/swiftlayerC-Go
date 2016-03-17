@@ -4,6 +4,7 @@ package filesystem
 import (
     "outapi"
     "definition/exception"
+    egg "definition/errorgroup"
     dvc "kernel/distributedvc"
     "kernel/filetype"
     "utils/uniqueid"
@@ -346,14 +347,6 @@ func (this *Fs)Put(filename string, frominode string, meta FileMeta/*=nil*/, dat
         }
         // set inode
         targetFileinode=uniqueid.GenGlobalUniqueNameWithTag("Stream")
-        var metaToSet=FileMeta(map[string]string {
-            META_PARENT_INODE:  frominode,
-            META_INODE_TYPE:    META_INODE_TYPE_FILE,
-        })
-        if err:=this.io.Put(GenFileName(frominode, filename), filetype.NewNnode(targetFileinode), metaToSet); err!=nil {
-            Secretary.Warn("kernel.filesystem::Put", "Put nnode for new file "+GenFileName(frominode, filename)+" failed.")
-            return err, ""
-        }
     } else {
         // OVERRIDE MODE
         var oldMeta, err=this.io.Getinfo(frominode)
@@ -395,18 +388,56 @@ func (this *Fs)Put(filename string, frominode string, meta FileMeta/*=nil*/, dat
     }
 
     if filename!="" {
-        // CREATE MODE. Set its parent node's foldermap
-        var parentFD=dvc.GetFD(GenFileName(frominode, FOLDER_MAP), this.io)
-        if parentFD==nil {
-            Secretary.Error("kernel.filesystem::Put", "Get FD for "+GenFileName(frominode, FOLDER_MAP)+" failed.")
-            return exception.EX_INDEX_ERROR, targetFileinode
-        }
-        if err:=parentFD.Submit(filetype.FastMake(filename)); err!=nil {
-            Secretary.Error("kernel.filesystem::Put", "Submit patch for "+GenFileName(frominode, filename)+" failed: "+err.Error())
+        // CREATE MODE. Set its parent node's foldermap and write the nnode concurrently
+        var wg=sync.WaitGroup{}
+        var globalError *egg.ErrorAssembly=nil
+        var geLock sync.Mutex
+
+        wg.Add(2)
+        go (func() {
+            defer wg.Done()
+
+            // Write the nnode
+            var metaToSet=FileMeta(map[string]string {
+                META_PARENT_INODE:  frominode,
+                META_INODE_TYPE:    META_INODE_TYPE_FILE,
+            })
+            if err:=this.io.Put(GenFileName(frominode, filename), filetype.NewNnode(targetFileinode), metaToSet); err!=nil {
+                Secretary.Warn("kernel.filesystem::Put", "Put nnode for new file "+GenFileName(frominode, filename)+" failed.")
+                geLock.Lock()
+                globalError=egg.AddIn(globalError, err)
+                geLock.Unlock()
+                return
+            }
+        })()
+
+        go (func() {
+            // update parentNode's foldermap
+            defer wg.Done()
+
+            var parentFD=dvc.GetFD(GenFileName(frominode, FOLDER_MAP), this.io)
+            if parentFD==nil {
+                Secretary.Error("kernel.filesystem::Put", "Get FD for "+GenFileName(frominode, FOLDER_MAP)+" failed.")
+                geLock.Lock()
+                globalError=egg.AddIn(globalError, exception.EX_INDEX_ERROR)
+                geLock.Unlock()
+                return
+            }
+            if err:=parentFD.Submit(filetype.FastMake(filename)); err!=nil {
+                Secretary.Error("kernel.filesystem::Put", "Submit patch for "+GenFileName(frominode, filename)+" failed: "+err.Error())
+                parentFD.Release()
+                geLock.Lock()
+                globalError=egg.AddIn(globalError, exception.EX_INDEX_ERROR)
+                geLock.Unlock()
+                return
+            }
             parentFD.Release()
-            return exception.EX_INDEX_ERROR, targetFileinode
+        })()
+        wg.Wait()
+
+        if globalError!=nil {
+            return globalError, targetFileinode
         }
-        parentFD.Release()
     }
 
     return nil, targetFileinode

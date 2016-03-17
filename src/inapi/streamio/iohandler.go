@@ -11,6 +11,7 @@ import (
     "io"
     "fmt"
     "utils/pathman"
+    egg "definition/errorgroup"
     //"logger"
 )
 
@@ -160,8 +161,8 @@ func uploader(req Request, res Response) {
         res.Set(PARENT_NODE, nodeName)
     }
 
-    if putErr!=nil {
-        if putErr==exception.EX_FILE_NOT_EXIST {
+    if  !egg.Nil(putErr) {
+        if egg.In(putErr, exception.EX_FILE_NOT_EXIST) {
             res.Status("Nonexist container or path. Or you cannot refer to a non-existing inode in ovveride mode.", 404)
             return
         }
