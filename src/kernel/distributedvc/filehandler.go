@@ -8,6 +8,7 @@ import (
     . "kernel/distributedvc/constdef"
     . "outapi"
     "strconv"
+    ex "definition/exception"
     . "definition/configinfo"
     . "utils/timestamp"
     "time"
@@ -255,6 +256,32 @@ func readInKvMapfile(io Outapi, filename string) (*filetype.Kvmap, FileMeta, err
 
     return result, meta, nil
 }
+// if return (nil, nil), the file just does not exist.
+// a nil for file and an error instance will be returned for other errors
+// if the file is not nil, the function is invoked successfully
+func readInKvMapfile_NoWarning(io Outapi, filename string) (*filetype.Kvmap, FileMeta, error) {
+    var meta, file, err=io.Get(filename)
+    if err!=nil {
+        return nil, nil, err
+    }
+    if file==nil || meta==nil {
+        return nil, nil, nil
+    }
+    var result, ok=file.(*filetype.Kvmap)
+    if !ok {
+        Secretary.Warn("distributedvc::readInKvMapfile()", "Fail in reading file "+filename)
+        return nil, nil, FORMAT_EXCEPTION
+    }
+
+    if tTS, tOK:=meta[METAKEY_TIMESTAMP]; !tOK {
+        Secretary.WarnD("File "+filename+"'s patch #0 has invalid timestamp.")
+        result.TSet(0)
+    } else {
+        result.TSet(String2ClxTimestamp(tTS))
+    }
+
+    return result, meta, nil
+}
 
 var MERGE_ERROR=errors.New("Merging error")
 
@@ -278,6 +305,7 @@ func (this *FD)MergeNext() error {
 
     var oldMerged=this.nextToBeMerge
     var thePatch, meta, err=readInKvMapfile(this.io, this.GetPatchName(this.nextToBeMerge, -1))
+    // may happen due to the unsubmission of Submit() function
     if thePatch==nil {
         Secretary.Warn("distributedvc::FD.MergeNext()", "Fail to get a supposed-to-be patch for file "+this.filename)
         if err==nil {
@@ -365,6 +393,9 @@ func (this *FD)LoadPointerMap() error {
                 this.status=2
             }
             this.nextAvailablePosition=tmpPos+1
+            if needMerge {
+                MergeManager.SubmitTask(this.filename, this.io)
+            }
             return nil
         } else {
             var oldPos=tmpPos
@@ -372,6 +403,14 @@ func (this *FD)LoadPointerMap() error {
             if tErr!=nil {
                 Secretary.WarnD("File "+this.filename+"'s patch #"+strconv.Itoa(tmpPos)+" has broken/invalid metadata. All the patches after it will get lost.")
                 tmpPos=oldPos
+                if this.status<=0 {
+                    this.status=2
+                }
+                this.nextAvailablePosition=tmpPos+1
+                if needMerge {
+                    MergeManager.SubmitTask(this.filename, this.io)
+                }
+                return nil
             } else {
                 if oldPos!=0 {
                     needMerge=true
@@ -395,7 +434,9 @@ func (this *FD)Submit(object *filetype.Kvmap) error {
         }
         this.updateChainLock.Lock()
     }
-    defer this.updateChainLock.Unlock()
+    var nAP=this.nextAvailablePosition
+    this.nextAvailablePosition=nAP+1
+    this.updateChainLock.Unlock()
 
     var selfName=CONF_FLAG_PREFIX+NODE_SYNC_TIME_PREFIX+strconv.Itoa(NODE_NUMBER)
     var nowTime=GetTimestamp()
@@ -409,18 +450,33 @@ func (this *FD)Submit(object *filetype.Kvmap) error {
     }
     object.CheckIn()
 
-    var err=this.io.Put(this.GetPatchName(this.nextAvailablePosition, -1),
+    var err=this.io.Put(this.GetPatchName(nAP, -1),
                 object,
                 FileMeta(map[string]string {
-                    INTRA_PATCH_METAKEY_NEXT_PATCH: strconv.Itoa(this.nextAvailablePosition+1),
+                    INTRA_PATCH_METAKEY_NEXT_PATCH: strconv.Itoa(nAP+1),
                     METAKEY_TIMESTAMP: nowTime.String(),
                 }))
     if err!=nil {
-        Secretary.Warn("distributedvc::FD.Submit()", "Fail in putting file "+this.GetPatchName(this.nextAvailablePosition, -1))
+        Secretary.Warn("distributedvc::FD.Submit()", "Fail in putting file "+this.GetPatchName(nAP, -1))
+        go (func() {
+            // failure rollback
+            this.updateChainLock.Lock()
+            if nAP+1==this.nextAvailablePosition {
+                // up to now, no new patch has been submitted. Just rollback the number.
+                this.nextAvailablePosition--
+                this.updateChainLock.Unlock()
+                return
+            } else {
+                Secretary.Error("distributedvc::FD.Submit()", "Submission gap occurs! Trying to fix it: "+this.GetPatchName(nAP, -1)+" TRIAL ")
+
+                //TODO: write in auto fix local log.
+            }
+            this.updateChainLock.Unlock()
+        })()
         return err
     }
-    this.nextAvailablePosition++
-    if this.nextAvailablePosition!=1 {
+
+    if nAP!=1 {
         MergeManager.SubmitTask(this.filename, this.io)
     }
 
@@ -431,9 +487,110 @@ const CONF_FLAG_PREFIX="/*CONF-FLAG*/"
 // NOT for header, so can be camaralized
 const NODE_SYNC_TIME_PREFIX="Node-Sync-"
 
-// Will not require any lock in the process, so the function invocation must be
-// strictly protected by lock in caller.
-// @ only can be invoked by this.Sync()
+func (this *FD)_checkAndSubmitNumberZero_SansLock() {
+    if this.nextAvailablePosition>0 {
+        return
+    }
+
+    this.nextAvailablePosition++
+    // submit a empty patch to number zero
+
+    var selfName=CONF_FLAG_PREFIX+NODE_SYNC_TIME_PREFIX+strconv.Itoa(NODE_NUMBER)
+    var object=filetype.NewKvMap()
+    object.TSet(0)
+    object.CheckOut()
+    object.Kvm[selfName]=&filetype.KvmapEntry {
+        Key: selfName,
+        Val: "",
+        Timestamp: 0,
+    }
+    object.CheckIn()
+
+    var err error
+    var unrevocable_io_sleep_time_dur=time.Duration(TRIAL_INTERVAL_IN_UNREVOCABLE_IOERROR)*time.Millisecond
+    for {
+        err=this.io.Put(this.GetPatchName(0, -1), object,
+                    FileMeta(map[string]string {
+                        INTRA_PATCH_METAKEY_NEXT_PATCH: strconv.Itoa(1),
+                        METAKEY_TIMESTAMP: "0",
+                    }))
+        if err!=nil {
+            Secretary.Error("distributedvc::FD._checkAndSubmitNumberZero_SansLock", "Error trying to write an empty zero patch: "+
+                err.Error()+
+                ". Subsequent patches may lost. TRYING to resubmit...")
+            time.Sleep(unrevocable_io_sleep_time_dur)
+        } else {
+            break
+        }
+    }
+
+    this.contentLock.Lock()
+    defer this.contentLock.Unlock()
+
+    this.numberZero=object
+    this.nextToBeMerge=1
+    this.latestReadableVersionTS=0
+    this.modified=false
+}
+// will not update the status
+// used by sync() only
+// the function will load pointer map as LoadPointerMap() does
+// however, if there's no #0 patch. It will create one and move
+// nextAvailablePosition to 1
+func (this *FD)_LoadPointerMap_SyncUseOnly() error {
+    this.updateChainLock.Lock()
+    defer this.updateChainLock.Unlock()
+
+    if this.nextAvailablePosition>=0 {
+        this._checkAndSubmitNumberZero_SansLock()
+        return nil
+    }
+
+    var tmpPos=0
+    var needMerge=false
+    for {
+        tMeta, tErr:=this.io.Getinfo(this.GetPatchName(tmpPos, -1))
+        if tErr!=nil {
+            return tErr
+        }
+        if tMeta==nil {
+            // the file does not exist
+            this.nextAvailablePosition=tmpPos
+            if needMerge {
+                MergeManager.SubmitTask(this.filename, this.io)
+            }
+            this._checkAndSubmitNumberZero_SansLock()
+            return nil
+        }
+        if tNum, ok:=tMeta[INTRA_PATCH_METAKEY_NEXT_PATCH]; !ok {
+            Secretary.WarnD("File "+this.filename+"'s patch #"+strconv.Itoa(tmpPos)+" has broken/invalid metadata. All the patches after it will get lost.")
+            this.nextAvailablePosition=tmpPos+1
+            if needMerge {
+                MergeManager.SubmitTask(this.filename, this.io)
+            }
+            return nil
+        } else {
+            var oldPos=tmpPos
+            tmpPos, tErr=strconv.Atoi(tNum)
+            if tErr!=nil {
+                Secretary.WarnD("File "+this.filename+"'s patch #"+strconv.Itoa(tmpPos)+" has broken/invalid metadata. All the patches after it will get lost.")
+                tmpPos=oldPos
+                this.nextAvailablePosition=tmpPos+1
+                if needMerge {
+                    MergeManager.SubmitTask(this.filename, this.io)
+                }
+                return nil
+            } else {
+                if oldPos!=0 {
+                    needMerge=true
+                }
+            }
+        }
+    }
+
+    return nil
+}
+// @ DEPRECATED
 func (this *FD)combineNodeX(nodenumber int) error {
     if nodenumber==NODE_NUMBER {
         return nil
@@ -493,21 +650,107 @@ func (this *FD)combineNodeX(nodenumber int) error {
 // Read and combine all the version from other nodes, providing the combined version.
 // @ Get Reader Grasped
 func (this *FD)Sync() error {
+    var nowTime=time.Now().Unix()
+    if this.lastSyncTime+SINGLE_FILE_SYNC_INTERVAL_MIN>nowTime {
+        // interval is too small, abort the sync.
+        return nil
+    }
+    // Submit #0 patch if needed
+    this._LoadPointerMap_SyncUseOnly()
+
+    // read patch 0 from container. If just submit, the function will exit immediately
     this.ReadInNumberZero()
+
+
     this.contentLock.Lock()
     defer this.contentLock.Unlock()
 
-    if this.lastSyncTime+SINGLE_FILE_SYNC_INTERVAL_MIN>time.Now().Unix() {
+    if this.lastSyncTime+SINGLE_FILE_SYNC_INTERVAL_MIN>nowTime {
         // interval is too small, abort the sync.
         return nil
     }
 
     if this.numberZero==nil {
-        this.numberZero=filetype.NewKvMap()
-        this.nextToBeMerge=1
+        Insider.Log("distributedvc::FD.Sync()", "Looks like a logical isle: this.numberZero==nil")
+        Secretary.Error("distributedvc::FD.Sync()", "Looks like a logical isle: this.numberZero==nil")
+        return ex.LOGICAL_ERROR
     }
-    for searchNode:=0; searchNode<NODE_NUMS_IN_ALL; searchNode++ {
-        this.combineNodeX(searchNode)
+
+    // phase1: glean information from different nodes
+    // Attentez: the go routines will read numberZero.Kvm but will not write it. So not lock is required.
+    if this.numberZero.Kvm==nil {
+        this.numberZero.CheckOut()
+    }
+    var updateChannel=make(chan int, NODE_NUMS_IN_ALL)
+    go (func() {
+        var wg=sync.WaitGroup{}
+        var gleanInfo=func(nodeNumber int) bool {
+            defer wg.Done()
+
+            if nodeNumber==NODE_NUMBER {
+                return false
+            }
+            var keyStoreName=CONF_FLAG_PREFIX+NODE_SYNC_TIME_PREFIX+strconv.Itoa(nodeNumber)
+            var lastTime ClxTimestamp
+            if elem, ok:=this.numberZero.Kvm[keyStoreName]; ok {
+                lastTime=elem.Timestamp
+            } else {
+                lastTime=0
+            }
+
+            if lastTime>0 {
+                var meta, err=this.io.Getinfo(this.GetPatchName(0, nodeNumber))
+                if meta==nil || err!=nil {
+                    if err!=nil {
+                        Secretary.Warn("distributedvc::FD.Sync()", "Fail to get info from "+this.GetPatchName(0, nodeNumber)+": "+err.Error())
+                    }
+                    return false
+                }
+                var result, ok=meta[METAKEY_TIMESTAMP]
+                if !ok {
+                    return false
+                }
+                var existRecentTS=String2ClxTimestamp(result)
+                if existRecentTS>lastTime {
+                    updateChannel<-nodeNumber
+                    return true
+                }
+                return false
+            }
+
+            updateChannel<-nodeNumber
+            return true
+        }
+        wg.Add(NODE_NUMS_IN_ALL)
+        for i:=0; i<NODE_NUMS_IN_ALL; i++ {
+            go gleanInfo(i)
+        }
+        wg.Wait()
+        close(updateChannel)
+    })()
+
+    // meanwhile: fetch corresponding patch as need
+    var thePatch=filetype.NewKvMap()
+    var changed=false
+    for i:=range updateChannel {
+        var file, _, err=readInKvMapfile_NoWarning(this.io, this.GetPatchName(0, i))
+        if err!=nil {
+            Secretary.Warn("distributedvc::FD.Sync()", "Fail to read supposed-to-be file "+this.GetPatchName(0, i))
+            continue
+        }
+        if file==nil {
+            continue
+        }
+        thePatch.MergeWith(file)
+        changed=true
+    }
+    // At this time, the channel must be closed and thus, all the reading routines of
+    // this.numberZero has terminated safely, on which any write is thread-safe.
+    if changed {
+        // merging to update modification timestamp
+        this.numberZero.MergeWith(filetype.FastMake(CONF_FLAG_PREFIX+NODE_SYNC_TIME_PREFIX+strconv.Itoa(NODE_NUMBER)))
+        this.numberZero.MergeWith(thePatch)
+        this.modified=true
     }
     this.lastSyncTime=time.Now().Unix()
 

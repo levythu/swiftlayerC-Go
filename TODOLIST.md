@@ -16,8 +16,15 @@
 - [ ] Take advantage of Parent-Node meta to implement shortcut remove
 - [x] Implement MOVE
 - [x] Test MOVE
-- [ ] Implement parallel Sync
-- [ ] Check parallelbility of outapi/fd operators
+- [x] Implement parallel Sync
+- [ ] Implement parallel Put
+- [x] Check parallelbility of outapi/fd operators
+- [x] Linux test
+- [ ] Handle submission gap
+- [ ] Pressure test
+- [ ] Dynamic setting for ls interval
+- [ ] Configuration value validation
 
 ## Known Bugs
 - [ ] InApi: use constant rootNode instead of filesystem one
+- [ ] kernel/distributedvc::Fd: resolving no-zero-patch conflict

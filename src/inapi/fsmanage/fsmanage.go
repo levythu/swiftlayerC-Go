@@ -173,7 +173,6 @@ func mkDirectoryX(req Request, res Response, byforce bool) {
     } else {
         err=fs.MkdirParalleled(trimer, nodeName, byforce)
     }
-    fmt.Println(err, err==nil)
     if !egg.Nil(err) {
         if egg.In(err, exception.EX_INODE_NONEXIST) {
             res.Status("Nonexist container or path.", 404)

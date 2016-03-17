@@ -235,7 +235,8 @@ func workerProcess(supervisor *MergingSupervisor, numbered int) {
                         if merr==NOTHING_TO_MERGE {
                             break
                         }
-                        // ERROR when merge
+                        // ERROR when merge: Attentez: in such circumenstance,
+                        // the patch may be on the way of submission
                         break
                     }
                     Secretary.Log(myName, "FD "+task+" has been merged once.")
