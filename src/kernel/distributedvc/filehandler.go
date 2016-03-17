@@ -256,6 +256,32 @@ func readInKvMapfile(io Outapi, filename string) (*filetype.Kvmap, FileMeta, err
 
     return result, meta, nil
 }
+// if return (nil, nil), the file just does not exist.
+// a nil for file and an error instance will be returned for other errors
+// if the file is not nil, the function is invoked successfully
+func readInKvMapfile_NoWarning(io Outapi, filename string) (*filetype.Kvmap, FileMeta, error) {
+    var meta, file, err=io.Get(filename)
+    if err!=nil {
+        return nil, nil, err
+    }
+    if file==nil || meta==nil {
+        return nil, nil, nil
+    }
+    var result, ok=file.(*filetype.Kvmap)
+    if !ok {
+        Secretary.Warn("distributedvc::readInKvMapfile()", "Fail in reading file "+filename)
+        return nil, nil, FORMAT_EXCEPTION
+    }
+
+    if tTS, tOK:=meta[METAKEY_TIMESTAMP]; !tOK {
+        Secretary.WarnD("File "+filename+"'s patch #0 has invalid timestamp.")
+        result.TSet(0)
+    } else {
+        result.TSet(String2ClxTimestamp(tTS))
+    }
+
+    return result, meta, nil
+}
 
 var MERGE_ERROR=errors.New("Merging error")
 
@@ -564,9 +590,7 @@ func (this *FD)_LoadPointerMap_SyncUseOnly() error {
 
     return nil
 }
-// Will not require any lock in the process, so the function invocation must be
-// strictly protected by lock in caller.
-// @ only can be invoked by this.Sync()
+// @ DEPRECATED
 func (this *FD)combineNodeX(nodenumber int) error {
     if nodenumber==NODE_NUMBER {
         return nil
@@ -653,9 +677,80 @@ func (this *FD)Sync() error {
     }
 
     // phase1: glean information from different nodes
-    // phase2: fetch corresponding patch as need
-    for searchNode:=0; searchNode<NODE_NUMS_IN_ALL; searchNode++ {
-        this.combineNodeX(searchNode)
+    // Attentez: the go routines will read numberZero.Kvm but will not write it. So not lock is required.
+    if this.numberZero.Kvm==nil {
+        this.numberZero.CheckOut()
+    }
+    var updateChannel=make(chan int, NODE_NUMS_IN_ALL)
+    go (func() {
+        var wg=sync.WaitGroup{}
+        var gleanInfo=func(nodeNumber int) bool {
+            defer wg.Done()
+
+            if nodeNumber==NODE_NUMBER {
+                return false
+            }
+            var keyStoreName=CONF_FLAG_PREFIX+NODE_SYNC_TIME_PREFIX+strconv.Itoa(nodeNumber)
+            var lastTime ClxTimestamp
+            if elem, ok:=this.numberZero.Kvm[keyStoreName]; ok {
+                lastTime=elem.Timestamp
+            } else {
+                lastTime=0
+            }
+
+            if lastTime>0 {
+                var meta, err=this.io.Getinfo(this.GetPatchName(0, nodeNumber))
+                if meta==nil || err!=nil {
+                    if err!=nil {
+                        Secretary.Warn("distributedvc::FD.Sync()", "Fail to get info from "+this.GetPatchName(0, nodeNumber)+": "+err.Error())
+                    }
+                    return false
+                }
+                var result, ok=meta[METAKEY_TIMESTAMP]
+                if !ok {
+                    return false
+                }
+                var existRecentTS=String2ClxTimestamp(result)
+                if existRecentTS>lastTime {
+                    updateChannel<-nodeNumber
+                    return true
+                }
+                return false
+            }
+
+            updateChannel<-nodeNumber
+            return true
+        }
+        wg.Add(NODE_NUMS_IN_ALL)
+        for i:=0; i<NODE_NUMS_IN_ALL; i++ {
+            go gleanInfo(i)
+        }
+        wg.Wait()
+        close(updateChannel)
+    })()
+
+    // meanwhile: fetch corresponding patch as need
+    var thePatch=filetype.NewKvMap()
+    var changed=false
+    for i:=range updateChannel {
+        var file, _, err=readInKvMapfile_NoWarning(this.io, this.GetPatchName(0, i))
+        if err!=nil {
+            Secretary.Warn("distributedvc::FD.Sync()", "Fail to read supposed-to-be file "+this.GetPatchName(0, i))
+            continue
+        }
+        if file==nil {
+            continue
+        }
+        thePatch.MergeWith(file)
+        changed=true
+    }
+    // At this time, the channel must be closed and thus, all the reading routines of
+    // this.numberZero has terminated safely, on which any write is thread-safe.
+    if changed {
+        // merging to update modification timestamp
+        this.numberZero.MergeWith(filetype.FastMake(CONF_FLAG_PREFIX+NODE_SYNC_TIME_PREFIX+strconv.Itoa(NODE_NUMBER)))
+        this.numberZero.MergeWith(thePatch)
+        this.modified=true
     }
     this.lastSyncTime=time.Now().Unix()
 

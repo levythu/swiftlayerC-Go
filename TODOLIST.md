@@ -16,7 +16,7 @@
 - [ ] Take advantage of Parent-Node meta to implement shortcut remove
 - [x] Implement MOVE
 - [x] Test MOVE
-- [ ] Implement parallel Sync
+- [x] Implement parallel Sync
 - [ ] Implement parallel Put
 - [x] Check parallelbility of outapi/fd operators
 - [x] Linux test
