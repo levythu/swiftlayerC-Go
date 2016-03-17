@@ -23,7 +23,7 @@
 - [ ] Handle submission gap
 - [ ] Pressure test
 - [ ] Dynamic setting for ls interval
-- [ ] Configuration value validation
+- [x] Configuration value validation
 - [ ] Optimize trashbox position cache
 
 ## Known Bugs
