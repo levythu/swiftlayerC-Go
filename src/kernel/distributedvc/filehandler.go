@@ -438,6 +438,8 @@ func (this *FD)Submit(object *filetype.Kvmap) error {
     this.nextAvailablePosition=nAP+1
     this.updateChainLock.Unlock()
 
+    //Insider.Log(this.filename+".Submit()", "Release updateChainLock")
+
     var selfName=CONF_FLAG_PREFIX+NODE_SYNC_TIME_PREFIX+strconv.Itoa(NODE_NUMBER)
     var nowTime=GetTimestamp()
     if object.Kvm==nil {
@@ -450,6 +452,7 @@ func (this *FD)Submit(object *filetype.Kvmap) error {
     }
     object.CheckIn()
 
+    //Insider.Log(this.filename+".Submit()", "Start to put")
     var err=this.io.Put(this.GetPatchName(nAP, -1),
                 object,
                 FileMeta(map[string]string {
@@ -476,10 +479,14 @@ func (this *FD)Submit(object *filetype.Kvmap) error {
         return err
     }
 
+    //Insider.Log(this.filename+".Submit()", "Put")
+
     if nAP!=1 {
         MergeManager.SubmitTask(this.filename, this.io)
     }
 
+
+    //Insider.Log(this.filename+".Submit()", "Submitted Task")
     return nil
 }
 

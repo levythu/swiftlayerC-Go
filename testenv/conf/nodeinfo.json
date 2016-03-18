@@ -15,11 +15,7 @@
     "node_number": 0,
 
     /*  The total number of proxy nodes in the cluster.  */
-    "node_nums_in_all": 3,
-
-    /*  For the intramerge worker, after executing merging for this number of times
-        it will commit the merged file to Swift.  */
-    "auto_commit_per_intramerge": 1,
+    "node_nums_in_all": 1,
 
     /*  Openstack Keystone authencation server url. Only API v2.0 is supported here.  */
     "swift_auth_url": "http://58.205.208.81:5000/v2.0",
@@ -29,6 +25,9 @@
 
     /*  To which([hostname]:port) the outer server listens */
     "outer_service_listener": ":9144",
+
+    /*  To which([hostname]:port) the intra-communication server listens */
+    "inner_service_listener": ":2333",
 
     /*
         log_level is a three digit binary b2b1b0:

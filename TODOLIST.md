@@ -13,18 +13,21 @@
 - [x] Set default file name and extension
 - [ ] user meta support
 - [x] **DO NEVER USE UPPER CASE FOR FILE META!!!**
-- [ ] Take advantage of Parent-Node meta to implement shortcut remove
+- [x] Take advantage of Parent-Node meta to implement shortcut remove
 - [x] Implement MOVE
 - [x] Test MOVE
 - [x] Implement parallel Sync
-- [ ] Implement parallel Put
+- [x] Implement parallel Put
 - [x] Check parallelbility of outapi/fd operators
 - [x] Linux test
 - [ ] Handle submission gap
 - [ ] Pressure test
 - [ ] Dynamic setting for ls interval
-- [ ] Configuration value validation
+- [x] Configuration value validation
+- [x] Optimize trashbox position cache
+- [x] Check Concurrency safety
 
 ## Known Bugs
 - [ ] InApi: use constant rootNode instead of filesystem one
-- [ ] kernel/distributedvc::Fd: resolving no-zero-patch conflict
+- [x] kernel/distributedvc::Fd: resolving no-zero-patch conflict
+- [ ] kernel/filesystem::Fs.MvX: Modifying the header ORIGINAL_NAME of the object

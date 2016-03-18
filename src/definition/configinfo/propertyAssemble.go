@@ -2,6 +2,7 @@ package configinfo
 
 import (
     . "logger"
+    "strconv"
 )
 
 var LOG_LEVEL int
@@ -12,6 +13,7 @@ var AUTO_COMMIT_PER_INTRAMERGE int
 var SWIFT_AUTH_URL string
 var SWIFT_PROXY_URL string
 var OUTER_SERVICE_LISTENER string
+var INNER_SERVICE_LISTENER string
 
 
 var INDEX_FILE_CHECK_MD5 bool
@@ -49,15 +51,30 @@ func InitAll() bool {
 
 
     LOG_LEVEL                       =int(extractProperty("log_level").(float64))
+    if LOG_LEVEL>7 || LOG_LEVEL<0 {
+        Secretary.WarnD("The configuration variable LOG_LEVEL is out of range and is set to 7(111b) automatically.")
+        LOG_LEVEL=7
+    }
     Secretary.SetLevel(LOG_LEVEL)
 
 
     NODE_NUMBER                     =int(extractProperty("node_number").(float64))
     NODE_NUMS_IN_ALL                =int(extractProperty("node_nums_in_all").(float64))
+    if NODE_NUMBER>=NODE_NUMS_IN_ALL || NODE_NUMBER<0 {
+        Secretary.ErrorD("The configuration variable NODE_NUMBER is supposed to be in the range [0, "+strconv.Itoa(NODE_NUMS_IN_ALL-1)+"]. There "+
+            "may be some severe errors in the configuration files. Hence, please overhaul them.")
+        Secretary.ErrorD("S-H2 has stopped due to servere error.")
+        panic("EXIT DUE TO ASSERTION FAILURE.")
+    }
     AUTO_COMMIT_PER_INTRAMERGE      =int(extractProperty("auto_commit_per_intramerge").(float64))
+    if AUTO_COMMIT_PER_INTRAMERGE<1 {
+        Secretary.WarnD("The configuration variable AUTO_COMMIT_PER_INTRAMERGE is too small and is set to 1 automatically.")
+        AUTO_COMMIT_PER_INTRAMERGE=1
+    }
     SWIFT_AUTH_URL                  =extractProperty("swift_auth_url").(string)
     SWIFT_PROXY_URL                 =extractProperty("swift_proxy_url").(string)
     OUTER_SERVICE_LISTENER          =extractProperty("outer_service_listener").(string)
+    INNER_SERVICE_LISTENER          =extractProperty("inner_service_listener").(string)
 
 
     INDEX_FILE_CHECK_MD5            =extractProperty("index_file_check_md5").(bool)
