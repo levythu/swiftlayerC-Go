@@ -155,8 +155,8 @@ func (this *Fs)RmParalleled(foldername string, frominode string) error {
 // Attentez: It is not atomic
 // If byForce set to false and the destination file exists, an EX_FOLDER_ALREADY_EXIST will be returned
 func (this *Fs)MvXParalleled(srcName, srcInode, desName, desInode string, byForce bool) error {
-    Insider.LogD("MvXParalleled start")
-    defer Insider.LogD("MvXParalleled end")
+    //Insider.LogD("MvXParalleled start")
+    //defer Insider.LogD("MvXParalleled end")
     if !CheckValidFilename(srcName) || !CheckValidFilename(desName) {
         return exception.EX_INVALID_FILENAME
     }
@@ -167,11 +167,11 @@ func (this *Fs)MvXParalleled(srcName, srcInode, desName, desInode string, byForc
     var modifiedMeta=FileMeta(map[string]string {
         META_PARENT_INODE: desInode,
     })
-    Insider.LogD("MvXParalleled::copy start")
+    //Insider.LogD("MvXParalleled::copy start")
     if err:=this.io.Copy(GenFileName(srcInode, srcName), GenFileName(desInode, desName), modifiedMeta); err!=nil {
         return exception.EX_FILE_NOT_EXIST
     }
-    Insider.LogD("MvXParalleled::copy end")
+    //Insider.LogD("MvXParalleled::copy end")
 
     var globalError *errorgroup.ErrorAssembly=nil
     var geLock sync.Mutex
@@ -179,12 +179,13 @@ func (this *Fs)MvXParalleled(srcName, srcInode, desName, desInode string, byForc
 
     var routineToUpdateDesParentMap=func() {
         defer wg.Done()
-        Insider.LogD("routineToUpdateDesParentMap start")
-        defer Insider.LogD("routineToUpdateDesParentMap end")
+        //Insider.LogD("routineToUpdateDesParentMap start")
+        //defer Insider.LogD("routineToUpdateDesParentMap end")
 
         {
             var desParentMap=dvc.GetFD(GenFileName(desInode, FOLDER_MAP), this.io)
-            if desParentMap==nil {
+            //Insider.Log("routineToUpdateDesParentMap", "GOT FD")
+            //if desParentMap==nil {
                 Secretary.Error("kernel.filesystem::MvXParalleled", "Fail to get foldermap fd for folder "+desInode)
                 geLock.Lock()
                 globalError=errorgroup.AddIn(globalError, exception.EX_IO_ERROR)
@@ -199,25 +200,28 @@ func (this *Fs)MvXParalleled(srcName, srcInode, desName, desInode string, byForc
                 geLock.Unlock()
                 return
             }
+            //Insider.Log("routineToUpdateDesParentMap", "SUBMITTED")
             desParentMap.Release()
+            //Insider.Log("routineToUpdateDesParentMap", "RELEASED")
         }
     }
 
     var routineToRemoveOldNnode=func() {
         defer wg.Done()
-        Insider.LogD("routineToRemoveOldNnode start")
-        defer Insider.LogD("routineToRemoveOldNnode end")
+        //Insider.LogD("routineToRemoveOldNnode start")
+        //defer Insider.LogD("routineToRemoveOldNnode end")
 
         this.io.Delete(GenFileName(srcInode, srcName))
     }
 
     var routineToUpdateSrcParentMap=func() {
         defer wg.Done()
-        Insider.LogD("routineToUpdateSrcParentMap start")
-        defer Insider.LogD("routineToUpdateSrcParentMap end")
+        //Insider.LogD("routineToUpdateSrcParentMap start")
+        //defer Insider.LogD("routineToUpdateSrcParentMap end")
 
         {
             var srcParentMap=dvc.GetFD(GenFileName(srcInode, FOLDER_MAP), this.io)
+            //Insider.Log("routineToUpdateSrcParentMap", "GOT FD")
             if srcParentMap==nil {
                 Secretary.Error("kernel.filesystem::MvXParalleled", "Fail to get foldermap fd for folder "+srcInode)
                 geLock.Lock()
@@ -233,14 +237,16 @@ func (this *Fs)MvXParalleled(srcName, srcInode, desName, desInode string, byForc
                 geLock.Unlock()
                 return
             }
+            //Insider.Log("routineToUpdateSrcParentMap", "SUBMITTED")
             srcParentMap.Release()
+            //Insider.Log("routineToUpdateSrcParentMap", "RELEASED")
         }
     }
 
     var routineToUpdateDotDot=func() {
         defer wg.Done()
-        Insider.LogD("routineToUpdateDotDot start")
-        defer Insider.LogD("routineToUpdateDotDot end")
+        //Insider.LogD("routineToUpdateDotDot start")
+        //defer Insider.LogD("routineToUpdateDotDot end")
 
         var _, dstFileNnodeOriginal, _=this.io.Get(GenFileName(desInode, desName))
         var dstFileNnode, _=dstFileNnodeOriginal.(*filetype.Nnode)

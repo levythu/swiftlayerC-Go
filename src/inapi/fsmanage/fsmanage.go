@@ -1,6 +1,9 @@
 package fsmanage
 
 // APIs for managing pseudo-filesystem, not for managing files
+// Attentions:
+// - Move/Remove items are multi-invocation-unsafe. Concurrent moves on a file may
+//   lead to multi-existence of one single nnode.
 
 import (
     . "github.com/levythu/gurgling"
@@ -274,6 +277,10 @@ func rmDirectory(req Request, res Response) {
     }
     if !egg.Nil(err) {
         if egg.In(err, exception.EX_INODE_NONEXIST) {
+            res.Status("Nonexist container or path.", 404)
+            return
+        }
+        if egg.In(err, exception.EX_FILE_NOT_EXIST) {
             res.Status("Nonexist container or path.", 404)
             return
         }

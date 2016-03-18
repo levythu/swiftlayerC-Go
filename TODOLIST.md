@@ -25,7 +25,7 @@
 - [ ] Dynamic setting for ls interval
 - [x] Configuration value validation
 - [x] Optimize trashbox position cache
-- [ ] Check Concurrency safety
+- [x] Check Concurrency safety
 
 ## Known Bugs
 - [ ] InApi: use constant rootNode instead of filesystem one

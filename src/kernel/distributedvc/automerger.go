@@ -137,11 +137,14 @@ var MergeManager=&MergingSupervisor {
 
 
 func (this *MergingSupervisor)SubmitTask(filename string, io Outapi) error {
+    //Insider.Log("MergingSupervisor.SubmitTask()", "Start")
     if err:=this.scheduler.CheckInATask(filename, io); err!=nil {
         return err
     }
+    //Insider.Log("MergingSupervisor.SubmitTask()", "Checked In")
 
     this.spawnWorker()
+    //Insider.Log("MergingSupervisor.SubmitTask()", "Spawned and END")
     return nil
 }
 
