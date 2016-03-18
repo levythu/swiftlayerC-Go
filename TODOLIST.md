@@ -24,7 +24,7 @@
 - [ ] Pressure test
 - [ ] Dynamic setting for ls interval
 - [x] Configuration value validation
-- [ ] Optimize trashbox position cache
+- [x] Optimize trashbox position cache
 
 ## Known Bugs
 - [ ] InApi: use constant rootNode instead of filesystem one

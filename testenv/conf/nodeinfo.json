@@ -15,7 +15,7 @@
     "node_number": 0,
 
     /*  The total number of proxy nodes in the cluster.  */
-    "node_nums_in_all": 3,
+    "node_nums_in_all": 1,
 
     /*  Openstack Keystone authencation server url. Only API v2.0 is supported here.  */
     "swift_auth_url": "http://58.205.208.81:5000/v2.0",
