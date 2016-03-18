@@ -46,7 +46,8 @@ func __nouse__() {
     fmt.Println("123")
 }
 
-func NewFs(_io outapi.Outapi) *Fs {
+// for internal use only
+func newFs(_io outapi.Outapi) *Fs {
     return &Fs{
         io: _io,
         rootName: ROOT_INODE_NAME,

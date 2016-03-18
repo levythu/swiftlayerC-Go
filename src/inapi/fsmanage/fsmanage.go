@@ -72,7 +72,12 @@ func lsDirectory(req Request, res Response) {
         pathDetail=append(pathDetail, filesystem.ROOT_INODE_NAME)
     }
 
-    var fs=filesystem.NewFs(outapi.NewSwiftio(outapi.DefaultConnector, pathDetail[1]))
+    var fs=filesystem.GetFs(outapi.NewSwiftio(outapi.DefaultConnector, pathDetail[1]))
+    if fs==nil {
+        res.Status("Internal Error: the FS pool is full.", 500)
+    }
+    defer fs.Release()
+
     var nodeName, err=fs.Locate(pathDetail[2], pathDetail[3])
     if err!=nil {
         res.Status("Nonexist container or path. "+err.Error(), 404)
@@ -160,7 +165,12 @@ func mkDirectoryX(req Request, res Response, byforce bool) {
     // now trimer holds the last foldername
     // base holds the parent folder path
 
-    var fs=filesystem.NewFs(outapi.NewSwiftio(outapi.DefaultConnector, pathDetail[1]))
+    var fs=filesystem.GetFs(outapi.NewSwiftio(outapi.DefaultConnector, pathDetail[1]))
+    if fs==nil {
+        res.Status("Internal Error: the FS pool is full.", 500)
+    }
+    defer fs.Release()
+
     var nodeName, err=fs.Locate(base, pathDetail[3])
     if err!=nil {
         res.Status("Nonexist container or path. "+err.Error(), 404)
@@ -243,7 +253,12 @@ func rmDirectory(req Request, res Response) {
     // now trimer holds the last foldername
     // base holds the parent folder path
 
-    var fs=filesystem.NewFs(outapi.NewSwiftio(outapi.DefaultConnector, pathDetail[1]))
+    var fs=filesystem.GetFs(outapi.NewSwiftio(outapi.DefaultConnector, pathDetail[1]))
+    if fs==nil {
+        res.Status("Internal Error: the FS pool is full.", 500)
+    }
+    defer fs.Release()
+
     var nodeName, err=fs.Locate(base, pathDetail[3])
     if err!=nil {
         res.Status("Nonexist container or path. "+err.Error(), 404)
@@ -320,7 +335,11 @@ func mvDirectory(req Request, res Response) {
         return
     }
 
-    var fs=filesystem.NewFs(outapi.NewSwiftio(outapi.DefaultConnector, pathDetail[1]))
+    var fs=filesystem.GetFs(outapi.NewSwiftio(outapi.DefaultConnector, pathDetail[1]))
+    if fs==nil {
+        res.Status("Internal Error: the FS pool is full.", 500)
+    }
+    defer fs.Release()
 
     var srcNodeNames, desNodeNames string
     var err error

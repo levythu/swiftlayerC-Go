@@ -78,7 +78,12 @@ func downloader(req Request, res Response) {
         pathDetail=append(pathDetail, filesystem.ROOT_INODE_NAME)
     }
 
-    var fs=filesystem.NewFs(outapi.NewSwiftio(outapi.DefaultConnector, pathDetail[1]))
+    var fs=filesystem.GetFs(outapi.NewSwiftio(outapi.DefaultConnector, pathDetail[1]))
+    if fs==nil {
+        res.Status("Internal Error: the FS pool is full.", 500)
+    }
+    defer fs.Release()
+
     var hasSent bool=false
     if base, filename:=pathman.SplitPath(pathDetail[2]); filename=="" {
         var err=fs.Get("", pathDetail[3], func(fileInode string, oriName string) io.Writer {
@@ -140,7 +145,12 @@ func uploader(req Request, res Response) {
         pathDetail=append(pathDetail, filesystem.ROOT_INODE_NAME)
     }
 
-    var fs=filesystem.NewFs(outapi.NewSwiftio(outapi.DefaultConnector, pathDetail[1]))
+    var fs=filesystem.GetFs(outapi.NewSwiftio(outapi.DefaultConnector, pathDetail[1]))
+    if fs==nil {
+        res.Status("Internal Error: the FS pool is full.", 500)
+    }
+    defer fs.Release()
+
     var putErr error
     if base, filename:=pathman.SplitPath(pathDetail[2]); filename=="" {
         // TODO: glean user meta

@@ -50,7 +50,12 @@ func createContainerHandler(req Request, res Response) {
         return
     }
     // The container is newly created. Now format it.
-    if err=filesystem.NewFs(ioAPI).FormatFS(); err!=nil {
+    var theFS=filesystem.GetFs(ioAPI)
+    if theFS==nil {
+        res.Status("Internal Error: the FS pool is full.", 500)
+    }
+    defer theFS.Release()
+    if err=theFS.FormatFS(); err!=nil {
         logger.Secretary.Error("inapi.container.create", err)
         res.Status("Internal Error: "+err.Error(), 500)
         return
@@ -87,7 +92,12 @@ func createContainerHandlerByForce(req Request, res Response) {
         return
     }
     // Format it.
-    if err=filesystem.NewFs(ioAPI).FormatFS(); err!=nil {
+    var theFS=filesystem.GetFs(ioAPI)
+    if theFS==nil {
+        res.Status("Internal Error: the FS pool is full.", 500)
+    }
+    defer theFS.Release()
+    if err=theFS.FormatFS(); err!=nil {
         logger.Secretary.Error("inapi.container.create", err)
         res.Status("Internal Error: "+err.Error(), 500)
         return

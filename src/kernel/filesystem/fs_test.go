@@ -8,7 +8,8 @@ import (
     . "github.com/levythu/gurgling"
 )
 
-var fs4test=NewFs(Testio)
+// Attentez: in the test the fs never get released.
+var fs4test=GetFs(Testio)
 
 func _TestFormat(t *testing.T) {
     fmt.Println(fs4test.FormatFS())

@@ -13,7 +13,7 @@
 - [x] Set default file name and extension
 - [ ] user meta support
 - [x] **DO NEVER USE UPPER CASE FOR FILE META!!!**
-- [ ] Take advantage of Parent-Node meta to implement shortcut remove
+- [x] Take advantage of Parent-Node meta to implement shortcut remove
 - [x] Implement MOVE
 - [x] Test MOVE
 - [x] Implement parallel Sync
