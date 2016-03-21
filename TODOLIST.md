@@ -26,6 +26,8 @@
 - [x] Configuration value validation
 - [x] Optimize trashbox position cache
 - [x] Check Concurrency safety
+- [x] For format filesystem, consider put a global lock to ensure its uniqueness
+- [ ] Ensure uniqueness for container creation
 
 ## Known Bugs
 - [ ] InApi: use constant rootNode instead of filesystem one

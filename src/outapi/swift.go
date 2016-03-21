@@ -160,12 +160,27 @@ func (this *Swiftio)PutStream(filename string, info FileMeta) (io.WriteCloser, e
 }
 
 func (this *Swiftio)EnsureSpace() (bool, error) {
+    var err=this.conn.c.ContainerCreateX(this.container, nil)
+    if err==nil {
+        return true, nil
+    }
+    if err==swift.AlreadyExist {
+        return false, nil
+    }
+    return false, err
+    /*
     _, _, err:=this.conn.c.Container(this.container)
     if err==swift.ContainerNotFound {
         err=this.conn.c.ContainerCreate(this.container, nil)
         return true, err
     }
     return false, err
+    */
+}
+
+func (this *Swiftio)test_Container() (bool, error) {
+    var err=this.conn.c.ContainerCreateX(this.container, nil)
+    return true, err
 }
 
 func (this *Swiftio)Copy(srcname string, desname string, overrideMeta FileMeta) error {

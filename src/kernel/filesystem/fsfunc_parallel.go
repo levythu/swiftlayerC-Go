@@ -185,7 +185,7 @@ func (this *Fs)MvXParalleled(srcName, srcInode, desName, desInode string, byForc
         {
             var desParentMap=dvc.GetFD(GenFileName(desInode, FOLDER_MAP), this.io)
             //Insider.Log("routineToUpdateDesParentMap", "GOT FD")
-            //if desParentMap==nil {
+            if desParentMap==nil {
                 Secretary.Error("kernel.filesystem::MvXParalleled", "Fail to get foldermap fd for folder "+desInode)
                 geLock.Lock()
                 globalError=errorgroup.AddIn(globalError, exception.EX_IO_ERROR)
