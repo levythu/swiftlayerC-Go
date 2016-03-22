@@ -24,6 +24,9 @@ const (
 type FMapMeta map[string]string
 
 func Stringify(obj FMapMeta) string {
+    if obj==nil {
+        return ""
+    }
     var result, err=json.Marshal(obj)
     if err!=nil {
         Secretary.Error("fmapcomposition::Stringify()", "Failed to stringify a map[string]string")
@@ -37,6 +40,10 @@ func Stringify(obj FMapMeta) string {
 func Parse(src string) (FMapMeta, error) {
     var ret map[string]string
     var err=json.Unmarshal([]byte(src), &ret)
+    if err!=nil {
+        Secretary.Error("fmapcomposition::Parse()", "Failed to parse JSON: "+err.Error())
+        return nil, err
+    }
 	return ret, err
 }
 
