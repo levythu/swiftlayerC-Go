@@ -28,6 +28,7 @@
 - [x] Check Concurrency safety
 - [x] For format filesystem, consider put a global lock to ensure its uniqueness
 - [ ] Ensure uniqueness for container creation
+- [ ] Add file information for list elements
 
 ## Known Bugs
 - [ ] InApi: use constant rootNode instead of filesystem one
