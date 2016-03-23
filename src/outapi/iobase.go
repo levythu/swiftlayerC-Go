@@ -54,6 +54,8 @@ type Outapi interface {
     // if error!=nil, bool is always false
     CheckExist(filename string) (bool, error)
 
+    ExtractFileMeta(src map[string]string) FileMeta
+
 }
 
 func ForceCheckExist(ex bool, err error) bool {

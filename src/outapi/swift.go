@@ -233,3 +233,7 @@ func (this *Swiftio)CheckExist(filename string) (bool, error) {
     }
     return true, nil
 }
+
+func (this *Swiftio)ExtractFileMeta(src map[string]string) FileMeta {
+    return FileMeta(swift.Headers(src).ObjectMetadata())
+}

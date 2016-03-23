@@ -77,3 +77,7 @@ func (this *EmptyIO)Copy(srcname string, desname string, overrideMeta FileMeta) 
 func (this *EmptyIO)CheckExist(filename string) (bool, error) {
     return false, NOT_IMPLEMENTED_ERROR
 }
+
+func (this *EmptyIO)ExtractFileMeta(src map[string]string) FileMeta {
+    return nil
+}
