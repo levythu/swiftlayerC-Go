@@ -13,6 +13,7 @@ package fmapcomposition
 import (
     "encoding/json"
     . "logger"
+    . "kernel/distributedvc/filemeta"
 )
 
 const (

@@ -72,3 +72,27 @@ func FastMakeSingleFilePatch(filename string, initMap FMapMeta) *Kvmap {
 
     return ret
 }
+
+// initMap CANNOT be nil
+func FastMakeWithMeta(fn string, initMap FMapMeta) *Kvmap {
+    if initMap==nil {
+        Insider.Log("fmapcomposition::FastMakeWithMeta()", "Invoked with nil initMap.")
+        Secretary.Error("fmapcomposition::FastMakeWithMeta()", "Invoked with nil initMap.")
+        return nil
+    }
+
+    var ret=NewKvMap()
+    var nowTime=GetTimestamp()
+    ret.CheckOut()
+    for _, elem:=range stringList {
+        ret.Kvm[elem]=&KvmapEntry {
+            Key: elem,
+            Val: initMap.Stringify(),
+            Timestamp: nowTime,
+        }
+    }
+    ret.CheckIn()
+    ret.TSet(nowTime)
+
+    return ret
+}
