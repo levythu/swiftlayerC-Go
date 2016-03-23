@@ -232,7 +232,6 @@ func (this *Fs)FormatFS() error {
 }
 
 // Only returns file name list of one inode. Innername excluded.
-// TODO: modified
 func (this *Fs)List(frominode string) ([]string, error) {
     var fd=dvc.GetFD(GenFileName(frominode, FOLDER_MAP), this.io)
     if fd==nil {
@@ -254,6 +253,33 @@ func (this *Fs)List(frominode string) ([]string, error) {
         for k, _:=range content {
             if CheckValidFilename(k) {
                 ret=append(ret, k)
+            }
+        }
+        return ret, nil
+    }
+}
+
+func (this *Fs)ListX(frominode string) ([]*filetype.KvmapEntry, error) {
+    var fd=dvc.GetFD(GenFileName(frominode, FOLDER_MAP), this.io)
+    if fd==nil {
+        Secretary.Error("kernel.filesystem::List", "Fail to get FD for "+frominode)
+        return nil, exception.EX_IO_ERROR
+    }
+    defer fd.Release()
+    fd.GraspReader()
+    defer fd.ReleaseReader()
+
+    if err:=fd.Sync(); err!=nil {
+        Secretary.Error("kernel.filesystem::List", "SYNC error for "+frominode+": "+err.Error())
+    }
+    if content, err:=fd.Read(); err!=nil {
+        Secretary.Error("kernel.filesystem::List", "Read error for "+frominode+": "+err.Error())
+        return nil, err
+    } else {
+        var ret=[]*filetype.KvmapEntry{}
+        for k, v:=range content {
+            if CheckValidFilename(k) {
+                ret=append(ret, v)
             }
         }
         return ret, nil

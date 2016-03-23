@@ -13,6 +13,7 @@ import (
     "fmt"
     "utils/pathman"
     egg "definition/errorgroup"
+    "kernel/filetype"
     "sync"
     //"logger"
 )
@@ -86,8 +87,8 @@ func lsDirectory(req Request, res Response) {
         res.Status("Nonexist container or path. "+err.Error(), 404)
         return
     }
-    var resultList []string
-    resultList, err=fs.List(nodeName)
+    var resultList []*filetype.KvmapEntry
+    resultList, err=fs.ListX(nodeName)
     if err!=nil {
         res.Status("Reading error: "+err.Error(), 404)
         return
