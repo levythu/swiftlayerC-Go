@@ -21,11 +21,17 @@ type Outapi interface {
 
     // If file does not exist, a nil will be returned. No error occurs.
     Get(filename string) (FileMeta, filetype.Filetype, error)
+    // Differs from Get() that it returns the whole HTTP header, not only the
+    // object meta. ALSO, all the keys are in lower case.
+    GetX(filename string) (map[string]string, filetype.Filetype, error)
 
     Putinfo(filename string, info FileMeta) error
 
     // If file does not exist, a nil will be returned. No error occurs.
     Getinfo(filename string) (FileMeta, error)
+    // Differs from Getinfo() that it returns the whole HTTP header, not only the
+    // object meta. ALSO, all the keys are in lower case.
+    GetinfoX(filename string) (map[string]string, error)
 
     Delete(filename string) error
 

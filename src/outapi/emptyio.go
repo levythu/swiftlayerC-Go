@@ -32,6 +32,9 @@ func (this *EmptyIO)Put(filename string, content filetype.Filetype, info FileMet
 func (this *EmptyIO)Get(filename string) (FileMeta, filetype.Filetype, error) {
     return nil, nil, NOT_IMPLEMENTED_ERROR
 }
+func (this *EmptyIO)GetX(filename string) (map[string]string, filetype.Filetype, error) {
+    return nil, nil, NOT_IMPLEMENTED_ERROR
+}
 
 func (this *EmptyIO)Putinfo(filename string, info FileMeta) error {
     return NOT_IMPLEMENTED_ERROR
@@ -39,6 +42,9 @@ func (this *EmptyIO)Putinfo(filename string, info FileMeta) error {
 
 // If file does not exist, a nil will be returned. No error occurs.
 func (this *EmptyIO)Getinfo(filename string) (FileMeta, error) {
+    return nil, NOT_IMPLEMENTED_ERROR
+}
+func (this *EmptyIO)GetinfoX(filename string) (map[string]string, error) {
     return nil, NOT_IMPLEMENTED_ERROR
 }
 
