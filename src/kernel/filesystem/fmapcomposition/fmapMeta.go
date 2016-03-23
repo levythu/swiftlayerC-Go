@@ -13,7 +13,6 @@ package fmapcomposition
 import (
     "encoding/json"
     . "logger"
-    . "kernel/distributedvc/filemeta"
 )
 
 const (
@@ -35,7 +34,7 @@ func Stringify(obj FMapMeta) string {
         return ""
     }
 
-    return result
+    return string(result)
 }
 
 func Parse(src string) (FMapMeta, error) {

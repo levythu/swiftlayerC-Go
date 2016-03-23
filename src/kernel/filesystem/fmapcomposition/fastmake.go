@@ -6,6 +6,8 @@ package fmapcomposition
 
 import (
     . "kernel/filetype"
+    . "utils/timestamp"
+    . "logger"
 )
 
 var folderInitialMeta=FMapMeta(map[string]string {
@@ -60,13 +62,13 @@ func FastMakeSingleFilePatch(filename string, initMap FMapMeta) *Kvmap {
     var ret=NewKvMap()
     var nowTime=GetTimestamp()
     ret.CheckOut()
-    for _, elem:=range stringList {
-        ret.Kvm[elem]=&KvmapEntry {
-            Key: elem,
-            Val: initMap.Stringify(),
-            Timestamp: nowTime,
-        }
+
+    ret.Kvm[filename]=&KvmapEntry {
+        Key: filename,
+        Val: initMap.Stringify(),
+        Timestamp: nowTime,
     }
+
     ret.CheckIn()
     ret.TSet(nowTime)
 
@@ -84,12 +86,10 @@ func FastMakeWithMeta(fn string, initMap FMapMeta) *Kvmap {
     var ret=NewKvMap()
     var nowTime=GetTimestamp()
     ret.CheckOut()
-    for _, elem:=range stringList {
-        ret.Kvm[elem]=&KvmapEntry {
-            Key: elem,
-            Val: initMap.Stringify(),
-            Timestamp: nowTime,
-        }
+    ret.Kvm[fn]=&KvmapEntry {
+        Key: fn,
+        Val: initMap.Stringify(),
+        Timestamp: nowTime,
     }
     ret.CheckIn()
     ret.TSet(nowTime)

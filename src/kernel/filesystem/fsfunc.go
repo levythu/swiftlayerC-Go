@@ -12,6 +12,7 @@ import (
     . "kernel/distributedvc/filemeta"
     . "kernel/distributedvc/constdef"
     . "logger"
+    fc "kernel/filesystem/fmapcomposition"
     "io"
     "sync"
     "fmt"
@@ -27,6 +28,23 @@ const META_PARENT_INODE="parent-inode"
 const META_INODE_TYPE="inode-type"
 const META_INODE_TYPE_FOLDER="DIR"
 const META_INODE_TYPE_FILE="FILE"
+
+const FMAP_METAKEY_FILE_PREFIX="fmap-file-"
+func InferFMapMetaFromNNodeMeta(obj FileMeta) fc.FMapMeta {
+    if obj[META_INODE_TYPE]==META_INODE_TYPE_FILE {
+        var ret=fc.FMapMeta(map[string]string {
+            fc.FMAP_META_TYPE: fc.FMAP_META_TYPE_FILE,
+        })
+        for k, v:=range obj {
+            ret[FMAP_METAKEY_FILE_PREFIX+k]=v
+        }
+        return ret
+    } else {
+        return fc.FMapMeta(map[string]string {
+            fc.FMAP_META_TYPE: fc.FMAP_META_TYPE_DIRECTORY,
+        })
+    }
+}
 
 // ## META_ORIGINAL_NAME is set to object node
 // Identical info which can be inferred by its namenode in its parent inode.
@@ -152,7 +170,7 @@ func (this *Fs)Mkdir(foldername string, frominode string, forceMake bool) error 
             Secretary.Error("kernel.filesystem::Mkdir", "Fail to create foldermap fd for new folder "+nnodeName+".")
             return exception.EX_IO_ERROR
         }
-        if err:=newFolderMapFD.Submit(filetype.FastMake(".", "..")); err!=nil {
+        if err:=newFolderMapFD.Submit(fc.FastMakeFolderPatch(".", "..")); err!=nil {
             Secretary.Error("kernel.filesystem::Mkdir", "Fail to init foldermap for new folder "+nnodeName+".")
             newFolderMapFD.Release()
             return err
@@ -167,7 +185,7 @@ func (this *Fs)Mkdir(foldername string, frominode string, forceMake bool) error 
             Secretary.Error("kernel.filesystem::Mkdir", "Fail to create foldermap fd for new folder "+nnodeName+"'s parent map'")
             return exception.EX_IO_ERROR
         }
-        if err:=parentFolderMapFD.Submit(filetype.FastMake(foldername)); err!=nil {
+        if err:=parentFolderMapFD.Submit(fc.FastMakeFolderPatch(foldername)); err!=nil {
             Secretary.Error("kernel.filesystem::Mkdir", "Fail to submit patch to foldermap for new folder "+nnodeName+"'s parent map'")
             parentFolderMapFD.Release()
             return err
@@ -202,7 +220,7 @@ func (this *Fs)FormatFS() error {
             Secretary.Error("kernel.filesystem::FormatFS", "Fail to get FD for Root.")
             return exception.EX_IO_ERROR
         }
-        if err:=rootFD.Submit(filetype.FastMake(".", "..")); err!=nil {
+        if err:=rootFD.Submit(fc.FastMakeFolderPatch(".", "..")); err!=nil {
             Secretary.Error("kernel.filesystem::FormatFS", "Fail to submit format patch for Root.")
             rootFD.Release()
             return nil
@@ -214,6 +232,7 @@ func (this *Fs)FormatFS() error {
 }
 
 // Only returns file name list of one inode. Innername excluded.
+// TODO: modified
 func (this *Fs)List(frominode string) ([]string, error) {
     var fd=dvc.GetFD(GenFileName(frominode, FOLDER_MAP), this.io)
     if fd==nil {
@@ -274,20 +293,6 @@ func (this *Fs)MvX(srcName, srcInode, desName, desInode string, byForce bool) er
         return exception.EX_FILE_NOT_EXIST
     }
 
-    {
-        var desParentMap=dvc.GetFD(GenFileName(desInode, FOLDER_MAP), this.io)
-        if desParentMap==nil {
-            Secretary.Error("kernel.filesystem::MvX", "Fail to get foldermap fd for folder "+desInode)
-            return exception.EX_IO_ERROR
-        }
-        if err:=desParentMap.Submit(filetype.FastMake(desName)); err!=nil {
-            Secretary.Error("kernel.filesystem::MvX", "Fail to submit foldermap patch for folder "+desInode)
-            desParentMap.Release()
-            return err
-        }
-        desParentMap.Release()
-    }
-
     // remove the old one.
     this.io.Delete(GenFileName(srcInode, srcName))
 
@@ -306,12 +311,27 @@ func (this *Fs)MvX(srcName, srcInode, desName, desInode string, byForce bool) er
     }
 
     // modify the .. pointer
-    var _, dstFileNnodeOriginal, _=this.io.Get(GenFileName(desInode, desName))
+    var dstMeta, dstFileNnodeOriginal, _=this.io.Get(GenFileName(desInode, desName))
     var dstFileNnode, _=dstFileNnodeOriginal.(*filetype.Nnode)
     if dstFileNnode==nil {
         Secretary.Error("kernel.filesystem::MvX", "Fail to read nnode "+GenFileName(desInode, desName)+".")
         return exception.EX_IO_ERROR
     }
+
+    {
+        var desParentMap=dvc.GetFD(GenFileName(desInode, FOLDER_MAP), this.io)
+        if desParentMap==nil {
+            Secretary.Error("kernel.filesystem::MvX", "Fail to get foldermap fd for folder "+desInode)
+            return exception.EX_IO_ERROR
+        }
+        if err:=desParentMap.Submit(fc.FastMakeWithMeta(desName, InferFMapMetaFromNNodeMeta(dstMeta))); err!=nil {
+            Secretary.Error("kernel.filesystem::MvX", "Fail to submit foldermap patch for folder "+desInode)
+            desParentMap.Release()
+            return err
+        }
+        desParentMap.Release()
+    }
+
     var target=GenFileName(dstFileNnode.DesName, "..")
     if err:=this.io.Put(target, filetype.NewNnode(desInode), nil); err!=nil {
         Secretary.Error("kernel.filesystem::MvX", "Fail to modify .. link for "+dstFileNnode.DesName+".")
@@ -337,6 +357,8 @@ func (this *Fs)MvX(srcName, srcInode, desName, desInode string, byForce bool) er
 // the second value indicates the manipulated file inode. It may be some valid value
 // or just empty no matter whether error==nil, however, when error==nil, the second value
 // must be valid
+
+// Attentez: in override mode, parent folder's foldermap will not get updated.
 const STREAM_TYPE="stream type file"
 func (this *Fs)Put(filename string, frominode string, meta FileMeta/*=nil*/, dataSource io.Reader) (error, string) {
     var targetFileinode string

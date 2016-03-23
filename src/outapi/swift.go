@@ -10,6 +10,7 @@ import (
     "bytes"
     "io"
     . "kernel/distributedvc/constdef"
+    "strings"
 )
 
 type SwiftConnector struct {
@@ -88,7 +89,7 @@ func (this *Swiftio)GetinfoX(filename string) (map[string]string, error) {
         return nil, err
     }
     //fmt.Println(headers)
-    return map[string]string(headers.ObjectMetadata()), nil
+    return convertToLowerCaseMap(map[string]string(headers.ObjectMetadata())), nil
 }
 
 func (this *Swiftio)Putinfo(filename string, info FileMeta) error {
@@ -102,6 +103,18 @@ func (this *Swiftio)Delete(filename string) error {
         return err
     }
     return nil
+}
+
+func convertToLowerCaseMap(src map[string]string) map[string]string {
+    if src==nil {
+        return nil
+    }
+    var ret=make(map[string]string)
+    for k, v:=range src {
+        ret[strings.ToLower(k)]=v
+    }
+
+    return ret
 }
 
 // Get file and automatically check the MD5
@@ -150,7 +163,7 @@ func (this *Swiftio)GetX(filename string) (map[string]string, filetype.Filetype,
     }
     resFile.LoadIn(contents)
 
-    return map[string]string(header), resFile, nil
+    return convertToLowerCaseMap(map[string]string(header)), resFile, nil
 }
 
 func (this *Swiftio)Put(filename string, content filetype.Filetype, info FileMeta) error {

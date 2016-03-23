@@ -13,6 +13,7 @@ import (
     "kernel/filetype"
     "utils/uniqueid"
     . "kernel/distributedvc/filemeta"
+    fc "kernel/filesystem/fmapcomposition"
     . "logger"
     "fmt"
 )
@@ -64,7 +65,7 @@ func (this *Fs)MkdirParalleled(foldername string, frominode string, forceMake bo
                 geLock.Unlock()
                 return
             }
-            if err:=parentFolderMapFD.Submit(filetype.FastMake(foldername)); err!=nil {
+            if err:=parentFolderMapFD.Submit(fc.FastMakeFolderPatch(foldername)); err!=nil {
                 Secretary.Error("kernel.filesystem::MkdirParalleled", "Fail to submit patch to foldermap for new folder "+nnodeName+"'s parent map'")
                 parentFolderMapFD.Release()
                 geLock.Lock()
@@ -115,7 +116,7 @@ func (this *Fs)MkdirParalleled(foldername string, frominode string, forceMake bo
                 geLock.Unlock()
                 return
             }
-            if err:=newFolderMapFD.Submit(filetype.FastMake(".", "..")); err!=nil {
+            if err:=newFolderMapFD.Submit(fc.FastMakeFolderPatch(".", "..")); err!=nil {
                 Secretary.Error("kernel.filesystem::MkdirParalleled", "Fail to init foldermap for new folder "+nnodeName+".")
                 newFolderMapFD.Release()
                 geLock.Lock()
@@ -177,10 +178,14 @@ func (this *Fs)MvXParalleled(srcName, srcInode, desName, desInode string, byForc
     var geLock sync.Mutex
     var wg sync.WaitGroup
 
-    var routineToUpdateDesParentMap=func() {
+    var routineToUpdateDesParentMap=func(oriMeta FileMeta) {
         defer wg.Done()
         //Insider.LogD("routineToUpdateDesParentMap start")
         //defer Insider.LogD("routineToUpdateDesParentMap end")
+
+        if oriMeta==nil {
+            return
+        }
 
         {
             var desParentMap=dvc.GetFD(GenFileName(desInode, FOLDER_MAP), this.io)
@@ -192,7 +197,7 @@ func (this *Fs)MvXParalleled(srcName, srcInode, desName, desInode string, byForc
                 geLock.Unlock()
                 return
             }
-            if err:=desParentMap.Submit(filetype.FastMake(desName)); err!=nil {
+            if err:=desParentMap.Submit(fc.FastMakeWithMeta(desName, InferFMapMetaFromNNodeMeta(oriMeta))); err!=nil {
                 Secretary.Error("kernel.filesystem::MvXParalleled", "Fail to submit foldermap patch for folder "+desInode)
                 desParentMap.Release()
                 geLock.Lock()
@@ -248,13 +253,16 @@ func (this *Fs)MvXParalleled(srcName, srcInode, desName, desInode string, byForc
         //Insider.LogD("routineToUpdateDotDot start")
         //defer Insider.LogD("routineToUpdateDotDot end")
 
-        var _, dstFileNnodeOriginal, _=this.io.Get(GenFileName(desInode, desName))
+        var dstNnodeMeta, dstFileNnodeOriginal, _=this.io.Get(GenFileName(desInode, desName))
+        go routineToUpdateDesParentMap(dstNnodeMeta)
+
         var dstFileNnode, _=dstFileNnodeOriginal.(*filetype.Nnode)
         if dstFileNnode==nil {
             Secretary.Error("kernel.filesystem::MvX", "Fail to read nnode "+GenFileName(desInode, desName)+".")
             geLock.Lock()
             globalError=errorgroup.AddIn(globalError, exception.EX_IO_ERROR)
             geLock.Unlock()
+
             return
         }
         var target=GenFileName(dstFileNnode.DesName, "..")
@@ -270,7 +278,7 @@ func (this *Fs)MvXParalleled(srcName, srcInode, desName, desInode string, byForc
     }
 
     wg.Add(4)
-    go routineToUpdateDesParentMap()
+    // routineToUpdateDesParentMap() is invoked in routineToUpdateDotDot()
     go routineToRemoveOldNnode()
     go routineToUpdateSrcParentMap()
     go routineToUpdateDotDot()
