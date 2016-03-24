@@ -36,7 +36,9 @@ func InferFMapMetaFromNNodeMeta(obj FileMeta) fc.FMapMeta {
             fc.FMAP_META_TYPE: fc.FMAP_META_TYPE_FILE,
         })
         for k, v:=range obj {
-            ret[FMAP_METAKEY_FILE_PREFIX+k]=v
+            if strings.HasPrefix(k, FMAP_METAKEY_FILE_PREFIX) {
+                ret[k]=v
+            }
         }
         return ret
     } else {
@@ -44,6 +46,18 @@ func InferFMapMetaFromNNodeMeta(obj FileMeta) fc.FMapMeta {
             fc.FMAP_META_TYPE: fc.FMAP_META_TYPE_DIRECTORY,
         })
     }
+}
+
+func ConvertFileHeaderToNNodeMeta(header map[string]string) FileMeta {
+    if header==nil {
+        return nil
+    }
+    var ret=make(map[string]string)
+    for k, v:=range header {
+        ret[FMAP_METAKEY_FILE_PREFIX+k]=v
+    }
+
+    return ret
 }
 
 // ## META_ORIGINAL_NAME is set to object node
@@ -438,6 +452,22 @@ func (this *Fs)Put(filename string, frominode string, meta FileMeta/*=nil*/, dat
 
     if filename!="" {
         // CREATE MODE. Set its parent node's foldermap and write the nnode concurrently
+        var currentHeader, terr=this.io.GetinfoX(targetFileinode)
+        if currentHeader==nil {
+            if terr!=nil {
+                Secretary.Warn("kernel.filesystem::Put", "Fail to refetch supposed-to-be file meta: "+targetFileinode+". Error is "+terr.Error())
+            } else {
+                Secretary.Warn("kernel.filesystem::Put", "Fail to refetch supposed-to-be file meta: "+targetFileinode+". The file seems to be non-existence.")
+            }
+
+            return exception.EX_CONCURRENT_CHAOS, targetFileinode
+        }
+        //fmt.Println(currentHeader)
+        var pointedMeta=ConvertFileHeaderToNNodeMeta(currentHeader)
+        var metaToSet=pointedMeta
+        metaToSet[META_PARENT_INODE]=frominode
+        metaToSet[META_INODE_TYPE]=META_INODE_TYPE_FILE
+
         var wg=sync.WaitGroup{}
         var globalError *egg.ErrorAssembly=nil
         var geLock sync.Mutex
@@ -447,10 +477,7 @@ func (this *Fs)Put(filename string, frominode string, meta FileMeta/*=nil*/, dat
             defer wg.Done()
 
             // Write the nnode
-            var metaToSet=FileMeta(map[string]string {
-                META_PARENT_INODE:  frominode,
-                META_INODE_TYPE:    META_INODE_TYPE_FILE,
-            })
+
             if err:=this.io.Put(GenFileName(frominode, filename), filetype.NewNnode(targetFileinode), metaToSet); err!=nil {
                 Secretary.Warn("kernel.filesystem::Put", "Put nnode for new file "+GenFileName(frominode, filename)+" failed.")
                 geLock.Lock()
@@ -472,7 +499,7 @@ func (this *Fs)Put(filename string, frominode string, meta FileMeta/*=nil*/, dat
                 geLock.Unlock()
                 return
             }
-            if err:=parentFD.Submit(filetype.FastMake(filename)); err!=nil {
+            if err:=parentFD.Submit(fc.FastMakeWithMeta(filename, InferFMapMetaFromNNodeMeta(metaToSet))); err!=nil {
                 Secretary.Error("kernel.filesystem::Put", "Submit patch for "+GenFileName(frominode, filename)+" failed: "+err.Error())
                 parentFD.Release()
                 geLock.Lock()

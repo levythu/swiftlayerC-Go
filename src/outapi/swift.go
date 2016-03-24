@@ -89,7 +89,7 @@ func (this *Swiftio)GetinfoX(filename string) (map[string]string, error) {
         return nil, err
     }
     //fmt.Println(headers)
-    return convertToLowerCaseMap(map[string]string(headers.ObjectMetadata())), nil
+    return convertToLowerCaseMap(map[string]string(headers)), nil
 }
 
 func (this *Swiftio)Putinfo(filename string, info FileMeta) error {
