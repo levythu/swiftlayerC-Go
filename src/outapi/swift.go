@@ -10,6 +10,7 @@ import (
     "bytes"
     "io"
     . "kernel/distributedvc/constdef"
+    "strings"
 )
 
 type SwiftConnector struct {
@@ -79,6 +80,17 @@ func (this *Swiftio)Getinfo(filename string) (FileMeta, error) {
     //fmt.Println(headers)
     return FileMeta(headers.ObjectMetadata()), nil
 }
+func (this *Swiftio)GetinfoX(filename string) (map[string]string, error) {
+    _, headers, err:=this.conn.c.Object(this.container, filename)
+    if err!=nil {
+        if err==swift.ObjectNotFound {
+            return nil, nil
+        }
+        return nil, err
+    }
+    //fmt.Println(headers)
+    return convertToLowerCaseMap(map[string]string(headers)), nil
+}
 
 func (this *Swiftio)Putinfo(filename string, info FileMeta) error {
     head4Put:=swift.Metadata(info).ObjectHeaders()
@@ -91,6 +103,18 @@ func (this *Swiftio)Delete(filename string) error {
         return err
     }
     return nil
+}
+
+func convertToLowerCaseMap(src map[string]string) map[string]string {
+    if src==nil {
+        return nil
+    }
+    var ret=make(map[string]string)
+    for k, v:=range src {
+        ret[strings.ToLower(k)]=v
+    }
+
+    return ret
 }
 
 // Get file and automatically check the MD5
@@ -116,6 +140,30 @@ func (this *Swiftio)Get(filename string) (FileMeta, filetype.Filetype, error) {
     resFile.LoadIn(contents)
 
     return FileMeta(meta), resFile, nil
+}
+
+func (this *Swiftio)GetX(filename string) (map[string]string, filetype.Filetype, error) {
+    contents:=&bytes.Buffer{}
+    header, err:=this.conn.c.ObjectGet(
+        this.container, filename, contents,
+        configinfo.INDEX_FILE_CHECK_MD5,
+        nil)
+
+    if err!=nil {
+        if err==swift.ObjectNotFound {
+            return nil, nil, nil
+        }
+        return nil, nil, err
+    }
+    meta:=header.ObjectMetadata()
+
+    resFile:=filetype.Makefile(meta[METAKEY_TYPE])
+    if resFile==nil {
+        return nil, nil, exception.EX_UNSUPPORTED_TYPESTAMP
+    }
+    resFile.LoadIn(contents)
+
+    return convertToLowerCaseMap(map[string]string(header)), resFile, nil
 }
 
 func (this *Swiftio)Put(filename string, content filetype.Filetype, info FileMeta) error {
@@ -197,4 +245,8 @@ func (this *Swiftio)CheckExist(filename string) (bool, error) {
         return false, err
     }
     return true, nil
+}
+
+func (this *Swiftio)ExtractFileMeta(src map[string]string) FileMeta {
+    return FileMeta(swift.Headers(src).ObjectMetadata())
 }
