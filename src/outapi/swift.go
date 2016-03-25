@@ -180,7 +180,6 @@ func (this *Swiftio)Put(filename string, content filetype.Filetype, info FileMet
     return err
 }
 
-// If pointerfile, returns the actual data of the pointed one.
 func (this *Swiftio)GetStream(filename string) (FileMeta, io.ReadCloser, error) {
     file, header, err:=this.conn.c.ObjectOpen(this.container, filename, false, nil)
     if err!=nil {
@@ -192,6 +191,17 @@ func (this *Swiftio)GetStream(filename string) (FileMeta, io.ReadCloser, error) 
     meta:=header.ObjectMetadata()
 
     return FileMeta(meta), file, nil
+}
+func (this *Swiftio)GetStreamX(filename string) (FileMeta, io.ReadCloser, error) {
+    file, header, err:=this.conn.c.ObjectOpen(this.container, filename, false, nil)
+    if err!=nil {
+        if err==swift.ObjectNotFound {
+            return nil, nil, nil
+        }
+        return nil, nil, err
+    }
+
+    return map[string]string(header), file, nil
 }
 
 func (this *Swiftio)PutStream(filename string, info FileMeta) (io.WriteCloser, error) {
