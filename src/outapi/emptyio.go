@@ -57,6 +57,9 @@ func (this *EmptyIO)Delete(filename string) error {
 func (this *EmptyIO)GetStream(filename string) (FileMeta, io.ReadCloser, error) {
     return nil, nil, NOT_IMPLEMENTED_ERROR
 }
+func (this *EmptyIO)GetStreamX(filename string) (map[string]string, io.ReadCloser, error) {
+    return nil, nil, NOT_IMPLEMENTED_ERROR
+}
 
 func (this *EmptyIO)PutStream(filename string, info FileMeta) (io.WriteCloser, error) {
     return nil, NOT_IMPLEMENTED_ERROR

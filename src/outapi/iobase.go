@@ -38,6 +38,7 @@ type Outapi interface {
     // If file does not exist, a nil will be returned. No error occurs.
     // Pay attention that io.ReadCloser should be closed.
     GetStream(filename string) (FileMeta, io.ReadCloser, error)
+    GetStreamX(filename string) (map[string]string, io.ReadCloser, error)
 
     PutStream(filename string, info FileMeta) (io.WriteCloser, error)
 

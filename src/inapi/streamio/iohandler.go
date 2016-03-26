@@ -71,6 +71,7 @@ const FILE_NODE="File-Node"
 // ==========================API DOCS END===================================
 
 const HEADER_CONTENT_DISPOSE="Content-Disposition"
+const ORIGINAL_HEADER="Ori-"
 func downloader(req Request, res Response) {
     var pathDetail, _=req.F()["HandledRR"].([]string)
     if pathDetail==nil {
@@ -86,7 +87,10 @@ func downloader(req Request, res Response) {
 
     var hasSent bool=false
     if base, filename:=pathman.SplitPath(pathDetail[2]); filename=="" {
-        var err=fs.Get("", pathDetail[3], func(fileInode string, oriName string) io.Writer {
+        var err=fs.Get("", pathDetail[3], func(fileInode string, oriName string, oriHeader map[string]string) io.Writer {
+            for k, v:=range oriHeader {
+                res.Set(ORIGINAL_HEADER+k, v)
+            }
             res.Set(FILE_NODE, fileInode)
             res.Set(HEADER_CONTENT_DISPOSE, "inline; filename=\""+oriName+"\"")
             res.SendCode(200)
@@ -106,7 +110,10 @@ func downloader(req Request, res Response) {
             res.Status("Nonexist container or path. "+err.Error(), 404)
             return
         }
-        err=fs.Get(filename, nodeName, func(fileInode string, oriName string) io.Writer {
+        err=fs.Get(filename, nodeName, func(fileInode string, oriName string, oriHeader map[string]string) io.Writer {
+            for k, v:=range oriHeader {
+                res.Set(ORIGINAL_HEADER+k, v)
+            }
             res.Set(PARENT_NODE, nodeName)
             res.Set(HEADER_CONTENT_DISPOSE, "inline; filename=\""+oriName+"\"")
             res.Set(FILE_NODE, fileInode)
