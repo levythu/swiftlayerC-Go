@@ -139,8 +139,10 @@ var MergeManager=&MergingSupervisor {
 func (this *MergingSupervisor)SubmitTask(filename string, io Outapi) error {
     //Insider.Log("MergingSupervisor.SubmitTask()", "Start")
     if err:=this.scheduler.CheckInATask(filename, io); err!=nil {
+        Secretary.Warn("distributedvc::MergingSupervisor.SubmitTask", "Failed to checkin task <"+filename+", "+io.GenerateUniqueID()+">: "+err.Error())
         return err
     }
+    //Secretary.Log("distributedvc::MergingSupervisor.SubmitTask", "Checked in task <"+filename+", "+io.GenerateUniqueID()+">")
     //Insider.Log("MergingSupervisor.SubmitTask()", "Checked In")
 
     this.spawnWorker()

@@ -37,3 +37,4 @@
 - [ ] InApi: use constant rootNode instead of filesystem one
 - [x] kernel/distributedvc::Fd: resolving no-zero-patch conflict
 - [ ] kernel/filesystem::Fs.MvX: Modifying the header ORIGINAL_NAME of the object
+- [x] the trigger of merging after submission 

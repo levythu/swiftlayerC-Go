@@ -434,6 +434,7 @@ func (this *FD)Submit(object *filetype.Kvmap) error {
         }
         this.updateChainLock.Lock()
     }
+    // Insider.LogD(strconv.Itoa(this.nextAvailablePosition))
     var nAP=this.nextAvailablePosition
     this.nextAvailablePosition=nAP+1
     this.updateChainLock.Unlock()
@@ -481,7 +482,7 @@ func (this *FD)Submit(object *filetype.Kvmap) error {
 
     //Insider.Log(this.filename+".Submit()", "Put")
 
-    if nAP!=1 {
+    if nAP>0 {
         MergeManager.SubmitTask(this.filename, this.io)
     }
 
