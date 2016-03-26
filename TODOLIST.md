@@ -31,6 +31,7 @@
 - [x] Add file information for list elements
 - [ ] Copy necessary user-defined headers
 - [ ] Setup a faster MvXParalleled()
+- [x] Return meta in GET
 
 ## Known Bugs
 - [ ] InApi: use constant rootNode instead of filesystem one

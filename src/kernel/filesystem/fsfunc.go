@@ -520,8 +520,8 @@ func (this *Fs)Put(filename string, frominode string, meta FileMeta/*=nil*/, dat
 }
 
 // If the file does not exist, an EX_FILE_NOT_EXIST will be returned.
-// the callback parameters are (objectNode, originalName)
-func (this *Fs)Get(filename string, frominode string, beforePipe func(string, string) io.Writer) error {
+// the callback parameters are (objectNode, originalName, fileMeta)
+func (this *Fs)Get(filename string, frominode string, beforePipe func(string, string, map[string]string) io.Writer) error {
     var targetFileinode string
     if filename!="" {
         if !CheckValidFilename(filename) {
@@ -540,10 +540,11 @@ func (this *Fs)Get(filename string, frominode string, beforePipe func(string, st
         targetFileinode=frominode
     }
 
-    var meta, rc, _=this.io.GetStream(targetFileinode)
-    if meta==nil || rc==nil {
+    var oriMeta, rc, _=this.io.GetStreamX(targetFileinode)
+    if oriMeta==nil || rc==nil {
         return exception.EX_FILE_NOT_EXIST
     }
+    var meta=this.io.ExtractFileMeta(oriMeta)
     if val, ok:=meta[METAKEY_TYPE]; !ok || val!=STREAM_TYPE {
         rc.Close()
         return exception.EX_WRONG_FILEFORMAT
@@ -553,7 +554,7 @@ func (this *Fs)Get(filename string, frominode string, beforePipe func(string, st
         rc.Close()
         return nil
     }
-    var w=beforePipe(targetFileinode, meta[META_ORIGINAL_NAME])
+    var w=beforePipe(targetFileinode, meta[META_ORIGINAL_NAME], oriMeta)
     if _, copyErr:=io.Copy(w, rc); copyErr!=nil {
         rc.Close()
         return copyErr

@@ -192,7 +192,7 @@ func (this *Swiftio)GetStream(filename string) (FileMeta, io.ReadCloser, error) 
 
     return FileMeta(meta), file, nil
 }
-func (this *Swiftio)GetStreamX(filename string) (FileMeta, io.ReadCloser, error) {
+func (this *Swiftio)GetStreamX(filename string) (map[string]string, io.ReadCloser, error) {
     file, header, err:=this.conn.c.ObjectOpen(this.container, filename, false, nil)
     if err!=nil {
         if err==swift.ObjectNotFound {
