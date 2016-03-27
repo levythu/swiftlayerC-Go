@@ -32,9 +32,11 @@
 - [ ] Copy necessary user-defined headers
 - [ ] Setup a faster MvXParalleled()
 - [x] Return meta in GET
+- [ ] Maintain live inspection console
+- [ ] global lock for auto trashbox maintainance
 
 ## Known Bugs
 - [ ] InApi: use constant rootNode instead of filesystem one
 - [x] kernel/distributedvc::Fd: resolving no-zero-patch conflict
 - [ ] kernel/filesystem::Fs.MvX: Modifying the header ORIGINAL_NAME of the object
-- [x] the trigger of merging after submission 
+- [x] the trigger of merging after submission
