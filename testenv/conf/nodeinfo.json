@@ -27,10 +27,10 @@
     "outer_service_listener": ":9144",
 
     /*  To which([hostname]:port) the intra-communication server listens */
-    "inner_service_listener": ":2333",
+    "inner_service_listener": "localhost:2333",
 
     /*  Leave the user field empty means no auth for admin. */
-    "inner_service_admin_user": "admin",
+    "inner_service_admin_user": "",
     "inner_service_admin_password": "admin",
     "inner_service_admin_refresh_frequency_in_second": 0,
 
