@@ -29,6 +29,11 @@
     /*  To which([hostname]:port) the intra-communication server listens */
     "inner_service_listener": ":2333",
 
+    /*  Leave the user field empty means no auth for admin. */
+    "inner_service_admin_user": "admin",
+    "inner_service_admin_password": "admin",
+    "inner_service_admin_refresh_frequency_in_second": 0,
+
     /*
         log_level is a three digit binary b2b1b0:
         b2 set to 1 enables info log

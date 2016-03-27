@@ -18,8 +18,9 @@ func Entry() {
     rootRouter.Use("/io", streamio.IORouter())
     rootRouter.Use("/cn", containermanage.CMRouter())
 
+    Secretary.Log("inapi::Entry()", "Now launching public service at "+conf.OUTER_SERVICE_LISTENER)
     var err=rootRouter.Launch(conf.OUTER_SERVICE_LISTENER)
     if err!=nil {
-        Secretary.Error("mainpkg::Entry()", "HTTP Server terminated: "+err.Error())
+        Secretary.Error("inapi::Entry()", "HTTP Server terminated: "+err.Error())
     }
 }

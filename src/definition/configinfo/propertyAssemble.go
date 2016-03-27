@@ -37,6 +37,9 @@ var AUTO_MERGER_DEAMON_PERIOD int
 
 var TRIAL_INTERVAL_IN_UNREVOCABLE_IOERROR int
 
+var ADMIN_USER string
+var ADMIN_PASSWORD string
+
 func maxInt(n1, n2 int) int {
     if n1>n2 {
         return n1
@@ -144,6 +147,13 @@ func InitAll() bool {
         TRIAL_INTERVAL_IN_UNREVOCABLE_IOERROR=0
     }
 
+
+    ADMIN_USER                      =extractProperty("inner_service_admin_user").(string)
+    ADMIN_PASSWORD                  =extractProperty("inner_service_admin_password").(string)
+    ADMIN_REFRESH_FREQUENCY         =int(extractProperty("inner_service_admin_refresh_frequency_in_second").(float64))
+    if ADMIN_REFRESH_FREQUENCY<0 {
+        ADMIN_REFRESH_FREQUENCY=0
+    }
 
     return true
 }
