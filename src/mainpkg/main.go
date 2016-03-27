@@ -3,6 +3,7 @@ package main
 import (
     "inapi"
     . "mainpkg/public"
+    "intranet"
 )
 
 func _no_use_() {
@@ -11,5 +12,6 @@ func _no_use_() {
 
 func main() {
     StartUp()
+    go intranet.Entry()
     inapi.Entry()
 }

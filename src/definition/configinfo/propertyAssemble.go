@@ -39,6 +39,7 @@ var TRIAL_INTERVAL_IN_UNREVOCABLE_IOERROR int
 
 var ADMIN_USER string
 var ADMIN_PASSWORD string
+var ADMIN_REFRESH_FREQUENCY int64
 
 func maxInt(n1, n2 int) int {
     if n1>n2 {
@@ -150,7 +151,7 @@ func InitAll() bool {
 
     ADMIN_USER                      =extractProperty("inner_service_admin_user").(string)
     ADMIN_PASSWORD                  =extractProperty("inner_service_admin_password").(string)
-    ADMIN_REFRESH_FREQUENCY         =int(extractProperty("inner_service_admin_refresh_frequency_in_second").(float64))
+    ADMIN_REFRESH_FREQUENCY         =int64(extractProperty("inner_service_admin_refresh_frequency_in_second").(float64))
     if ADMIN_REFRESH_FREQUENCY<0 {
         ADMIN_REFRESH_FREQUENCY=0
     }

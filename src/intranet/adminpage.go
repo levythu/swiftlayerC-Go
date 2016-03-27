@@ -8,9 +8,8 @@ import (
     . "logger"
     "sync"
     "time"
+    dvc "kernel/distributedvc"
 )
-
-var minFreq=time.Duration(conf.ADMIN_REFRESH_FREQUENCY)*time.Second
 
 func getAdminPageRouter() Router {
     var r=ARouter()
@@ -18,23 +17,26 @@ func getAdminPageRouter() Router {
     if conf.ADMIN_USER!="" {
         r.Use(auth.ABasicAuth(conf.ADMIN_USER, conf.ADMIN_PASSWORD, ":[intranet]/admin"))
     } else {
-        Secretary.Warn("Administrator authentication is canceled. Please ensure the inner service is "+
+        Secretary.Warn("intranet::getAdminPageRouter()", "Administrator authentication is canceled. Please ensure the inner service is "+
             "running on a safe network, otherwise set inner_service_admin_user in cofiguration.")
     }
     r.Use("/", staticfs.AStaticfs("./public/intranet"))
-    r.Get("/TaskInfo", getMergingTaskInfo)
+    r.Get("/taskinfo", getMergingTaskInfo)
+
+    return r
 }
 
-var gMTI_recordTime=0
-var gMTI_Cache=""
+
+var gMTI_recordTime int64=0
+var gMTI_Cache map[string]interface{}
 var gMTI_lock=sync.RWMutex{}
 func getMergingTaskInfo(req Request, res Response) {
     var nTime=time.Now().Unix()
     gMTI_lock.RLock()
     if nTime<conf.ADMIN_REFRESH_FREQUENCY+gMTI_recordTime {
-        res.JSON(map[string]string{
-            "recordsTime": gMTI_recordTime,
-            "val": gMTI_Cache,      // TODO: escape gMTI_Cache
+        res.JSON(map[string]interface{}{
+            "recordsTime":  gMTI_recordTime,
+            "val":          gMTI_Cache,
         })
         gMTI_lock.RUnlock()
         return
@@ -44,12 +46,23 @@ func getMergingTaskInfo(req Request, res Response) {
     defer gMTI_lock.Unlock()
 
     if nTime<conf.ADMIN_REFRESH_FREQUENCY+gMTI_recordTime {
-        res.JSON(map[string]string{
-            "recordsTime": gMTI_recordTime,
-            "val": gMTI_Cache,      // TODO: escape gMTI_Cache
+        res.JSON(map[string]interface{}{
+            "recordsTime":  gMTI_recordTime,
+            "val":          gMTI_Cache,
         })
         return
     }
 
     
+    gMTI_Cache=map[string]interface{} {
+        "worksAlive":   dvc.MergeManager.Reveal_workersAlive(),
+        "taskInfo":     dvc.MergeManager.Reveal_taskInfo(),
+    }
+    gMTI_recordTime=time.Now().Unix()
+
+
+    res.JSON(map[string]interface{}{
+        "recordsTime":  gMTI_recordTime,
+        "val":          gMTI_Cache,
+    })
 }

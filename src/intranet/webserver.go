@@ -5,12 +5,13 @@ package intranet
 import (
     . "github.com/levythu/gurgling"
     conf "definition/configinfo"
+    . "logger"
 )
 
 func Entry() {
     var rootRouter=ARouter()
 
-    rootRouter.Get("/", func(res) {
+    rootRouter.Get("/", func(res Response) {
         res.Redirect("/admin")
     })
     rootRouter.Use("/admin", getAdminPageRouter())
