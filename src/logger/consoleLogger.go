@@ -69,7 +69,7 @@ func (this *consoleLogger)SetLevel(level int) {
     this.doWarn =(level & 2!=0)
     this.doLog  =(level & 4!=0)
 
-    this.Log("logger.consoleLogger::SetLevel", "Log Level is set to "+strconv.Itoa(level & 7))
+    Secretary.Log("logger.consoleLogger::SetLevel", "Log Level is set to "+strconv.Itoa(level & 7))
 
     if this.next!=nil {
         this.next.SetLevel(level)

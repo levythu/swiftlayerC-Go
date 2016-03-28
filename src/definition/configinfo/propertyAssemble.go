@@ -6,6 +6,7 @@ import (
 )
 
 var LOG_LEVEL int
+var CHACED_LOG_CAPACITY int
 
 var NODE_NUMBER int
 var NODE_NUMS_IN_ALL int
@@ -60,6 +61,9 @@ func InitAll() bool {
         LOG_LEVEL=7
     }
     Secretary.SetLevel(LOG_LEVEL)
+
+
+    CHACED_LOG_CAPACITY             =int(extractProperty("cached_log_capacity").(float64))
 
 
     NODE_NUMBER                     =int(extractProperty("node_number").(float64))

@@ -41,6 +41,9 @@
         b0 set to 1 enables error
         the larger the value is, the more verbose logger will be
     */
-    "log_level": 7
+    "log_level": 7,
 
+    /*  the number of logs in each level that can be cached. Zero or negative value
+        disable log caching and thus inpsection online will be disabled. */
+    "cached_log_capacity": 1000
 }
