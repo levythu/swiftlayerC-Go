@@ -6,7 +6,7 @@ fs=require("fs");
 var options = {
     hostname: 'localhost',
     port: 9144,
-    path: '/io/testcon/hw.png',
+    path: '/io/testcon/[[SC]asdsad]',
     method: 'PUT',
 };
 

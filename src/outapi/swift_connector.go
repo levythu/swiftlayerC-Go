@@ -7,6 +7,6 @@ import (
 )
 
 var DefaultConnector=ConnectbyAuth(
-    GetProperty_Node("keystone_username").(string),
-    GetProperty_Node("keystone_password").(string),
-    GetProperty_Node("keystone_tenant").(string))
+    KEYSTONE_USERNAME,
+    KEYSTONE_PASSWORD,
+    KEYSTONE_TENANT)

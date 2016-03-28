@@ -7,10 +7,10 @@ import (
     . "kernel/distributedvc/filemeta"
     "definition/exception"
     "kernel/filetype"
-    . "utils/timestamp"
     "bytes"
     "io"
     . "kernel/distributedvc/constdef"
+    "strings"
 )
 
 type SwiftConnector struct {
@@ -27,7 +27,7 @@ func ConnectbyAuth(username string, passwd string, tenant string) *SwiftConnecto
         UserName: username,
         ApiKey: passwd,
         Tenant: tenant,
-        AuthUrl: configinfo.GetProperty_Node("swift_auth_url").(string),
+        AuthUrl: configinfo.SWIFT_AUTH_URL,
         //AuthVersion: 2,
     }
     if err:=swc.Authenticate();err!=nil {
@@ -80,6 +80,17 @@ func (this *Swiftio)Getinfo(filename string) (FileMeta, error) {
     //fmt.Println(headers)
     return FileMeta(headers.ObjectMetadata()), nil
 }
+func (this *Swiftio)GetinfoX(filename string) (map[string]string, error) {
+    _, headers, err:=this.conn.c.Object(this.container, filename)
+    if err!=nil {
+        if err==swift.ObjectNotFound {
+            return nil, nil
+        }
+        return nil, err
+    }
+    //fmt.Println(headers)
+    return convertToLowerCaseMap(map[string]string(headers)), nil
+}
 
 func (this *Swiftio)Putinfo(filename string, info FileMeta) error {
     head4Put:=swift.Metadata(info).ObjectHeaders()
@@ -94,33 +105,24 @@ func (this *Swiftio)Delete(filename string) error {
     return nil
 }
 
+func convertToLowerCaseMap(src map[string]string) map[string]string {
+    if src==nil {
+        return nil
+    }
+    var ret=make(map[string]string)
+    for k, v:=range src {
+        ret[strings.ToLower(k)]=v
+    }
+
+    return ret
+}
+
 // Get file and automatically check the MD5
 func (this *Swiftio)Get(filename string) (FileMeta, filetype.Filetype, error) {
-    var filem, metaerror=this.Getinfo(filename)
-    if metaerror!=nil {
-        if metaerror==swift.ObjectNotFound {
-            return nil, nil, nil
-        }
-        return nil, nil, metaerror
-    }
-
-    if filetype.CheckPointerMap[filem[METAKEY_TYPE]] {
-        // is pointer file
-        var metaFile=filetype.Makefile(filem[METAKEY_TYPE])
-        if metaFile==nil {
-            return nil, nil, exception.EX_UNSUPPORTED_TYPESTAMP
-        }
-
-        var targetFile=metaFile.(filetype.PointerFileType)
-        targetFile.Init(nil, String2ClxTimestamp(filem[METAKEY_TIMESTAMP]))
-        targetFile.SetPointer(filem[filetype.META_POINT_TO])
-        return filem, targetFile, nil
-    }
-
     contents:=&bytes.Buffer{}
     header, err:=this.conn.c.ObjectGet(
         this.container, filename, contents,
-        configinfo.GetProperty_Node("index_file_check_md5").(bool),
+        configinfo.INDEX_FILE_CHECK_MD5,
         nil)
 
     if err!=nil {
@@ -135,28 +137,41 @@ func (this *Swiftio)Get(filename string) (FileMeta, filetype.Filetype, error) {
     if resFile==nil {
         return nil, nil, exception.EX_UNSUPPORTED_TYPESTAMP
     }
-    if resFile.IsPointer() {
-        return nil, nil, exception.EX_INCONSISTENT_TYPE
-    }
-    resFile.Init(contents, String2ClxTimestamp(meta[METAKEY_TIMESTAMP]))
+    resFile.LoadIn(contents)
 
     return FileMeta(meta), resFile, nil
+}
+
+func (this *Swiftio)GetX(filename string) (map[string]string, filetype.Filetype, error) {
+    contents:=&bytes.Buffer{}
+    header, err:=this.conn.c.ObjectGet(
+        this.container, filename, contents,
+        configinfo.INDEX_FILE_CHECK_MD5,
+        nil)
+
+    if err!=nil {
+        if err==swift.ObjectNotFound {
+            return nil, nil, nil
+        }
+        return nil, nil, err
+    }
+    meta:=header.ObjectMetadata()
+
+    resFile:=filetype.Makefile(meta[METAKEY_TYPE])
+    if resFile==nil {
+        return nil, nil, exception.EX_UNSUPPORTED_TYPESTAMP
+    }
+    resFile.LoadIn(contents)
+
+    return convertToLowerCaseMap(map[string]string(header)), resFile, nil
 }
 
 func (this *Swiftio)Put(filename string, content filetype.Filetype, info FileMeta) error {
     if info==nil {
         info=FileMeta(map[string]string{})
     }
-    meta:=swift.Metadata(info)
-    meta[METAKEY_TIMESTAMP]=content.GetTS().String()
+    meta:=swift.Metadata(info.Clone())
     meta[METAKEY_TYPE]=content.GetType()
-
-    if content.IsPointer() {
-        var contentInPointer=content.(filetype.PointerFileType)
-        meta[filetype.META_POINT_TO]=contentInPointer.GetPointer()
-        this.Putinfo(filename, FileMeta(meta))
-        return nil
-    }
 
     buffer:=&bytes.Buffer{}
     content.WriteBack(buffer)
@@ -165,23 +180,7 @@ func (this *Swiftio)Put(filename string, content filetype.Filetype, info FileMet
     return err
 }
 
-// If pointerfile, returns the actual data of the pointed one.
 func (this *Swiftio)GetStream(filename string) (FileMeta, io.ReadCloser, error) {
-    // Check whether it is pointer type first.
-    var filem, metaerror=this.Getinfo(filename)
-    if metaerror!=nil {
-        if metaerror==swift.ObjectNotFound {
-            return nil, nil, nil
-        }
-        return nil, nil, metaerror
-    }
-    if filetype.CheckPointerMap[filem[METAKEY_TYPE]] {
-        if filem[filetype.META_POINT_TO]!=filename {
-            // jump to the pointed file
-            return this.GetStream(filem[filetype.META_POINT_TO])
-        }
-    }
-
     file, header, err:=this.conn.c.ObjectOpen(this.container, filename, false, nil)
     if err!=nil {
         if err==swift.ObjectNotFound {
@@ -193,14 +192,21 @@ func (this *Swiftio)GetStream(filename string) (FileMeta, io.ReadCloser, error) 
 
     return FileMeta(meta), file, nil
 }
+func (this *Swiftio)GetStreamX(filename string) (map[string]string, io.ReadCloser, error) {
+    file, header, err:=this.conn.c.ObjectOpen(this.container, filename, false, nil)
+    if err!=nil {
+        if err==swift.ObjectNotFound {
+            return nil, nil, nil
+        }
+        return nil, nil, err
+    }
 
-// If PointerFile, automatically set to pointer to itself.
+    return map[string]string(header), file, nil
+}
+
 func (this *Swiftio)PutStream(filename string, info FileMeta) (io.WriteCloser, error) {
     if info==nil || !CheckIntegrity(info) {
         return nil, exception.EX_METADATA_NEEDS_TO_BE_SPECIFIED
-    }
-    if filetype.CheckPointerMap[info[METAKEY_TYPE]] {
-        info[filetype.META_POINT_TO]=filename
     }
     meta:=swift.Metadata(info)
 
@@ -212,10 +218,45 @@ func (this *Swiftio)PutStream(filename string, info FileMeta) (io.WriteCloser, e
 }
 
 func (this *Swiftio)EnsureSpace() (bool, error) {
+    var err=this.conn.c.ContainerCreateX(this.container, nil)
+    if err==nil {
+        return true, nil
+    }
+    if err==swift.AlreadyExist {
+        return false, nil
+    }
+    return false, err
+    /*
     _, _, err:=this.conn.c.Container(this.container)
     if err==swift.ContainerNotFound {
         err=this.conn.c.ContainerCreate(this.container, nil)
         return true, err
     }
     return false, err
+    */
+}
+
+func (this *Swiftio)test_Container() (bool, error) {
+    var err=this.conn.c.ContainerCreateX(this.container, nil)
+    return true, err
+}
+
+func (this *Swiftio)Copy(srcname string, desname string, overrideMeta FileMeta) error {
+    var _, err=this.conn.c.ObjectCopy(this.container, srcname, this.container, desname, swift.Metadata(overrideMeta).ObjectHeaders())
+    return err
+}
+
+func (this *Swiftio)CheckExist(filename string) (bool, error) {
+    _, _, err:=this.conn.c.Object(this.container, filename)
+    if err!=nil {
+        if err==swift.ObjectNotFound {
+            return false, nil
+        }
+        return false, err
+    }
+    return true, nil
+}
+
+func (this *Swiftio)ExtractFileMeta(src map[string]string) FileMeta {
+    return FileMeta(swift.Headers(src).ObjectMetadata())
 }

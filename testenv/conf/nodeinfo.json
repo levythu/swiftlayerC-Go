@@ -1,6 +1,6 @@
 /* Configure file for Swift Layer-C.
 **
-** Note that all the line begin with  is macro-ed and will be removed
+** Note that all the comments are macro-ed and will be removed
 ** before JSON parse. So it is totally used for comments, and has no
 ** effect on the configure value itself.
 **
@@ -15,15 +15,7 @@
     "node_number": 0,
 
     /*  The total number of proxy nodes in the cluster.  */
-    "node_nums_in_all": 3,
-
-    /*  For the intramerge worker, after executing merging for this number of times
-        it will commit the merged file to Swift.  */
-    "auto_commit_per_intramerge": 1,
-
-    /*  In overhaul mode multiple intermerge worker will be spawned to do things in
-       parallel. Not supported yet so it's always FALSE even if set to TRUE.  */
-    "enable_parallel_overhaul": false,
+    "node_nums_in_all": 1,
 
     /*  Openstack Keystone authencation server url. Only API v2.0 is supported here.  */
     "swift_auth_url": "http://58.205.208.81:5000/v2.0",
@@ -31,14 +23,27 @@
     /*  Corresponding Openstack Swift proxy API url. One per one proxy node.  */
     "swift_proxy_url": "http://58.205.208.81:8080/v1/",
 
-    /*  If set to TRUE, mem-get operation (like index-io) will check MD5 to ensure
-        integrity  */
-    "index_file_check_md5": false,
+    /*  To which([hostname]:port) the outer server listens */
+    "outer_service_listener": ":9144",
 
-    /*  How many threads is used to run the layer. A number approximate to the number
-        of logical cores is recommended to take full advantage of multi-core. If the
-        value is less than or equal to zero, it will be set to the number of logical
-        cores automatically.  */
-    "thread_utilised": 1
+    /*  To which([hostname]:port) the intra-communication server listens */
+    "inner_service_listener": "localhost:2333",
 
+    /*  Leave the user field empty means no auth for admin. */
+    "inner_service_admin_user": "levy",
+    "inner_service_admin_password": "admin",
+    "inner_service_admin_refresh_frequency_in_second": 1,
+
+    /*
+        log_level is a three digit binary b2b1b0:
+        b2 set to 1 enables info log
+        b1 set to 1 enables warning
+        b0 set to 1 enables error
+        the larger the value is, the more verbose logger will be
+    */
+    "log_level": 7,
+
+    /*  the number of logs in each level that can be cached. Zero or negative value
+        disable log caching and thus inpsection online will be disabled. */
+    "cached_log_capacity": 0
 }

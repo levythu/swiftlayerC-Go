@@ -13,11 +13,15 @@ type Session struct {
     locks []*sync.Mutex
 }
 func NewSession(io outapi.Outapi) *Session {
-    return &Session{
-        fs: NewFs(io),
+    var ret=&Session{
+        fs: GetFs(io),
         d: ROOT_INODE_NAME,
         locks: []*sync.Mutex{&sync.Mutex{},&sync.Mutex{}},
     }
+    if ret.fs==nil {
+        return nil
+    }
+    return ret
 }
 
 func ____nouse__() {
@@ -35,14 +39,22 @@ func (this *Session)Cd(path string) error {
     return err
 }
 
-func (this *Session)Ls() ([]string, error) {
-    return this.fs.List(this.d)
-}
-
 func (this *Session)Mkdir(foldername string) error {
-    return this.fs.Mkdir(foldername, this.d)
+    return this.fs.Mkdir(foldername, this.d, false)
 }
 
 func (this *Session)Rm(foldername string) error {
     return this.fs.Rm(foldername, this.d)
+}
+
+func (this *Session)Ls() ([]string, error) {
+    return this.fs.List(this.d)
+}
+
+func (this *Session)PwdInode() string {
+    return this.d
+}
+
+func (this *Session)Release() {
+    this.fs.Release()
 }

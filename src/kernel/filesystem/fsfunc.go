@@ -4,30 +4,113 @@ package filesystem
 import (
     "outapi"
     "definition/exception"
+    egg "definition/errorgroup"
     dvc "kernel/distributedvc"
     "kernel/filetype"
     "utils/uniqueid"
     "strings"
-    . "utils/timestamp"
     . "kernel/distributedvc/filemeta"
     . "kernel/distributedvc/constdef"
-    "logger"
+    . "logger"
+    fc "kernel/filesystem/fmapcomposition"
     "io"
+    "sync"
     "fmt"
 )
+
+// ## META_PARENT_INODE & META_INODE_TYPE are set to inode
+
+// Parent inode meta changes faster than inode::.. file, and when moved, it is
+// synchronously updated. So it can be used for more reliable and faster check
+const META_PARENT_INODE="parent-inode"
+
+// can be file or a folder
+const META_INODE_TYPE="inode-type"
+const META_INODE_TYPE_FOLDER="DIR"
+const META_INODE_TYPE_FILE="FILE"
+
+const FMAP_METAKEY_FILE_PREFIX="fmap-file-"
+func InferFMapMetaFromNNodeMeta(obj FileMeta) fc.FMapMeta {
+    if obj[META_INODE_TYPE]==META_INODE_TYPE_FILE {
+        var ret=fc.FMapMeta(map[string]string {
+            fc.FMAP_META_TYPE: fc.FMAP_META_TYPE_FILE,
+        })
+        for k, v:=range obj {
+            if strings.HasPrefix(k, FMAP_METAKEY_FILE_PREFIX) {
+                ret[k]=v
+            }
+        }
+        return ret
+    } else {
+        return fc.FMapMeta(map[string]string {
+            fc.FMAP_META_TYPE: fc.FMAP_META_TYPE_DIRECTORY,
+        })
+    }
+}
+
+func ConvertFileHeaderToNNodeMeta(header map[string]string) FileMeta {
+    if header==nil {
+        return nil
+    }
+    var ret=make(map[string]string)
+    for k, v:=range header {
+        ret[FMAP_METAKEY_FILE_PREFIX+k]=v
+    }
+
+    return ret
+}
+
+// ## META_ORIGINAL_NAME is set to object node
+// Identical info which can be inferred by its namenode in its parent inode.
+// It is synchronously updated in move operation
+const META_ORIGINAL_NAME="file-original-name"
 
 const ROOT_INODE_NAME="rootNode"
 
 type Fs struct {
     io outapi.Outapi
+    rootName string
+
+    cLock *sync.RWMutex
+    trashInode string
 }
 func __nouse__() {
     fmt.Println("123")
 }
 
-func NewFs(_io outapi.Outapi) *Fs {
+// for internal use only
+func newFs(_io outapi.Outapi) *Fs {
     return &Fs{
         io: _io,
+        rootName: ROOT_INODE_NAME,
+
+        cLock: &sync.RWMutex{},
+        trashInode: "",
+    }
+}
+
+const FOLDER_MAP="/$Folder-Map/"
+const TRASH_BOX=".trash"
+
+func (this *Fs)GetTrashInode() string {
+    this.cLock.RLock()
+    if t:=this.trashInode; t!="" {
+        this.cLock.RUnlock()
+        return t
+    }
+    this.cLock.RUnlock()
+    this.cLock.Lock()
+    defer this.cLock.Unlock()
+    if this.trashInode!="" {
+        return this.trashInode
+    }
+    // fetch it from storage
+    var _, file, _=this.io.Get(GenFileName(this.rootName, TRASH_BOX))
+    var filen, _=file.(*filetype.Nnode)
+    if filen==nil {
+        return ""
+    } else {
+        return filen.DesName
     }
 }
 
@@ -39,9 +122,9 @@ func NewFs(_io outapi.Outapi) *Fs {
 // For any error, a blank string and error will be returned.
 func (this *Fs)Locate(path string, frominode string/*=""*/) (string, error) {
     if strings.HasPrefix(path, "/") || frominode=="" {
-        frominode=ROOT_INODE_NAME
+        frominode=this.rootName
     }
-    rawResult:=strings.Split(path, "/")
+    var rawResult=strings.Split(path, "/")
     for _, e:=range rawResult {
         if e!="" {
             frominode, _=lookUp(frominode, e, this.io)
@@ -55,163 +138,251 @@ func (this *Fs)Locate(path string, frominode string/*=""*/) (string, error) {
     return frominode, nil
 }
 
-func (this *Fs)Mkdir(foldername string, frominode string) error {
+// If the file exist and forceMake==false, an error EX_FOLDER_ALREADY_EXIST will be returned
+func (this *Fs)Mkdir(foldername string, frominode string, forceMake bool) error {
     if !CheckValidFilename(foldername) {
         return exception.EX_INVALID_FILENAME
     }
 
-    var par=dvc.GetFD(frominode, this.io)
-    defer par.Release()
-    var flist, _=par.GetFile().(*filetype.Kvmap)
-    if flist==nil {
-        return exception.EX_INODE_NONEXIST
-    }
-    flist.CheckOut()
-    if _, ok:=flist.Kvm[foldername]; ok {
-        return exception.EX_FOLDER_ALREADY_EXIST
+    // nnodeName: parentInode::foldername
+    var nnodeName=GenFileName(frominode, foldername)
+    if !forceMake {
+        if tmeta, _:=this.io.Getinfo(nnodeName); tmeta!=nil {
+            return exception.EX_FOLDER_ALREADY_EXIST
+        }
     }
 
-    var newFileName=uniqueid.GenGlobalUniqueName()
-    var newFile=dvc.GetFD(newFileName, this.io)
-    defer newFile.Release()
-
-    fmap:=filetype.NewKvMap()
-    fmap.CheckOut()
-    fmap.Kvm[".."]=&filetype.KvmapEntry{
-        Timestamp: GetTimestamp(0),
-        Key: "..",
-        Val: frominode,
+    // newDomainname: <GENERATED>
+    var newDomainname=uniqueid.GenGlobalUniqueName()
+    var newNnode=filetype.NewNnode(newDomainname)
+    var initMeta=FileMeta(map[string]string {
+        META_INODE_TYPE:    META_INODE_TYPE_FOLDER,
+        META_PARENT_INODE:  frominode,
+    })
+    if err:=this.io.Put(nnodeName, newNnode, initMeta); err!=nil {
+        return err
     }
-    fmap.Kvm["."]=&filetype.KvmapEntry{
-        Timestamp: GetTimestamp(0),
-        Key: ".",
-        Val: newFileName,
-    }
-    fmap.CheckIn()
-
-    if err:=newFile.PutOriginalFile(fmap, nil); err!=nil {
+    // initialize two basic element
+    var initMetaSelf=FileMeta(map[string]string {
+        META_INODE_TYPE:    META_INODE_TYPE_FOLDER,
+        META_PARENT_INODE:  newDomainname,
+    })
+    if err:=this.io.Put(GenFileName(newDomainname, ".."), filetype.NewNnode(frominode), initMetaSelf); err!=nil {
+        Secretary.Error("kernel.filesystem::Mkdir", "Fail to create .. link for new folder "+nnodeName+".")
         return err
     }
 
-    patcher:=filetype.NewKvMap()
-    patcher.SetTS(GetTimestamp(flist.GetTS()))
-    patcher.CheckOut()
-    patcher.Kvm[foldername]=&filetype.KvmapEntry{
-        Timestamp: GetTimestamp(flist.GetRelativeTS(foldername)),
-        Key: foldername,
-        Val: newFileName,
-    }
-    patcher.CheckIn()
-    if err:=par.CommitPatch(patcher); err!=nil {
+    if err:=this.io.Put(GenFileName(newDomainname, "."), filetype.NewNnode(newDomainname), initMetaSelf); err!=nil {
+        Secretary.Error("kernel.filesystem::Mkdir", "Fail to create . link for new folder "+nnodeName+".")
         return err
+    }
+
+    // write new folder's map
+    {
+        var newFolderMapFD=dvc.GetFD(GenFileName(newDomainname, FOLDER_MAP), this.io)
+        if newFolderMapFD==nil {
+            Secretary.Error("kernel.filesystem::Mkdir", "Fail to create foldermap fd for new folder "+nnodeName+".")
+            return exception.EX_IO_ERROR
+        }
+        if err:=newFolderMapFD.Submit(fc.FastMakeFolderPatch(".", "..")); err!=nil {
+            Secretary.Error("kernel.filesystem::Mkdir", "Fail to init foldermap for new folder "+nnodeName+".")
+            newFolderMapFD.Release()
+            return err
+        }
+        newFolderMapFD.Release()
+    }
+
+    // submit patch to parent folder's map
+    {
+        var parentFolderMapFD=dvc.GetFD(GenFileName(frominode, FOLDER_MAP), this.io)
+        if parentFolderMapFD==nil {
+            Secretary.Error("kernel.filesystem::Mkdir", "Fail to create foldermap fd for new folder "+nnodeName+"'s parent map'")
+            return exception.EX_IO_ERROR
+        }
+        if err:=parentFolderMapFD.Submit(fc.FastMakeFolderPatch(foldername)); err!=nil {
+            Secretary.Error("kernel.filesystem::Mkdir", "Fail to submit patch to foldermap for new folder "+nnodeName+"'s parent map'")
+            parentFolderMapFD.Release()
+            return err
+        }
+        parentFolderMapFD.Release()
     }
 
     return nil
 }
 
 // Format the filesystem.
-// TODO: Setup clear old fs info
+// TODO: Setup clear old fs info? Up to now set up will not clear old data and will not
+// remove the old folder map
 func (this *Fs)FormatFS() error {
-    var nf=dvc.GetFD(ROOT_INODE_NAME, this.io)
-    defer nf.Release()
-    //nf.clear()
-
-    fmap:=filetype.NewKvMap()
-    fmap.CheckOut()
-    fmap.Kvm[".."]=&filetype.KvmapEntry{
-        Timestamp: GetTimestamp(0),
-        Key: "..",
-        Val: ROOT_INODE_NAME,
-    }
-    fmap.Kvm["."]=&filetype.KvmapEntry{
-        Timestamp: GetTimestamp(0),
-        Key: ".",
-        Val: ROOT_INODE_NAME,
-    }
-    fmap.CheckIn()
-
-    if err:=nf.PutOriginalFile(fmap, nil); err!=nil {
+    var initMetaSelf=FileMeta(map[string]string {
+        META_INODE_TYPE:    META_INODE_TYPE_FOLDER,
+        META_PARENT_INODE:  this.rootName,
+    })
+    if err:=this.io.Put(GenFileName(this.rootName, ".."), filetype.NewNnode(this.rootName), initMetaSelf); err!=nil {
+        Secretary.Error("kernel.filesystem::FormatFS", "Fail to create .. link for Root.")
         return err
     }
 
-    logger.Secretary.Log("kernel.filesystem.Fs::formatfs", "Formatted!")
-    return nil
+    if err:=this.io.Put(GenFileName(this.rootName, "."), filetype.NewNnode(this.rootName), initMetaSelf); err!=nil {
+        Secretary.Error("kernel.filesystem::FormatFS", "Fail to create . link for Root.")
+        return err
+    }
+
+    {
+        var rootFD=dvc.GetFD(GenFileName(this.rootName, FOLDER_MAP), this.io)
+        if rootFD==nil {
+            Secretary.Error("kernel.filesystem::FormatFS", "Fail to get FD for Root.")
+            return exception.EX_IO_ERROR
+        }
+        if err:=rootFD.Submit(fc.FastMakeFolderPatch(".", "..")); err!=nil {
+            Secretary.Error("kernel.filesystem::FormatFS", "Fail to submit format patch for Root.")
+            rootFD.Release()
+            return nil
+        }
+        rootFD.Release()
+    }
+    // setup Trash for users
+    return this.Mkdir(TRASH_BOX, this.rootName, true)
 }
 
 // Only returns file name list of one inode. Innername excluded.
 func (this *Fs)List(frominode string) ([]string, error) {
-    var tmp=dvc.GetFD(frominode, this.io)
-    var inodefile, _=tmp.GetFile().(*filetype.Kvmap)
-    tmp.Release()
-
-    if inodefile==nil {
-        return nil, exception.EX_INODE_NONEXIST
+    var fd=dvc.GetFD(GenFileName(frominode, FOLDER_MAP), this.io)
+    if fd==nil {
+        Secretary.Error("kernel.filesystem::List", "Fail to get FD for "+frominode)
+        return nil, exception.EX_IO_ERROR
     }
-    inodefile.CheckOut()
+    defer fd.Release()
+    fd.GraspReader()
+    defer fd.ReleaseReader()
 
-    var ret=[]string{}
-    for k, _:=range inodefile.Kvm {
-        if CheckValidFilename(k) {
-            ret=append(ret, k)
+    if err:=fd.Sync(); err!=nil {
+        Secretary.Error("kernel.filesystem::List", "SYNC error for "+frominode+": "+err.Error())
+    }
+    if content, err:=fd.Read(); err!=nil {
+        Secretary.Error("kernel.filesystem::List", "Read error for "+frominode+": "+err.Error())
+        return nil, err
+    } else {
+        var ret=[]string{}
+        for k, _:=range content {
+            if CheckValidFilename(k) {
+                ret=append(ret, k)
+            }
         }
+        return ret, nil
     }
-
-    return ret, nil
 }
 
-// Only returns file name list of one inode. Innername excluded.
-func (this *Fs)ListDetail(frominode string) ([]*filetype.KvmapEntry, error) {
-    var tmp=dvc.GetFD(frominode, this.io)
-    var inodefile, _=tmp.GetFile().(*filetype.Kvmap)
-    tmp.Release()
-
-    if inodefile==nil {
-        return nil, exception.EX_INODE_NONEXIST
+func (this *Fs)ListX(frominode string) ([]*filetype.KvmapEntry, error) {
+    var fd=dvc.GetFD(GenFileName(frominode, FOLDER_MAP), this.io)
+    if fd==nil {
+        Secretary.Error("kernel.filesystem::List", "Fail to get FD for "+frominode)
+        return nil, exception.EX_IO_ERROR
     }
-    inodefile.CheckOut()
+    defer fd.Release()
+    fd.GraspReader()
+    defer fd.ReleaseReader()
 
-    var ret=[]*filetype.KvmapEntry{}
-    for k, v:=range inodefile.Kvm {
-        if CheckValidFilename(k) {
-            ret=append(ret, v)
+    if err:=fd.Sync(); err!=nil {
+        Secretary.Error("kernel.filesystem::List", "SYNC error for "+frominode+": "+err.Error())
+    }
+    if content, err:=fd.Read(); err!=nil {
+        Secretary.Error("kernel.filesystem::List", "Read error for "+frominode+": "+err.Error())
+        return nil, err
+    } else {
+        var ret=[]*filetype.KvmapEntry{}
+        for k, v:=range content {
+            if CheckValidFilename(k) {
+                ret=append(ret, v)
+            }
         }
+        return ret, nil
     }
-
-    return ret, nil
 }
 
 // All the folder will be removed. No matter if it is empty or not.
-// Attentez: if the removed object does not exist, a exception.EX_INODE_NONEXIST will be returned.
+// Move it to the trash
 func (this *Fs)Rm(foldername string, frominode string) error {
-    if !CheckValidFilename(foldername) {
+    if tsinode:=this.GetTrashInode(); tsinode=="" {
+        Secretary.ErrorD("IO: "+this.io.GenerateUniqueID()+" has an invalid trashbox, which leads to removing failure.")
+        return exception.EX_TRASHBOX_NOT_INITED
+    } else {
+        return this.MvX(foldername, frominode, uniqueid.GenGlobalUniqueNameWithTag("removed"), tsinode, true)
+        // TODO: logging the original position for recovery
+    }
+}
+
+// Attentez: It is not atomic
+// If byForce set to false and the destination file exists, an EX_FOLDER_ALREADY_EXIST will be returned
+func (this *Fs)MvX(srcName, srcInode, desName, desInode string, byForce bool) error {
+    // Create a mirror at destination position.
+    // Then, remove the old one.
+    // Third, modify the .. pointer.
+
+    if !CheckValidFilename(srcName) || !CheckValidFilename(desName) {
         return exception.EX_INVALID_FILENAME
     }
-
-    var par=dvc.GetFD(frominode, this.io)
-    defer par.Release()
-    var flist, _=par.GetFile().(*filetype.Kvmap)
-    if flist==nil {
-        return exception.EX_INODE_NONEXIST
-    }
-    flist.CheckOut()
-    if _, ok:=flist.Kvm[foldername]; !ok {
-        return exception.EX_INODE_NONEXIST
+    if !byForce && outapi.ForceCheckExist(this.io.CheckExist(GenFileName(desInode, desName))) {
+        return exception.EX_FOLDER_ALREADY_EXIST
     }
 
-    var patcher=filetype.NewKvMap()
-    patcher.SetTS(GetTimestamp(flist.GetTS()))
-    patcher.CheckOut()
-    patcher.Kvm[foldername]=&filetype.KvmapEntry{
-        Timestamp: GetTimestamp(flist.GetRelativeTS(foldername)),
-        Key: foldername,
-        Val: filetype.REMOVE_SPECIFIED,
+    var modifiedMeta=FileMeta(map[string]string {
+        META_PARENT_INODE: desInode,
+    })
+    if err:=this.io.Copy(GenFileName(srcInode, srcName), GenFileName(desInode, desName), modifiedMeta); err!=nil {
+        return exception.EX_FILE_NOT_EXIST
     }
-    patcher.CheckIn()
-    if err:=par.CommitPatch(patcher); err!=nil {
+
+    // remove the old one.
+    this.io.Delete(GenFileName(srcInode, srcName))
+
+    {
+        var srcParentMap=dvc.GetFD(GenFileName(srcInode, FOLDER_MAP), this.io)
+        if srcParentMap==nil {
+            Secretary.Error("kernel.filesystem::MvX", "Fail to get foldermap fd for folder "+srcInode)
+            return exception.EX_IO_ERROR
+        }
+        if err:=srcParentMap.Submit(filetype.FastAntiMake(srcName)); err!=nil {
+            Secretary.Error("kernel.filesystem::MvX", "Fail to submit foldermap patch for folder "+srcInode)
+            srcParentMap.Release()
+            return err
+        }
+        srcParentMap.Release()
+    }
+
+    // modify the .. pointer
+    var dstMeta, dstFileNnodeOriginal, _=this.io.Get(GenFileName(desInode, desName))
+    var dstFileNnode, _=dstFileNnodeOriginal.(*filetype.Nnode)
+    if dstFileNnode==nil {
+        Secretary.Error("kernel.filesystem::MvX", "Fail to read nnode "+GenFileName(desInode, desName)+".")
+        return exception.EX_IO_ERROR
+    }
+
+    {
+        var desParentMap=dvc.GetFD(GenFileName(desInode, FOLDER_MAP), this.io)
+        if desParentMap==nil {
+            Secretary.Error("kernel.filesystem::MvX", "Fail to get foldermap fd for folder "+desInode)
+            return exception.EX_IO_ERROR
+        }
+        if err:=desParentMap.Submit(fc.FastMakeWithMeta(desName, InferFMapMetaFromNNodeMeta(dstMeta))); err!=nil {
+            Secretary.Error("kernel.filesystem::MvX", "Fail to submit foldermap patch for folder "+desInode)
+            desParentMap.Release()
+            return err
+        }
+        desParentMap.Release()
+    }
+
+    var target=GenFileName(dstFileNnode.DesName, "..")
+    if err:=this.io.Put(target, filetype.NewNnode(desInode), nil); err!=nil {
+        Secretary.Error("kernel.filesystem::MvX", "Fail to modify .. link for "+dstFileNnode.DesName+".")
         return err
+    } else {
+        //Secretary.Log("kernel.filesystem::MvX", "Update file "+target)
     }
 
+    // ALL DONE!
     return nil
+
 }
 
 // To put a large file and modify its corresponding index.
@@ -220,132 +391,176 @@ func (this *Fs)Rm(foldername string, frominode string) error {
 // It will try to put a file at destination, no matter whether
 // there's already one file, which will be replaced then.
 
-// The para frominode could be used to accerlerate index access.
-// Note that the type/time will be specified in the func, so no need to provide in meta.
-func (this *Fs)Put(destination string, frominode string/*=""*/, meta FileMeta/*=nil*/, dataSource io.Reader, typeoffile string/*=""*/) error {
-    var lastPos=strings.LastIndex(destination, "/")
+// if filename!="", a new filename will be assigned and frominode::filename will be set (create mode)
+// otherwise, frominode indicates the target fileinode and the target file will override it (override mode)
 
-    var path=destination[:lastPos+1]
-    var filename=destination[lastPos+1:]
-    var basenode, err=this.Locate(path, frominode)
-    if err!=nil {
-        return exception.EX_FILE_NOT_EXIST
+// the second value indicates the manipulated file inode. It may be some valid value
+// or just empty no matter whether error==nil, however, when error==nil, the second value
+// must be valid
+
+// Attentez: in override mode, parent folder's foldermap will not get updated.
+const STREAM_TYPE="stream type file"
+func (this *Fs)Put(filename string, frominode string, meta FileMeta/*=nil*/, dataSource io.Reader) (error, string) {
+    var targetFileinode string
+    var oldOriName string
+    if filename!="" {
+        // CREATE MODE
+        if !CheckValidFilename(filename) {
+            return exception.EX_INVALID_FILENAME, ""
+        }
+        // set inode
+        targetFileinode=uniqueid.GenGlobalUniqueNameWithTag("Stream")
+    } else {
+        // OVERRIDE MODE
+        var oldMeta, err=this.io.Getinfo(frominode)
+        if oldMeta==nil {
+            if err!=nil {
+                return err, ""
+            }
+            return exception.EX_FILE_NOT_EXIST, ""
+        }
+        oldOriName=oldMeta[META_ORIGINAL_NAME]
+        targetFileinode=frominode
     }
 
-    if typeoffile=="" {
-        typeoffile=(&filetype.Blob{}).GetType()
-    }
-
-    var newFileName=uniqueid.GenGlobalUniqueNameWithTag("Stream")
-    var newFilefd=dvc.GetFD(newFileName, this.io)
-    defer newFilefd.Release()
+    // set object node
     if meta==nil {
         meta=NewMeta()
     }
-    var newFilemeta=meta
-    newFilemeta[METAKEY_TIMESTAMP]=GetTimestamp(0).String()
-    newFilemeta[METAKEY_TYPE]=typeoffile
-    wc, err:=newFilefd.PutOriginalFileStream(newFilemeta)
-    if err!=nil {
-        return err
+    meta=meta.Clone()
+    meta[METAKEY_TYPE]=STREAM_TYPE
+    if filename!="" {
+        meta[META_ORIGINAL_NAME]=filename
+    } else {
+        meta[META_ORIGINAL_NAME]=oldOriName
     }
 
-    // Streaming
-    _, err=io.Copy(wc, dataSource)
-    var err2=wc.Close()
-    if err!=nil {
-        return err
+    if wc, err:=this.io.PutStream(targetFileinode, meta); err!=nil {
+        Secretary.Error("kernel.filesystem::Put", "Put stream for new file "+GenFileName(frominode, filename)+" failed.")
+        return err, targetFileinode
+    } else {
+        if _, err2:=io.Copy(wc, dataSource); err2!=nil {
+            wc.Close()
+            Secretary.Error("kernel.filesystem::Put", "Piping stream for new file "+GenFileName(frominode, filename)+" failed.")
+            return err2, targetFileinode
+        }
+        if err2:=wc.Close(); err2!=nil {
+            Secretary.Error("kernel.filesystem::Put", "Close writer for new file "+GenFileName(frominode, filename)+" failed.")
+            return err2, targetFileinode
+        }
     }
-    if err2!=nil {
-        logger.Secretary.Error("kernel.filesystem.Fs::Put", "Error when closing: "+err2.Error())
-        return err2
-    }
-    // Copy successfully. Update the index.
 
-    var par=dvc.GetFD(basenode, this.io)
-    defer par.Release()
-    var flist, _=par.GetFile().(*filetype.Kvmap)
-    if flist==nil {
-        return exception.EX_INODE_NONEXIST
-    }
-    flist.CheckOut()
+    if filename!="" {
+        // CREATE MODE. Set its parent node's foldermap and write the nnode concurrently
+        var currentHeader, terr=this.io.GetinfoX(targetFileinode)
+        if currentHeader==nil {
+            if terr!=nil {
+                Secretary.Warn("kernel.filesystem::Put", "Fail to refetch supposed-to-be file meta: "+targetFileinode+". Error is "+terr.Error())
+            } else {
+                Secretary.Warn("kernel.filesystem::Put", "Fail to refetch supposed-to-be file meta: "+targetFileinode+". The file seems to be non-existence.")
+            }
 
-    var patcher=filetype.NewKvMap()
-    patcher.SetTS(GetTimestamp(flist.GetTS()))
-    patcher.CheckOut()
-    patcher.Kvm[filename]=&filetype.KvmapEntry{
-        Timestamp: GetTimestamp(flist.GetRelativeTS(filename)),
-        Key: filename,
-        Val: newFileName,
-    }
-    patcher.CheckIn()
-    if err:=par.CommitPatch(patcher); err!=nil {
-        return err
-    }
-    logger.Secretary.Log("kernel.filesystem.Fs::put", "Put stream file "+destination+" successfully.")
+            return exception.EX_CONCURRENT_CHAOS, targetFileinode
+        }
+        //fmt.Println(currentHeader)
+        var pointedMeta=ConvertFileHeaderToNNodeMeta(currentHeader)
+        var metaToSet=pointedMeta
+        metaToSet[META_PARENT_INODE]=frominode
+        metaToSet[META_INODE_TYPE]=META_INODE_TYPE_FILE
 
-    return nil
+        var wg=sync.WaitGroup{}
+        var globalError *egg.ErrorAssembly=nil
+        var geLock sync.Mutex
+
+        wg.Add(2)
+        go (func() {
+            defer wg.Done()
+
+            // Write the nnode
+
+            if err:=this.io.Put(GenFileName(frominode, filename), filetype.NewNnode(targetFileinode), metaToSet); err!=nil {
+                Secretary.Warn("kernel.filesystem::Put", "Put nnode for new file "+GenFileName(frominode, filename)+" failed.")
+                geLock.Lock()
+                globalError=egg.AddIn(globalError, err)
+                geLock.Unlock()
+                return
+            }
+        })()
+
+        go (func() {
+            // update parentNode's foldermap
+            defer wg.Done()
+
+            var parentFD=dvc.GetFD(GenFileName(frominode, FOLDER_MAP), this.io)
+            if parentFD==nil {
+                Secretary.Error("kernel.filesystem::Put", "Get FD for "+GenFileName(frominode, FOLDER_MAP)+" failed.")
+                geLock.Lock()
+                globalError=egg.AddIn(globalError, exception.EX_INDEX_ERROR)
+                geLock.Unlock()
+                return
+            }
+            if err:=parentFD.Submit(fc.FastMakeWithMeta(filename, InferFMapMetaFromNNodeMeta(metaToSet))); err!=nil {
+                Secretary.Error("kernel.filesystem::Put", "Submit patch for "+GenFileName(frominode, filename)+" failed: "+err.Error())
+                parentFD.Release()
+                geLock.Lock()
+                globalError=egg.AddIn(globalError, exception.EX_INDEX_ERROR)
+                geLock.Unlock()
+                return
+            }
+            parentFD.Release()
+        })()
+        wg.Wait()
+
+        if globalError!=nil {
+            return globalError, targetFileinode
+        }
+    }
+
+    return nil, targetFileinode
 }
 
-
-// To get a large file by streaming.
-// Attentez: it is a two-phase function.
-// The first phase is try to locate the file in repository, and commit the possible
-// error to phase1callback, which will determine the next step by returning a nil or
-// available WriteCloser. In this phase an error code could be returned in the form
-// of HTTP response code.
-// The second phase is data transmission, by returning HTTP 200 the webserver just pipe
-// data to the client. It will be run in another goroutine. So use it synchronously.
-
-// Unlike Put, which handles upstream, Get func must use downstream to return error or
-// valid stream. So the architectures are different.
-
-// Phase1Callback is called when data transmission is ready.
-type Phase1Callback func(error, FileMeta) io.Writer
-// Phase2Callback is called when transmission completed.
-type Phase2Callback func(error)
-
-func (this *Fs)Get(source string, frominode string/*=""*/, phase1 Phase1Callback, phase2 Phase2Callback, isSychronous bool) {
-    // Use this.locate, but not for finding folder. Note the semantic discrepancy.
-    var obj, err=this.Locate(source, frominode)
-    if err!=nil {
-        phase1(exception.EX_FILE_NOT_EXIST, nil)
-        return
-    }
-
-    var objFD=dvc.GetFD(obj, this.io)
-    rc, fm, err:=objFD.GetFileStream()
-    if err!=nil{
-        phase1(err, nil)
-        objFD.Release()
-        return
-    }
-    if rc==nil {
-        // 404
-        phase1(exception.EX_FILE_NOT_EXIST, nil)
-        objFD.Release()
-        return
-    }
-
-    var wc=phase1(nil, fm)
-    if wc==nil {
-        // Phase1 requires to terminate.
-        rc.Close()
-        objFD.Release()
-        return
-    }
-
-    if isSychronous {
-        _, copyError:=io.Copy(wc, rc)
-        rc.Close()
-        objFD.Release()
-        phase2(copyError)
+// If the file does not exist, an EX_FILE_NOT_EXIST will be returned.
+// the callback parameters are (objectNode, originalName, fileMeta)
+func (this *Fs)Get(filename string, frominode string, beforePipe func(string, string, map[string]string) io.Writer) error {
+    var targetFileinode string
+    if filename!="" {
+        if !CheckValidFilename(filename) {
+            return exception.EX_INVALID_FILENAME
+        }
+        var meta, file, _=this.io.Get(GenFileName(frominode, filename))
+        var filen, _=file.(*filetype.Nnode)
+        if filen==nil {
+            return exception.EX_FILE_NOT_EXIST
+        }
+        if meta==nil || meta[META_INODE_TYPE]!=META_INODE_TYPE_FILE {
+            return exception.EX_WRONG_FILEFORMAT
+        }
+        targetFileinode=filen.DesName
     } else {
-        go func() {
-            _, copyError:=io.Copy(wc, rc)
-            rc.Close()
-            phase2(copyError)
-            objFD.Release()
-        }()
+        targetFileinode=frominode
     }
+
+    var oriMeta, rc, _=this.io.GetStreamX(targetFileinode)
+    if oriMeta==nil || rc==nil {
+        return exception.EX_FILE_NOT_EXIST
+    }
+    var meta=this.io.ExtractFileMeta(oriMeta)
+    if val, ok:=meta[METAKEY_TYPE]; !ok || val!=STREAM_TYPE {
+        rc.Close()
+        return exception.EX_WRONG_FILEFORMAT
+    }
+
+    if beforePipe==nil {
+        rc.Close()
+        return nil
+    }
+    var w=beforePipe(targetFileinode, meta[META_ORIGINAL_NAME], oriMeta)
+    if _, copyErr:=io.Copy(w, rc); copyErr!=nil {
+        rc.Close()
+        return copyErr
+    }
+    if err2:=rc.Close(); err2!=nil {
+        return err2
+    }
+    return nil
 }

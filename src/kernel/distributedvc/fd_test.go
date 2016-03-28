@@ -4,45 +4,50 @@ package distributedvc
 
 import (
     "testing"
-    "kernel/filetype"
+    "fmt"
+    . "outapi"
+    . "definition/configinfo"
+    . "kernel/filetype"
+    . "utils/timestamp"
     "time"
 )
 
-func _TestOverhaulOrder(t *testing.T) {
-    t.Log(overhaulOrder)
-}
+var swiftc=ConnectbyAuth(KEYSTONE_USERNAME, KEYSTONE_PASSWORD, KEYSTONE_TENANT)
+var io=NewSwiftio(swiftc, "testcon")
 
-func _TestFDLatestPatch(t *testing.T) {
-    fd:=GetFD("only4test", Testio)
-    t.Log(fd.GetLatestPatch())
-}
+func _TestFDGet(t *testing.T) {
+    fmt.Println("+++++ TestFDGet::start")
+    var huahua=GetFD("huahuad", io)
+    huahua.GraspReader()
+    fmt.Println(huahua.Read())
+    huahua.ReleaseReader()
+    huahua.Release()
+    fmt.Println("----- TestFDGet::end")
 
-func _TestFDGetFile(t *testing.T) {
-    fd:=GetFD("only4test", Testio)
-    fileGot:=fd.GetFile().(*filetype.Kvmap)
-    fileGot.CheckOut()
-    for i, e:=range fileGot.Kvm {
-        t.Log(i,": ",e)
+    for {
+        time.Sleep(time.Hour)
     }
 }
 
-func TestFDAddPatch(t *testing.T) {
-    fd:=GetFD("only4test", Testio)
-    newPatch:=filetype.NewKvMap()
-    newPatch.CheckOut()
-    newPatch.Kvm["Olllo"]=&filetype.KvmapEntry{
-        Timestamp: 2333833,
-        Key: "Olllo",
-        Val: "Upload2",
+func _TestFDSubmit(t *testing.T) {
+    fmt.Println("+++++ TestFDSubmit::start")
+    var huahua=GetFD("huahuad", io)
+    var toSubmit=NewKvMap()
+    toSubmit.CheckOut()
+    fmt.Println("+ Checked out")
+    toSubmit.Kvm["huahuax"]=&KvmapEntry {
+        Key: "huahuax",
+        Val: "baomihua",
+        Timestamp: GetTimestamp(),
     }
-    newPatch.Kvm["ps"]=&filetype.KvmapEntry{
-        Timestamp: 123,
-        Key: "ps",
-        Val: "爆米花",
-    }
-    newPatch.CheckIn()
-    fd.CommitPatch(newPatch)
-    t.Log("Checked in")
+    toSubmit.CheckIn()
+    fmt.Println("+ Checked in")
+    fmt.Println(huahua.Submit(toSubmit))
+
+    huahua.Release()
+    fmt.Println("----- TestFDSubmit::start")
+
+
     for {
         time.Sleep(time.Hour)
     }

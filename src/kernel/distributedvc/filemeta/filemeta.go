@@ -12,9 +12,6 @@ func NewMeta() FileMeta {
 }
 
 func CheckIntegrity(obj FileMeta) bool {
-    if _, ok:=obj[METAKEY_TIMESTAMP]; !ok {
-        return false
-    }
     if _, ok:=obj[METAKEY_TYPE]; !ok {
         return false
     }
@@ -31,5 +28,14 @@ func FileMeta2UserMeta(fm FileMeta) UserMeta {
             ret[k[HEADER_LENGTH:]]=v
         }
     }
+    return ret
+}
+
+func (this FileMeta)Clone() FileMeta {
+    var ret=NewMeta()
+    for k, v:=range this {
+        ret[k]=v
+    }
+
     return ret
 }

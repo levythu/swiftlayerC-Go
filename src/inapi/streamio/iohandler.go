@@ -4,13 +4,14 @@ package streamio
 
 import (
     . "github.com/levythu/gurgling"
-    . "kernel/distributedvc/filemeta"
     "outapi"
     "kernel/filesystem"
     //"kernel/filetype"
     "definition/exception"
     "io"
     "fmt"
+    "utils/pathman"
+    egg "definition/errorgroup"
     //"logger"
 )
 
@@ -20,7 +21,7 @@ func __iohandlergo_nouse() {
 
 func IORouter() Router {
     var rootRouter=ARegexpRouter()
-    rootRouter.Use(`/([^/]+)/\[\[SC\](.+)\]/(.*)`, handlingShortcut)
+    rootRouter.Use(`/([^/]+)/\[\[SC\](.+)\]/?(.*)`, handlingShortcut)
 
     rootRouter.Get(`/([^/]+)/(.*)`, downloader)
     rootRouter.Put(`/([^/]+)/(.*)`, uploader)
@@ -30,6 +31,11 @@ func IORouter() Router {
 
 // Handling shortcut retrieve. It's applied to all the api in the field
 // format: /fs/{contianer}/[[SC]{rootnode}]/{followingpath}
+
+// Note: In Shortcut Access([SC[inode]]/...), the trailing path can be empty, so that
+// the operation will be directly conducted on the inode itself.
+// If the inode is a folder and a PUT is conducted, the folder will be3 both a
+// directory and a file
 func handlingShortcut(req Request, res Response) bool {
     // After the midware,
     // req.F()["HandledRR"][1]=={container},
@@ -45,6 +51,9 @@ func handlingShortcut(req Request, res Response) bool {
     return true
 }
 
+const PARENT_NODE="Parent-Node"
+const FILE_NODE="File-Node"
+
 // ==========================API DOCS=======================================
 // API Name: Stream data from specified path
 // Action: Read the destination data and return it as a file by streaming
@@ -55,9 +64,14 @@ func handlingShortcut(req Request, res Response) bool {
 //      - followingpath(in URL): the path to be listed
 // Returns:
 //      - HTTP 200: No error and the result will be returned in raw-data streaming.
+//                  if successfully, the returned header Parent-Node(if accessed) will
+//                  contain its parent inode and File-Node will indicate the file itself.
 //      - HTTP 404: Either the container or the filepath does not exist.
 //      - HTTP 500: Error. The body is supposed to return error info.
 // ==========================API DOCS END===================================
+
+const HEADER_CONTENT_DISPOSE="Content-Disposition"
+const ORIGINAL_HEADER="Ori-"
 func downloader(req Request, res Response) {
     var pathDetail, _=req.F()["HandledRR"].([]string)
     if pathDetail==nil {
@@ -65,24 +79,56 @@ func downloader(req Request, res Response) {
         pathDetail=append(pathDetail, filesystem.ROOT_INODE_NAME)
     }
 
-    var fs=filesystem.NewFs(outapi.NewSwiftio(outapi.DefaultConnector, pathDetail[1]))
-    fs.Get(pathDetail[2], pathDetail[3], func(err error, fm FileMeta) io.Writer {
-        if err!=nil {
-            if err==exception.EX_FILE_NOT_EXIST {
-                res.Status("Nonexist container or path.", 404)
-                return nil
+    var fs=filesystem.GetFs(outapi.NewSwiftio(outapi.DefaultConnector, pathDetail[1]))
+    if fs==nil {
+        res.Status("Internal Error: the FS pool is full.", 500)
+    }
+    defer fs.Release()
+
+    var hasSent bool=false
+    if base, filename:=pathman.SplitPath(pathDetail[2]); filename=="" {
+        var err=fs.Get("", pathDetail[3], func(fileInode string, oriName string, oriHeader map[string]string) io.Writer {
+            for k, v:=range oriHeader {
+                res.Set(ORIGINAL_HEADER+k, v)
             }
-            res.Status("Internal Error: "+err.Error(), 500)
-            return nil
+            res.Set(FILE_NODE, fileInode)
+            res.Set(HEADER_CONTENT_DISPOSE, "inline; filename=\""+oriName+"\"")
+            res.SendCode(200)
+            hasSent=true
+            return res.R()
+        })
+        if err!=nil && !hasSent {
+            if err==exception.EX_FILE_NOT_EXIST {
+                res.Status("File Not Found.", 404)
+            } else {
+                res.Status("Internal Error: "+err.Error(), 500)
+            }
         }
-        // TODO: consider setting Content-Type
-        res.SendCode(200)
-        return res.R()
-    }, func(err error) {
+    } else {
+        var nodeName, err=fs.Locate(base, pathDetail[3])
         if err!=nil {
-            // TODO: logging the file sending error
+            res.Status("Nonexist container or path. "+err.Error(), 404)
+            return
         }
-    }, true)
+        err=fs.Get(filename, nodeName, func(fileInode string, oriName string, oriHeader map[string]string) io.Writer {
+            for k, v:=range oriHeader {
+                res.Set(ORIGINAL_HEADER+k, v)
+            }
+            res.Set(PARENT_NODE, nodeName)
+            res.Set(HEADER_CONTENT_DISPOSE, "inline; filename=\""+oriName+"\"")
+            res.Set(FILE_NODE, fileInode)
+            res.SendCode(200)
+            hasSent=true
+            return res.R()
+        })
+        if err!=nil && !hasSent {
+            if err==exception.EX_FILE_NOT_EXIST {
+                res.Status("File Not Found.", 404)
+            } else {
+                res.Status("Internal Error: "+err.Error(), 500)
+            }
+        }
+    }
 }
 
 // ==========================API DOCS=======================================
@@ -94,7 +140,8 @@ func downloader(req Request, res Response) {
 //      - contianer(in URL): the container name
 // Returns:
 //      - HTTP 200: No error, the file is written by force
-//              When success, 'Manipulated-Node' will indicate the parent directory.
+//              When success, the returned header Parent-Node(if accessed) will
+//              contain its parent inode and File-Node will indicate the file itself.
 //      - HTTP 404: Either the container or the filepath does not exist.
 //      - HTTP 500: Error. The body is supposed to return error info.
 // ==========================API DOCS END===================================
@@ -105,14 +152,38 @@ func uploader(req Request, res Response) {
         pathDetail=append(pathDetail, filesystem.ROOT_INODE_NAME)
     }
 
-    var fs=filesystem.NewFs(outapi.NewSwiftio(outapi.DefaultConnector, pathDetail[1]))
-    var err=fs.Put(pathDetail[2], pathDetail[3], nil, req.R().Body, "")
-    if err!=nil {
-        if err==exception.EX_FILE_NOT_EXIST {
-            res.Status("Nonexist container or path.", 404)
+    var fs=filesystem.GetFs(outapi.NewSwiftio(outapi.DefaultConnector, pathDetail[1]))
+    if fs==nil {
+        res.Status("Internal Error: the FS pool is full.", 500)
+    }
+    defer fs.Release()
+
+    var putErr error
+    if base, filename:=pathman.SplitPath(pathDetail[2]); filename=="" {
+        // TODO: glean user meta
+        putErr, _=fs.Put("", pathDetail[3], nil, req.R().Body)
+        res.Set(FILE_NODE, pathDetail[3])
+    } else {
+        var nodeName, err=fs.Locate(base, pathDetail[3])
+        if err!=nil {
+            res.Status("Nonexist container or path. "+err.Error(), 404)
             return
         }
-        res.Status("Internal Error: "+err.Error(), 500)
+        // TODO: glean user meta
+        var targetNode string
+        putErr, targetNode=fs.Put(filename, nodeName, nil, req.R().Body)
+        if targetNode!="" {
+            res.Set(FILE_NODE, targetNode)
+        }
+        res.Set(PARENT_NODE, nodeName)
+    }
+
+    if  !egg.Nil(putErr) {
+        if egg.In(putErr, exception.EX_FILE_NOT_EXIST) {
+            res.Status("Nonexist container or path. Or you cannot refer to a non-existing inode in ovveride mode.", 404)
+            return
+        }
+        res.Status("Internal Error: "+putErr.Error(), 500)
         return
     }
     res.SendCode(200)
