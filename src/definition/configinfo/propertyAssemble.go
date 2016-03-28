@@ -106,7 +106,7 @@ func InitAll() bool {
         Secretary.WarnD("The configuration variable MAX_NUMBER_OF_CACHED_ACTIVE_FD is too small and is set to 100 automatically.")
         MAX_NUMBER_OF_CACHED_ACTIVE_FD=100
     }
-    MAX_NUMBER_OF_CACHED_DORMANT_FD =int(extractProperty("max_number_of_cached_active_fd").(float64))
+    MAX_NUMBER_OF_CACHED_DORMANT_FD =int(extractProperty("max_number_of_cached_dormant_fd").(float64))
     if MAX_NUMBER_OF_CACHED_DORMANT_FD<100 {
         Secretary.WarnD("The configuration variable MAX_NUMBER_OF_CACHED_DORMANT_FD is too small and is set to 100 automatically.")
         MAX_NUMBER_OF_CACHED_DORMANT_FD=100
