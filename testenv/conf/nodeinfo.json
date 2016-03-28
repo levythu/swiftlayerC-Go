@@ -30,9 +30,9 @@
     "inner_service_listener": "localhost:2333",
 
     /*  Leave the user field empty means no auth for admin. */
-    "inner_service_admin_user": "",
+    "inner_service_admin_user": "levy",
     "inner_service_admin_password": "admin",
-    "inner_service_admin_refresh_frequency_in_second": 0,
+    "inner_service_admin_refresh_frequency_in_second": 1,
 
     /*
         log_level is a three digit binary b2b1b0:
@@ -45,5 +45,5 @@
 
     /*  the number of logs in each level that can be cached. Zero or negative value
         disable log caching and thus inpsection online will be disabled. */
-    "cached_log_capacity": 1000
+    "cached_log_capacity": 0
 }
