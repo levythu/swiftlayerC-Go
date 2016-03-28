@@ -14,7 +14,9 @@ func Entry() {
     rootRouter.Get("/", func(res Response) {
         res.Redirect("/admin")
     })
-    rootRouter.Use("/admin", getAdminPageRouter())
+    if r:=getAdminPageRouter(); r!=nil {
+        rootRouter.Use("/admin", r)
+    }
 
     Secretary.Log("intranet::Entry()", "Now launching intranet service at "+conf.INNER_SERVICE_LISTENER)
     var err=rootRouter.Launch(conf.INNER_SERVICE_LISTENER)

@@ -7,6 +7,7 @@ import (
     conf "definition/configinfo"
     . "logger"
     "sync"
+    . "definition"
     "time"
     dvc "kernel/distributedvc"
 )
@@ -20,7 +21,12 @@ func getAdminPageRouter() Router {
         Secretary.Warn("intranet::getAdminPageRouter()", "Administrator authentication is canceled. Please ensure the inner service is "+
             "running on a safe network, otherwise set inner_service_admin_user in cofiguration.")
     }
-    r.Use("/", staticfs.AStaticfs("./public/intranet"))
+    var p, err=GetABSPath("./public/intranet")
+    if err!=nil {
+        Secretary.Error("intranet::getAdminPageRouter()", "Fail to locate public directory. Intranet service stops.")
+        return nil
+    }
+    r.Use("/", staticfs.AStaticfs(p))
     r.Get("/taskinfo", getMergingTaskInfo)
     r.Get("/loginfo", getLoggingInfo)
     r.Get("/fdinfo", getFDInfo)
