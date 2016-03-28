@@ -55,15 +55,20 @@ func InitAll() bool {
     errorAssert(AppendFileToJSON("conf/kernelinfo.json", conf), "Reading conf/kernelinfo.json")
 
 
+    CHACED_LOG_CAPACITY             =int(extractProperty("cached_log_capacity").(float64))
+    if CHACED_LOG_CAPACITY>0 {
+        Secretary.Chain(SecretaryCache.Init(3, CHACED_LOG_CAPACITY))
+    }
+
     LOG_LEVEL                       =int(extractProperty("log_level").(float64))
     if LOG_LEVEL>7 || LOG_LEVEL<0 {
         Secretary.WarnD("The configuration variable LOG_LEVEL is out of range and is set to 7(111b) automatically.")
         LOG_LEVEL=7
     }
     Secretary.SetLevel(LOG_LEVEL)
-
-
-    CHACED_LOG_CAPACITY             =int(extractProperty("cached_log_capacity").(float64))
+    if CHACED_LOG_CAPACITY>0 {
+        Secretary.LogD("Logging cache is established: Capacity="+strconv.Itoa(CHACED_LOG_CAPACITY))
+    }
 
 
     NODE_NUMBER                     =int(extractProperty("node_number").(float64))

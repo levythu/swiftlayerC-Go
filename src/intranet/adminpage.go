@@ -22,6 +22,7 @@ func getAdminPageRouter() Router {
     }
     r.Use("/", staticfs.AStaticfs("./public/intranet"))
     r.Get("/taskinfo", getMergingTaskInfo)
+    r.Get("/loginfo", getLoggingInfo)
 
     return r
 }
@@ -53,7 +54,7 @@ func getMergingTaskInfo(req Request, res Response) {
         return
     }
 
-    
+
     gMTI_Cache=map[string]interface{} {
         "worksAlive":   dvc.MergeManager.Reveal_workersAlive(),
         "taskInfo":     dvc.MergeManager.Reveal_taskInfo(),
@@ -64,5 +65,82 @@ func getMergingTaskInfo(req Request, res Response) {
     res.JSON(map[string]interface{}{
         "recordsTime":  gMTI_recordTime,
         "val":          gMTI_Cache,
+    })
+}
+
+
+
+var gLI_recordTime int64=0
+var gLI_Cache map[string]interface{}
+var gLI_lock=sync.RWMutex{}
+func getLoggingInfo(req Request, res Response) {
+    var nTime=time.Now().Unix()
+    gLI_lock.RLock()
+    if nTime<conf.ADMIN_REFRESH_FREQUENCY+gLI_recordTime {
+        res.JSON(map[string]interface{}{
+            "recordsTime":  gLI_recordTime,
+            "val":          gLI_Cache,
+        })
+        gLI_lock.RUnlock()
+        return
+    }
+    gLI_lock.RUnlock()
+    gLI_lock.Lock()
+    defer gLI_lock.Unlock()
+
+    if nTime<conf.ADMIN_REFRESH_FREQUENCY+gLI_recordTime {
+        res.JSON(map[string]interface{}{
+            "recordsTime":  gLI_recordTime,
+            "val":          gLI_Cache,
+        })
+        return
+    }
+
+    var tmpList=[]interface{}{}
+    var dRes=true
+    if _, ok:=req.Query()["log"]; ok {
+        dRes=dRes&&SecretaryCache.Dump(func(obj CachedLoggerEntry) bool {
+            tmpList=append(tmpList, map[string]interface{} {
+                "pos":      obj.Pos,
+                "content":  obj.Content,
+                "time":     obj.Time.UnixNano(),
+                "type":     "log",
+            })
+            return true
+        }, 0)
+    }
+    if _, ok:=req.Query()["warn"]; ok {
+        dRes=dRes&&SecretaryCache.Dump(func(obj CachedLoggerEntry) bool {
+            tmpList=append(tmpList, map[string]interface{} {
+                "pos":      obj.Pos,
+                "content":  obj.Content,
+                "time":     obj.Time.UnixNano(),
+                "type":     "warn",
+            })
+            return true
+        }, 1)
+    }
+    if _, ok:=req.Query()["error"]; ok {
+        dRes=dRes&&SecretaryCache.Dump(func(obj CachedLoggerEntry) bool {
+            tmpList=append(tmpList, map[string]interface{} {
+                "pos":      obj.Pos,
+                "content":  obj.Content,
+                "time":     obj.Time.UnixNano(),
+                "type":     "error",
+            })
+            return true
+        }, 2)
+    }
+
+    gLI_Cache=map[string]interface{} {
+        "available":    dRes,
+        "loglist":      tmpList,
+    }
+    gLI_recordTime=time.Now().Unix()
+
+
+    res.JSON(map[string]interface{}{
+        "recordsTime":  gLI_recordTime,
+        "val":          gLI_Cache,
     })
 }

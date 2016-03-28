@@ -8,13 +8,15 @@ import (
     "strconv"
 )
 
-type cachedLoggerEntry struct {
-    pos string
-    content string
-    time time.Time
+type CachedLoggerEntry struct {
+    Pos string
+    Content string
+    Time time.Time
 }
 type CachedLogger struct {
-    loggingQueue [][]cachedLoggerEntry
+    inited bool
+
+    loggingQueue [][]CachedLoggerEntry
     queueTail []int     // Tain points to the next of the end
     length []int
     lock []sync.RWMutex
@@ -37,12 +39,14 @@ var SecretaryCache=&CachedLogger {
 }
 
 func (this *CachedLogger)Init(channels int/*=3*/, capacity int) *CachedLogger {
-    this.loggingQueue=make([][]cachedLoggerEntry, channels)
+    this.inited=true
+
+    this.loggingQueue=make([][]CachedLoggerEntry, channels)
     this.queueTail=make([]int, channels)
     this.length=make([]int, channels)
     this.lock=make([]sync.RWMutex, channels)
     for i:=0; i<channels; i++ {
-        this.loggingQueue[i]=make([]cachedLoggerEntry, capacity)
+        this.loggingQueue[i]=make([]CachedLoggerEntry, capacity)
         this.queueTail[i]=0
         this.length[i]=0
     }
@@ -51,15 +55,39 @@ func (this *CachedLogger)Init(channels int/*=3*/, capacity int) *CachedLogger {
     return this
 }
 
+// false for error
+func (this *CachedLogger)Dump(cb func(CachedLoggerEntry) bool, channelNum int) bool {
+    if !this.inited {
+        return false
+    }
+
+    this.lock[channelNum].RLock()
+    defer this.lock[channelNum].RUnlock()
+
+    var p=this.queueTail[channelNum]
+    for i:=0; i<this.length[channelNum]; i++ {
+        p--
+        if p<0 {
+            p+=this.capacity
+        }
+        if !cb(this.loggingQueue[channelNum][p]) {
+            break
+        }
+    }
+
+    return true
+
+}
+
 func (this *CachedLogger)RecordInChannel(channelNum int, pos string, content string, time time.Time) {
     this.lock[channelNum].Lock()
     defer this.lock[channelNum].Unlock()
 
     var p=this.queueTail[channelNum]
-    this.loggingQueue[channelNum][p].pos=pos
-    this.loggingQueue[channelNum][p].content=content
-    this.loggingQueue[channelNum][p].time=time
-    this.queueTail[channelNum]++
+    this.loggingQueue[channelNum][p].Pos=pos
+    this.loggingQueue[channelNum][p].Content=content
+    this.loggingQueue[channelNum][p].Time=time
+    this.queueTail[channelNum]=(p+1)%this.capacity
 
     if this.length[channelNum]<this.capacity {
         this.length[channelNum]++
