@@ -5,28 +5,51 @@ import (
 )
 
 type voidLogger struct {
-    // Nothing
+    next Logger
 }
 
-func (_ *voidLogger)LogD(c Tout) {
-    // NOTHING
+func (this *voidLogger)LogD(c Tout) {
+    if this.next!=nil {
+        this.next.LogD(c)
+    }
 }
-func (_ *voidLogger)WarnD(c Tout) {
-    // NOTHING
+func (this *voidLogger)WarnD(c Tout) {
+    if this.next!=nil {
+        this.next.WarnD(c)
+    }
 }
-func (_ *voidLogger)ErrorD(c Tout) {
-    // NOTHING
+func (this *voidLogger)ErrorD(c Tout) {
+    if this.next!=nil {
+        this.next.ErrorD(c)
+    }
 }
-func (_ *voidLogger)Log(pos string, c Tout) {
-    // NOTHING
+func (this *voidLogger)Log(pos string, c Tout) {
+    if this.next!=nil {
+        this.next.Log(pos, c)
+    }
 }
-func (_ *voidLogger)Warn(pos string, c Tout) {
-    // NOTHING
+func (this *voidLogger)Warn(pos string, c Tout) {
+    if this.next!=nil {
+        this.next.Warn(pos, c)
+    }
 }
-func (_ *voidLogger)Error(pos string, c Tout) {
-    // NOTHING
+func (this *voidLogger)Error(pos string, c Tout) {
+    if this.next!=nil {
+        this.next.Error(pos, c)
+    }
 }
 
-func (_ *voidLogger)SetLevel(level int) {
-    // NOTHING
+func (this *voidLogger)SetLevel(level int) {
+    if this.next!=nil {
+        this.next.SetLevel(level)
+    }
+}
+
+func (this *voidLogger)Chain(obj Logger) Logger {
+    if this.next==nil {
+        this.next=obj
+    } else {
+        this.next.Chain(obj)
+    }
+    return this
 }

@@ -27,7 +27,12 @@
     "outer_service_listener": ":9144",
 
     /*  To which([hostname]:port) the intra-communication server listens */
-    "inner_service_listener": ":2333",
+    "inner_service_listener": "localhost:2333",
+
+    /*  Leave the user field empty means no auth for admin. */
+    "inner_service_admin_user": "levy",
+    "inner_service_admin_password": "admin",
+    "inner_service_admin_refresh_frequency_in_second": 1,
 
     /*
         log_level is a three digit binary b2b1b0:
@@ -36,6 +41,9 @@
         b0 set to 1 enables error
         the larger the value is, the more verbose logger will be
     */
-    "log_level": 7
+    "log_level": 7,
 
+    /*  the number of logs in each level that can be cached. Zero or negative value
+        disable log caching and thus inpsection online will be disabled. */
+    "cached_log_capacity": 0
 }

@@ -8,6 +8,8 @@ var Secretary Logger=&consoleLogger{
     doLog: true,
     doWarn: true,
     doErr: true,
+
+    next: nil,
 }
 
 type Logger interface {
@@ -21,4 +23,7 @@ type Logger interface {
     // 000 stands for log, warn, error
     // the larger, the more verbose
     SetLevel(level int)
+
+    // chain anther logger to the last pos of the chain
+    Chain(obj Logger) Logger
 }

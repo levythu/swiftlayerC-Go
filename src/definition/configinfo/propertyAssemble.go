@@ -6,6 +6,7 @@ import (
 )
 
 var LOG_LEVEL int
+var CHACED_LOG_CAPACITY int
 
 var NODE_NUMBER int
 var NODE_NUMS_IN_ALL int
@@ -37,6 +38,10 @@ var AUTO_MERGER_DEAMON_PERIOD int
 
 var TRIAL_INTERVAL_IN_UNREVOCABLE_IOERROR int
 
+var ADMIN_USER string
+var ADMIN_PASSWORD string
+var ADMIN_REFRESH_FREQUENCY int64
+
 func maxInt(n1, n2 int) int {
     if n1>n2 {
         return n1
@@ -50,12 +55,20 @@ func InitAll() bool {
     errorAssert(AppendFileToJSON("conf/kernelinfo.json", conf), "Reading conf/kernelinfo.json")
 
 
+    CHACED_LOG_CAPACITY             =int(extractProperty("cached_log_capacity").(float64))
+    if CHACED_LOG_CAPACITY>0 {
+        Secretary.Chain(SecretaryCache.Init(3, CHACED_LOG_CAPACITY))
+    }
+
     LOG_LEVEL                       =int(extractProperty("log_level").(float64))
     if LOG_LEVEL>7 || LOG_LEVEL<0 {
         Secretary.WarnD("The configuration variable LOG_LEVEL is out of range and is set to 7(111b) automatically.")
         LOG_LEVEL=7
     }
     Secretary.SetLevel(LOG_LEVEL)
+    if CHACED_LOG_CAPACITY>0 {
+        Secretary.LogD("Logging cache is established: Capacity="+strconv.Itoa(CHACED_LOG_CAPACITY))
+    }
 
 
     NODE_NUMBER                     =int(extractProperty("node_number").(float64))
@@ -144,6 +157,13 @@ func InitAll() bool {
         TRIAL_INTERVAL_IN_UNREVOCABLE_IOERROR=0
     }
 
+
+    ADMIN_USER                      =extractProperty("inner_service_admin_user").(string)
+    ADMIN_PASSWORD                  =extractProperty("inner_service_admin_password").(string)
+    ADMIN_REFRESH_FREQUENCY         =int64(extractProperty("inner_service_admin_refresh_frequency_in_second").(float64))
+    if ADMIN_REFRESH_FREQUENCY<0 {
+        ADMIN_REFRESH_FREQUENCY=0
+    }
 
     return true
 }

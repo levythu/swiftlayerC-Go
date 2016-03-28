@@ -135,6 +135,30 @@ var MergeManager=&MergingSupervisor {
     deamoned: false,
 }
 
+func (this *MergingSupervisor)Reveal_workersAlive() int {
+    this.lock.RLock()
+    defer this.lock.RUnlock()
+
+    return this.workersAlive
+}
+const (
+    REVEALED_TASK_IN_WORK=1
+    REVEALED_TASK_PENDING=0
+)
+func (this *MergingSupervisor)Reveal_taskInfo() map[string]int {
+    this.scheduler.lock.RLock()
+    defer this.scheduler.lock.RUnlock()
+
+    var ret=make(map[string]int)
+    for k, _:=range this.scheduler.existMap {
+        ret[k]=REVEALED_TASK_IN_WORK
+    }
+    for p:=this.scheduler.taskQueueHead.next; p!=&this.scheduler.taskQueueTail; p=p.next {
+        ret[p.taskID]=REVEALED_TASK_PENDING
+    }
+
+    return ret
+}
 
 func (this *MergingSupervisor)SubmitTask(filename string, io Outapi) error {
     //Insider.Log("MergingSupervisor.SubmitTask()", "Start")
