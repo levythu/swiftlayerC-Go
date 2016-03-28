@@ -23,6 +23,7 @@ func getAdminPageRouter() Router {
     r.Use("/", staticfs.AStaticfs("./public/intranet"))
     r.Get("/taskinfo", getMergingTaskInfo)
     r.Get("/loginfo", getLoggingInfo)
+    r.Get("/fdinfo", getFDInfo)
 
     return r
 }
@@ -142,5 +143,43 @@ func getLoggingInfo(req Request, res Response) {
     res.JSON(map[string]interface{}{
         "recordsTime":  gLI_recordTime,
         "val":          gLI_Cache,
+    })
+}
+
+
+
+var gFDI_recordTime int64=0
+var gFDI_Cache map[string]interface{}
+var gFDI_lock=sync.RWMutex{}
+func getFDInfo(req Request, res Response) {
+    var nTime=time.Now().Unix()
+    gFDI_lock.RLock()
+    if nTime<conf.ADMIN_REFRESH_FREQUENCY+gFDI_recordTime {
+        res.JSON(map[string]interface{}{
+            "recordsTime":  gFDI_recordTime,
+            "val":          gFDI_Cache,
+        })
+        gFDI_lock.RUnlock()
+        return
+    }
+    gFDI_lock.RUnlock()
+    gFDI_lock.Lock()
+    defer gFDI_lock.Unlock()
+
+    if nTime<conf.ADMIN_REFRESH_FREQUENCY+gFDI_recordTime {
+        res.JSON(map[string]interface{}{
+            "recordsTime":  gFDI_recordTime,
+            "val":          gFDI_Cache,
+        })
+        return
+    }
+
+    gFDI_Cache=dvc.Reveal_FdPoolProfile()
+    gFDI_recordTime=time.Now().Unix()
+
+
+    res.JSON(map[string]interface{}{
+        "recordsTime":  gFDI_recordTime,
+        "val":          gFDI_Cache,
     })
 }

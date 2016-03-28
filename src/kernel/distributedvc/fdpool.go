@@ -29,6 +29,22 @@ func _no_u_se() {
     fmt.Println("")
 }
 
+func Reveal_FdPoolProfile() map[string]interface{} {
+    var ret=make(map[string]interface{})
+    locks[0].RLock()
+    ret["total_size_of_fd_pool"]=len(fdPool)
+    locks[0].RUnlock()
+
+    dormant.Lock.Lock()
+    ret["number_of_deprecated_active_fd"]=dormant.Length
+    dormant.Lock.Unlock()
+
+    trash.Lock.Lock()
+    ret["number_of_deprecated_dormant_fd"]=trash.Length
+    trash.Lock.Unlock()
+
+    return ret
+}
 // may return nil for error
 func GetFD(filename string, io Outapi) *FD {
     locks[0].RLock()
