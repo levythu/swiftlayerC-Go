@@ -34,6 +34,8 @@
 - [x] Return meta in GET
 - [x] Maintain live inspection console
 - [ ] global lock for auto trashbox maintainance
+- [ ] Writeback in force exit
+- [ ] Implement faster merging worker by co-routine
 
 ## Known Bugs
 - [ ] InApi: use constant rootNode instead of filesystem one

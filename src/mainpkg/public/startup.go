@@ -17,7 +17,7 @@ func prepEnv_SetConcurrency() {
 }
 // Only run once when start.
 func StartUp() {
-    Secretary.Log("mainpkg::StartUp", "Metaless H2-Layer is starting...")
+    Secretary.Log("mainpkg::StartUp", "Midware-MH2 is starting...")
     prepEnv_SetConcurrency()
     Secretary.Log("mainpkg::StartUp", "Premise checked. Now lauching Web server...")
 }
