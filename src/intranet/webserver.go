@@ -8,7 +8,11 @@ import (
     . "logger"
 )
 
-func Entry() {
+func Entry(exit chan bool) {
+    defer (func(){
+        exit<-false
+    })()
+    
     var rootRouter=ARouter()
 
     rootRouter.Get("/", func(res Response) {
