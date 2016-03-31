@@ -12,12 +12,18 @@ func Entry(exit chan bool) {
     defer (func(){
         exit<-false
     })()
-    
+
     var rootRouter=ARouter()
 
     rootRouter.Get("/", func(res Response) {
         res.Redirect("/admin")
     })
+    if r:=getGossipRouter(); r!=nil {
+        rootRouter.Use("/gossip", r)
+    }
+    if r:=getPingRouter(); r!=nil {
+        rootRouter.Use("/ping", r)
+    }
     if r:=getAdminPageRouter(); r!=nil {
         rootRouter.Use("/admin", r)
     }
