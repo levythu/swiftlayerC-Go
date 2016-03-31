@@ -42,6 +42,12 @@ var ADMIN_USER string
 var ADMIN_PASSWORD string
 var ADMIN_REFRESH_FREQUENCY int64
 
+var GOSSIP_BUFFER_SIZE int
+var GOSSIP_PERIOD_IN_MS int
+var GOSSIP_RETELL_TIMES int
+var GOSSIP_MAX_DELIVERED_IN_ONE_TICK int
+var GOSSIP_MAX_TELLING_IN_ONE_TICK int
+
 func maxInt(n1, n2 int) int {
     if n1>n2 {
         return n1
@@ -163,6 +169,28 @@ func InitAll() bool {
     ADMIN_REFRESH_FREQUENCY         =int64(extractProperty("inner_service_admin_refresh_frequency_in_second").(float64))
     if ADMIN_REFRESH_FREQUENCY<0 {
         ADMIN_REFRESH_FREQUENCY=0
+    }
+
+    GOSSIP_BUFFER_SIZE              =int(extractProperty("gossip_buffer_size").(float64))
+    if GOSSIP_BUFFER_SIZE<100 {
+        Secretary.WarnD("The configuration variable GOSSIP_BUFFER_SIZE is too small and is set to 100 automatically.")
+        GOSSIP_BUFFER_SIZE=100
+    }
+    GOSSIP_PERIOD_IN_MS             =int(extractProperty("gossip_period_in_ms").(float64))
+    GOSSIP_RETELL_TIMES             =int(extractProperty("gossip_retell_times").(float64))
+    if GOSSIP_RETELL_TIMES<1 {
+        Secretary.WarnD("The configuration variable GOSSIP_RETELL_TIMES is too small and is set to 1 automatically.")
+        GOSSIP_RETELL_TIMES=1
+    }
+    GOSSIP_MAX_DELIVERED_IN_ONE_TICK=int(extractProperty("gossip_max_delivered_in_one_tick").(float64))
+    if GOSSIP_MAX_DELIVERED_IN_ONE_TICK<10 {
+        Secretary.WarnD("The configuration variable GOSSIP_MAX_DELIVERED_IN_ONE_TICK is too small and is set to 10 automatically.")
+        GOSSIP_MAX_DELIVERED_IN_ONE_TICK=10
+    }
+    GOSSIP_MAX_TELLING_IN_ONE_TICK  =int(extractProperty("gossip_max_telling_in_one_tick").(float64))
+    if GOSSIP_MAX_TELLING_IN_ONE_TICK<1 {
+        Secretary.WarnD("The configuration variable GOSSIP_MAX_TELLING_IN_ONE_TICK is too small and is set to 1 automatically.")
+        GOSSIP_MAX_TELLING_IN_ONE_TICK=1
     }
 
     return true

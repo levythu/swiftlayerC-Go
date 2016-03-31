@@ -6,7 +6,7 @@ import (
     "time"
 )
 
-var r=rand.New(rand.NewSource(time.Now().UnixNano()))
+var R=rand.New(rand.NewSource(time.Now().UnixNano()))
 
 // Batch Random is capable of generating m [0, n) random numbers without any identical
 // pairs. It can be accomplished with time complexity O(m) and space complexity O(n)
@@ -62,7 +62,7 @@ func swap(x1 *int, x2 *int) {
 // if m>n, return a value with m-n zeros
 func (this *BatchRandom)Get(m int) []int {
     if m==1 {
-        return []int{r.Intn(this.n0)}
+        return []int{R.Intn(this.n0)}
     }
     var ret=make([]int, m)
     if m>this.n0 {
@@ -72,10 +72,10 @@ func (this *BatchRandom)Get(m int) []int {
     this.lock.Lock()
     defer this.lock.Unlock()
 
-    var st=r.Intn(this.n0)
+    var st=R.Intn(this.n0)
     var des int
     for i:=0; i<m; i++ {
-        des=st+r.Intn(this.n0-i)
+        des=st+R.Intn(this.n0-i)
         if des>=this.n0 {
             des-=this.n0
         }

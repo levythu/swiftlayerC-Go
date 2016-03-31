@@ -45,5 +45,13 @@
 
     /*  the number of logs in each level that can be cached. Zero or negative value
         disable log caching and thus inpsection online will be disabled. */
-    "cached_log_capacity": 0
+    "cached_log_capacity": 0,
+
+    /*  =================== FOR GOSSIP PROTOCOL =================== */
+    "gossip_period_in_ms": 500,
+    "gossip_buffer_size": 1000,
+    "gossip_retell_times": 1,
+    "gossip_max_delivered_in_one_tick": 1000,
+    "gossip_max_telling_in_one_tick": 2
+    /*  =================== END GOSSIP PROTOCOL =================== */
 }
