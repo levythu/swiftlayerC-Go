@@ -18,6 +18,8 @@ type BufferedGossiper struct {
 
     TellMaxCount int
 
+    ParallelTell int
+
     // ===============================
 
     do func(addr Tout, content []Tout) error
@@ -57,19 +59,52 @@ func (this *BufferedGossiper)PostGossip(content Tout) error {
     }
     this.len++
 
-    buffer[tail]=content
-    gCount[tail]=this.EnsureTellCount
-    tail++
-    if tail>=this.BufferSize {
-        tail-=this.BufferSize
+    buffer[this.tail]=content
+    gCount[this.tail]=this.EnsureTellCount
+    this.tail++
+    if this.tail>=this.BufferSize {
+        this.tail-=this.BufferSize
     }
 
     return nil
+}
+
+func (this *BufferedGossiper)gossip(content []Tout) {
+    var c=
+}
+func (this *BufferedGossiper)onTick() {
+    this.lenLock.Lock()
+    defer this.lenLock.Unlock()
+
+    var c=this.len
+    if c>this.TellMaxCount {
+        c=this.TellMaxCount
+    }
+    var res=make([]Tout, c)
+
+    var p=this.head
+    for i:=0; i<c; i++ {
+        res[i]=this.buffer[p]
+        this.gCount[p]-=this.ParallelTell
+        p++
+        if p>=this.BufferSize {
+            p-=this.BufferSize
+        }
+    }
+    for this.len>0 && this.gCount[this.head]<=0 {
+        this.len--
+        this.head++
+        if this.head>=this.BufferSize {
+            this.head-=this.BufferSize
+        }
+    }
+
+    go this.gossip(res)
 }
 
 func (this *BufferedGossiper)Launch() error {
     if this.PeriodInMillisecond<0 {
         return nil
     }
-    
+
 }
