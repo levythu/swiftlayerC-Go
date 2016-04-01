@@ -22,7 +22,7 @@
 
     /*  For the automerger worker, after executing merging for this number of times
         it will commit the merged file to write it back to Swift.  */
-    "auto_commit_per_intramerge": 1,
+    "auto_commit_per_intramerge": 100,
 
     /*  If a read request for one fd is no later than single_file_sync_interval_min_in_second
         seconds after the last sync operation, the sync will be cancelled and cached
@@ -36,7 +36,7 @@
     /*  =================== FOR FILEHANDLER POOL =================== */
 
     "max_number_of_cached_active_fd": 100,
-    "max_number_of_cached_dormant_fd": 500,
+    "max_number_of_cached_dormant_fd": 1000,
 
     /*  Attention: the total-active value indicates the capacity of holded fds ( active for reader-holded and
         dormant for total-holded ). When holded fds are too many, cached fds will not get wiped by force. So
@@ -52,11 +52,11 @@
 
     /*  The capacity of merger task queue. If overwhelmed, any new task will get
         put off unless worker has accomplished some. */
-    "auto_merger_task_queue_capacity": 10000,
+    "auto_merger_task_queue_capacity": 100000,
 
     /*  The max number of merging goroutines. When unreached, any new task will be
         assigned to a new worker. */
-    "max_merging_worker": 10,
+    "max_merging_worker": 100,
 
     /*  After encountering an error or finishing a merging work, a working will
         rest in rest_interval_of_worker_in_ms milliseconds. */

@@ -1,0 +1,138 @@
+package gossip
+
+import (
+    . "definition"
+    "sync"
+    "errors"
+    . "logger"
+    "fmt"
+    "time"
+)
+
+type BufferedGossiper struct {
+    *stdGossiperListImplementation
+
+    // <0 for no launch
+    PeriodInMillisecond int
+
+    BufferSize int
+
+    // EnsureTellCount is the times of propagation for each posted gossip
+    EnsureTellCount int
+
+    // TellMaxCount is the max number of gossips that can be delivered in one tick
+    TellMaxCount int
+
+    // ParallelTell is the number of nodes told in one tick
+    ParallelTell int
+
+    // ===============================
+
+    do func(addr Tout, content []Tout) error
+
+    // the next of the last
+    tail int
+    head int
+
+    lenLock sync.RWMutex
+    len int
+
+    buffer []Tout
+    gCount []int
+}
+func (this *BufferedGossiper)SetGossipingFunc(do func(addr Tout, content []Tout) error) {
+    this.do=do
+}
+
+func NewBufferedGossiper(bufferSize int) *BufferedGossiper {
+    return &BufferedGossiper {
+        BufferSize: bufferSize,
+        head: 0,
+        tail: 0,
+        len: 0,
+        buffer: make([]Tout, bufferSize),
+        gCount: make([]int, bufferSize),
+        stdGossiperListImplementation: &stdGossiperListImplementation{},
+    }
+}
+
+var BUFFER_IS_FULL=errors.New("The buffer for buffered gossiper is full. New gossip cannot be checked in.")
+func (this *BufferedGossiper)PostGossip(content Tout) error {
+    this.lenLock.Lock()
+    defer this.lenLock.Unlock()
+
+    if this.len==this.BufferSize {
+        return BUFFER_IS_FULL
+    }
+    this.len++
+
+    this.buffer[this.tail]=content
+    this.gCount[this.tail]=this.EnsureTellCount
+    this.tail++
+    if this.tail>=this.BufferSize {
+        this.tail-=this.BufferSize
+    }
+
+    return nil
+}
+
+func (this *BufferedGossiper)gossip(content []Tout) {
+    if len(content)==0 {
+        return
+    }
+    var taskList, err=this.stdGossiperListImplementation.RandList(this.ParallelTell)
+    if err!=nil {
+        Secretary.Error("gossip::BufferedGossiper.gossip()", "Unable to gossip due to "+err.Error())
+        return
+    }
+    for _, e:=range taskList {
+        go (func(x Tout) {
+            if err:=this.do(x, content); err!=nil {
+                Secretary.Warn("gossip::BufferedGossiper.gossip()", "Failed to gossip to "+fmt.Sprint(x)+": "+err.Error())
+                // TODO: retry others?
+            }
+        })(e)
+    }
+}
+func (this *BufferedGossiper)onTick() {
+    this.lenLock.Lock()
+
+    var c=this.len
+    if c>this.TellMaxCount {
+        c=this.TellMaxCount
+    }
+
+    var res=make([]Tout, c)
+
+    var p=this.head
+    for i:=0; i<c; i++ {
+        res[i]=this.buffer[p]
+        this.gCount[p]-=this.ParallelTell
+        p++
+        if p>=this.BufferSize {
+            p-=this.BufferSize
+        }
+    }
+    for this.len>0 && this.gCount[this.head]<=0 {
+        this.len--
+        this.head++
+        if this.head>=this.BufferSize {
+            this.head-=this.BufferSize
+        }
+    }
+    this.lenLock.Unlock()
+
+    this.gossip(res)
+}
+
+func (this *BufferedGossiper)Launch() error {
+    if this.PeriodInMillisecond<0 {
+        return nil
+    }
+    Secretary.Log("gossip::BufferedGossiper.Launch()", "Gossiper is launched.")
+    var dur=time.Duration(this.PeriodInMillisecond)*time.Millisecond
+    for {
+        this.onTick()
+        time.Sleep(dur)
+    }
+}

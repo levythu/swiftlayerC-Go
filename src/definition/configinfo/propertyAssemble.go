@@ -42,6 +42,14 @@ var ADMIN_USER string
 var ADMIN_PASSWORD string
 var ADMIN_REFRESH_FREQUENCY int64
 
+var GOSSIP_BUFFER_SIZE int
+var GOSSIP_PERIOD_IN_MS int
+var GOSSIP_RETELL_TIMES int
+var GOSSIP_MAX_DELIVERED_IN_ONE_TICK int
+var GOSSIP_MAX_TELLING_IN_ONE_TICK int
+
+var SH2_MAP []string
+
 func maxInt(n1, n2 int) int {
     if n1>n2 {
         return n1
@@ -106,7 +114,7 @@ func InitAll() bool {
         Secretary.WarnD("The configuration variable MAX_NUMBER_OF_CACHED_ACTIVE_FD is too small and is set to 100 automatically.")
         MAX_NUMBER_OF_CACHED_ACTIVE_FD=100
     }
-    MAX_NUMBER_OF_CACHED_DORMANT_FD =int(extractProperty("max_number_of_cached_active_fd").(float64))
+    MAX_NUMBER_OF_CACHED_DORMANT_FD =int(extractProperty("max_number_of_cached_dormant_fd").(float64))
     if MAX_NUMBER_OF_CACHED_DORMANT_FD<100 {
         Secretary.WarnD("The configuration variable MAX_NUMBER_OF_CACHED_DORMANT_FD is too small and is set to 100 automatically.")
         MAX_NUMBER_OF_CACHED_DORMANT_FD=100
@@ -163,6 +171,47 @@ func InitAll() bool {
     ADMIN_REFRESH_FREQUENCY         =int64(extractProperty("inner_service_admin_refresh_frequency_in_second").(float64))
     if ADMIN_REFRESH_FREQUENCY<0 {
         ADMIN_REFRESH_FREQUENCY=0
+    }
+
+    GOSSIP_BUFFER_SIZE              =int(extractProperty("gossip_buffer_size").(float64))
+    if GOSSIP_BUFFER_SIZE<100 {
+        Secretary.WarnD("The configuration variable GOSSIP_BUFFER_SIZE is too small and is set to 100 automatically.")
+        GOSSIP_BUFFER_SIZE=100
+    }
+    GOSSIP_PERIOD_IN_MS             =int(extractProperty("gossip_period_in_ms").(float64))
+    GOSSIP_RETELL_TIMES             =int(extractProperty("gossip_retell_times").(float64))
+    if GOSSIP_RETELL_TIMES<1 {
+        Secretary.WarnD("The configuration variable GOSSIP_RETELL_TIMES is too small and is set to 1 automatically.")
+        GOSSIP_RETELL_TIMES=1
+    }
+    GOSSIP_MAX_DELIVERED_IN_ONE_TICK=int(extractProperty("gossip_max_delivered_in_one_tick").(float64))
+    if GOSSIP_MAX_DELIVERED_IN_ONE_TICK<10 {
+        Secretary.WarnD("The configuration variable GOSSIP_MAX_DELIVERED_IN_ONE_TICK is too small and is set to 10 automatically.")
+        GOSSIP_MAX_DELIVERED_IN_ONE_TICK=10
+    }
+    GOSSIP_MAX_TELLING_IN_ONE_TICK  =int(extractProperty("gossip_max_telling_in_one_tick").(float64))
+    if GOSSIP_MAX_TELLING_IN_ONE_TICK<1 {
+        Secretary.WarnD("The configuration variable GOSSIP_MAX_TELLING_IN_ONE_TICK is too small and is set to 1 automatically.")
+        GOSSIP_MAX_TELLING_IN_ONE_TICK=1
+    }
+
+    var tmp=extractProperty("cluster_innerServices_addr").([]interface{})
+    if len(tmp)!=NODE_NUMS_IN_ALL {
+        Secretary.ErrorD("Confuration cluster_innerServices_addr doesn't match NODE_NUMS_IN_ALL. ALL intra-communication utilities will be closed.")
+        GOSSIP_PERIOD_IN_MS=-1  //disable gossip
+    } else {
+        SH2_MAP=make([]string, NODE_NUMS_IN_ALL)
+        for i, e:=range tmp {
+            if i!=NODE_NUMBER {
+                if str, ok:=e.(string); !ok {
+                    Secretary.ErrorD("Confuration cluster_innerServices_addr has wrong format. ALL intra-communication utilities will be closed.")
+                    GOSSIP_PERIOD_IN_MS=-1
+                    break
+                } else {
+                    SH2_MAP[i]=str
+                }
+            }
+        }
     }
 
     return true
