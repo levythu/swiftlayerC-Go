@@ -1,7 +1,6 @@
 package gossip
 
 import (
-    . "definition"
 )
 
 // DEPRECATED

@@ -4,6 +4,9 @@ import (
     . "definition"
     "sync"
     "errors"
+    . "logger"
+    "fmt"
+    "time"
 )
 
 type BufferedGossiper struct {
@@ -14,10 +17,13 @@ type BufferedGossiper struct {
 
     BufferSize int
 
+    // EnsureTellCount is the times of propagation for each posted gossip
     EnsureTellCount int
 
+    // TellMaxCount is the max number of gossips that can be delivered in one tick
     TellMaxCount int
 
+    // ParallelTell is the number of nodes told in one tick
     ParallelTell int
 
     // ===============================
@@ -39,13 +45,14 @@ func (this *BufferedGossiper)SetGossipingFunc(do func(addr Tout, content []Tout)
 }
 
 func NewBufferedGossiper(bufferSize int) *BufferedGossiper {
-    return &*BufferedGossiper {
+    return &BufferedGossiper {
         BufferSize: bufferSize,
         head: 0,
         tail: 0,
         len: 0,
         buffer: make([]Tout, bufferSize),
         gCount: make([]int, bufferSize),
+        stdGossiperListImplementation: &stdGossiperListImplementation{},
     }
 }
 
@@ -59,8 +66,8 @@ func (this *BufferedGossiper)PostGossip(content Tout) error {
     }
     this.len++
 
-    buffer[this.tail]=content
-    gCount[this.tail]=this.EnsureTellCount
+    this.buffer[this.tail]=content
+    this.gCount[this.tail]=this.EnsureTellCount
     this.tail++
     if this.tail>=this.BufferSize {
         this.tail-=this.BufferSize
@@ -70,16 +77,31 @@ func (this *BufferedGossiper)PostGossip(content Tout) error {
 }
 
 func (this *BufferedGossiper)gossip(content []Tout) {
-    var c=
+    if len(content)==0 {
+        return
+    }
+    var taskList, err=this.stdGossiperListImplementation.RandList(this.ParallelTell)
+    if err!=nil {
+        Secretary.Error("gossip::BufferedGossiper.gossip()", "Unable to gossip due to "+err.Error())
+        return
+    }
+    for _, e:=range taskList {
+        go (func(x Tout) {
+            if err:=this.do(x, content); err!=nil {
+                Secretary.Warn("gossip::BufferedGossiper.gossip()", "Failed to gossip to "+fmt.Sprint(x)+": "+err.Error())
+                // TODO: retry others?
+            }
+        })(e)
+    }
 }
 func (this *BufferedGossiper)onTick() {
     this.lenLock.Lock()
-    defer this.lenLock.Unlock()
 
     var c=this.len
     if c>this.TellMaxCount {
         c=this.TellMaxCount
     }
+
     var res=make([]Tout, c)
 
     var p=this.head
@@ -98,13 +120,19 @@ func (this *BufferedGossiper)onTick() {
             this.head-=this.BufferSize
         }
     }
+    this.lenLock.Unlock()
 
-    go this.gossip(res)
+    this.gossip(res)
 }
 
 func (this *BufferedGossiper)Launch() error {
     if this.PeriodInMillisecond<0 {
         return nil
     }
-
+    Secretary.Log("gossip::BufferedGossiper.Launch()", "Gossiper is launched.")
+    var dur=time.Duration(this.PeriodInMillisecond)*time.Millisecond
+    for {
+        this.onTick()
+        time.Sleep(dur)
+    }
 }
