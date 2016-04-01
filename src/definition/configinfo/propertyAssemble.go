@@ -48,6 +48,8 @@ var GOSSIP_RETELL_TIMES int
 var GOSSIP_MAX_DELIVERED_IN_ONE_TICK int
 var GOSSIP_MAX_TELLING_IN_ONE_TICK int
 
+var SH2_MAP []string
+
 func maxInt(n1, n2 int) int {
     if n1>n2 {
         return n1
@@ -191,6 +193,25 @@ func InitAll() bool {
     if GOSSIP_MAX_TELLING_IN_ONE_TICK<1 {
         Secretary.WarnD("The configuration variable GOSSIP_MAX_TELLING_IN_ONE_TICK is too small and is set to 1 automatically.")
         GOSSIP_MAX_TELLING_IN_ONE_TICK=1
+    }
+
+    var tmp=extractProperty("cluster_innerServices_addr").([]interface{})
+    if len(tmp)!=NODE_NUMS_IN_ALL {
+        Secretary.ErrorD("Confuration cluster_innerServices_addr doesn't match NODE_NUMS_IN_ALL. ALL intra-communication utilities will be closed.")
+        GOSSIP_PERIOD_IN_MS=-1  //disable gossip
+    } else {
+        SH2_MAP=make([]string, NODE_NUMS_IN_ALL)
+        for i, e:=range tmp {
+            if i!=NODE_NUMBER {
+                if str, ok:=e.(string); !ok {
+                    Secretary.ErrorD("Confuration cluster_innerServices_addr has wrong format. ALL intra-communication utilities will be closed.")
+                    GOSSIP_PERIOD_IN_MS=-1
+                    break
+                } else {
+                    SH2_MAP[i]=str
+                }
+            }
+        }
     }
 
     return true
