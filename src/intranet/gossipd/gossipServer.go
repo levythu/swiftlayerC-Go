@@ -1,10 +1,10 @@
-package intranet
+package gossipd
 
 import (
     . "github.com/levythu/gurgling"
 )
 
-func getGossipRouter() Router {
+func GetGossipRouter() Router {
     var r=ARouter()
 
     return r

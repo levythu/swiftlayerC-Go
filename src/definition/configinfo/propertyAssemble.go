@@ -217,4 +217,14 @@ func InitAll() bool {
     return true
 }
 
+func FilterSelf(src []string) []string {
+    var ret=[]string{}
+    for i, e:=range src {
+        if i!=NODE_NUMBER {
+            ret=append(ret, e)
+        }
+    }
+    return ret
+}
+
 var _=InitAll()

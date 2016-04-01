@@ -4,6 +4,7 @@ import (
     "inapi"
     . "mainpkg/public"
     "intranet"
+    "intranet/gossipd"
     . "logger"
 )
 
@@ -17,6 +18,7 @@ func main() {
     var exitCh=make(chan bool)
 
     go intranet.Entry(exitCh)
+    go gossipd.Entry(exitCh)
     go inapi.Entry(exitCh)
     go WaitForSig(exitCh)
 
