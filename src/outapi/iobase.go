@@ -15,6 +15,11 @@ type Outapi interface {
 
     GenerateUniqueID() string
 
+    // Recognize the unique id of this kind. If match, generate one instance.
+    // else, returns nil
+    // @ Static
+    RecognizeSelf(name string) Outapi
+
     // Need not have typestamp in FileMeta. It will be set according to content's record automatically.
     // Filemeta could be nil.
     Put(filename string, content filetype.Filetype, info FileMeta) error
@@ -64,4 +69,14 @@ func ForceCheckExist(ex bool, err error) bool {
         return false
     }
     return ex
+}
+
+var enumTypes=[]Outapi{&Swiftio{}, &Emptyio{}}
+func DeSerializeID(name string) Outapi {
+    for _, e:=range enumTypes {
+        if t:=e.RecognizeSelf(name); t!=nil {
+            return t
+        }
+    }
+    return nil
 }

@@ -65,8 +65,19 @@ func DupSwiftio(oldio *Swiftio, _container string) *Swiftio {
     }
 }
 
+const (
+    swift_pfx="outapi.Swiftio: "
+)
 func (this *Swiftio)GenerateUniqueID() string {
-    return "outapi.Swiftio: "+this.container
+    return swift_pfx+this.container
+}
+func (_ *Swiftio)RecognizeSelf(name string) Outapi {
+    if strings.HasPrefix(name, swift_pfx) {
+        // Attentez: return one using DefaultConnector
+        return NewSwiftio(DefaultConnector, name[len(swift_pfx):])
+    } else {
+        return nil
+    }
 }
 
 func (this *Swiftio)Getinfo(filename string) (FileMeta, error) {

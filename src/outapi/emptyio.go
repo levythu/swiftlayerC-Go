@@ -20,6 +20,13 @@ type EmptyIO struct {
 func (this *EmptyIO)GenerateUniqueID() string {
     return "outapi.EmptyIO"
 }
+func (_ *EmptyIO)RecognizeSelf(name string) Outapi {
+    if name=="outapi.EmptyIO" {
+        return &EmptyIO{}
+    } else {
+        return nil
+    }
+}
 
 // Need not have timestamp in FileMeta. It will be set according to content's record automatically.
 // So do typestamp.
