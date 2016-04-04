@@ -71,7 +71,7 @@ func ForceCheckExist(ex bool, err error) bool {
     return ex
 }
 
-var enumTypes=[]Outapi{&Swiftio{}, &Emptyio{}}
+var enumTypes=[]Outapi{&Swiftio{}, &EmptyIO{}}
 func DeSerializeID(name string) Outapi {
     for _, e:=range enumTypes {
         if t:=e.RecognizeSelf(name); t!=nil {
