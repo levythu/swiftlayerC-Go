@@ -14,6 +14,8 @@ type Gossiper interface {
 
     // the list passed in will be replicated.
     SetGossiperList(list []Tout) error
+
+    // the do func will get invoked asynchonously
     SetGossipingFunc(do func(addr Tout, content []Tout) error)
 
     // a deamon function
