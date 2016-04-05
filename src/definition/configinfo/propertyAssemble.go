@@ -195,16 +195,16 @@ func InitAll() bool {
         GOSSIP_MAX_TELLING_IN_ONE_TICK=1
     }
 
-    var tmp=extractProperty("cluster_innerServices_addr").([]interface{})
+    var tmp=extractProperty("cluster_inner_services_addr_list").([]interface{})
     if len(tmp)!=NODE_NUMS_IN_ALL {
-        Secretary.ErrorD("Confuration cluster_innerServices_addr doesn't match NODE_NUMS_IN_ALL. ALL intra-communication utilities will be closed.")
+        Secretary.ErrorD("Confuration cluster_inner_services_addr_list doesn't match NODE_NUMS_IN_ALL. ALL intra-communication utilities will be closed.")
         GOSSIP_PERIOD_IN_MS=-1  //disable gossip
     } else {
         SH2_MAP=make([]string, NODE_NUMS_IN_ALL)
         for i, e:=range tmp {
             if i!=NODE_NUMBER {
                 if str, ok:=e.(string); !ok {
-                    Secretary.ErrorD("Confuration cluster_innerServices_addr has wrong format. ALL intra-communication utilities will be closed.")
+                    Secretary.ErrorD("Confuration cluster_inner_services_addr_list has wrong format. ALL intra-communication utilities will be closed.")
                     GOSSIP_PERIOD_IN_MS=-1
                     break
                 } else {

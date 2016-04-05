@@ -30,7 +30,7 @@
     "inner_service_listener": ":2333",
 
     /*  The order must be consistent to node number assignment.*/
-    "cluster_innerServices_addr": [null, "controller:2333"],
+    "cluster_inner_services_addr_list": [null, "controller:2333"],
 
     /*  Leave the user field empty means no auth for admin. */
     "inner_service_admin_user": "levy",
