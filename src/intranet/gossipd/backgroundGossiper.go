@@ -6,7 +6,8 @@ import (
     . "logger"
     . "definition"
     "errors"
-    "stringss"
+    . "intranet/gossipd/interactive"
+    "strings"
     "fmt"
 )
 

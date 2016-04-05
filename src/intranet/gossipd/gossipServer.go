@@ -3,12 +3,28 @@ package gossipd
 import (
     . "github.com/levythu/gurgling"
     "io/ioutil"
+    "outapi"
+    dvc "kernel/distributedvc"
     . "logger"
+    . "intranet/gossipd/interactive"
 )
 
-
+// @ async
 func checkGossipedData(src []*GossipEntry) {
-
+    for _, e:=range src {
+        if io:=outapi.DeSerializeID(e.OutAPI); io==nil {
+            Secretary.Warn("gossipd::checkGossipedData()", "Invalid Outapi DeSerializing: "+e.OutAPI)
+            continue
+        } else {
+            if fd:=dvc.GetFD(e.Filename, io); fd==nil {
+                Secretary.Warn("gossipd::checkGossipedData()", "Fail to get FD for "+e.Filename)
+                continue
+            } else {
+                // TODO!
+                fd.Release()
+            }
+        }
+    }
 }
 /*
 ** GOSSIP API: Posted
@@ -29,7 +45,8 @@ func OnPostedGossip(req Request, res Response) {
             return
         }
 
-
+        go checkGossipedData(pList)
+        res.SendCode(200)
     }
 }
 

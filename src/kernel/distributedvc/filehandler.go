@@ -12,6 +12,8 @@ import (
     . "definition/configinfo"
     . "utils/timestamp"
     "time"
+    gsp "intranet/gossip"
+    gspdi "intranet/gossipd/interactive"
     "errors"
 )
 
@@ -64,6 +66,8 @@ type FD struct {
     lastSyncTime int64
     latestReadableVersionTS ClxTimestamp
     modified bool
+    // only if merged with other nodes' patches more than once
+    needsGossiped bool
 }
 
 // Lock priority: lock > updateChainLock > contentLock
@@ -92,6 +96,7 @@ func newFD(filename string, io Outapi) *FD {
         lastSyncTime: 0,
         latestReadableVersionTS: 0,     // This version is for written version
         modified: false,
+        needsGossiped: false,
     }
     ret.trashNode=&fdDLinkedListNode {
         carrier: ret,
@@ -225,6 +230,7 @@ func (this *FD)ReadInNumberZero() error {
     }
     this.status=1
     this.modified=false
+    this.needsGossiped=false
     return nil
 }
 
@@ -335,6 +341,7 @@ func (this *FD)MergeNext() error {
     this.numberZero=tNew
     this.nextToBeMerge=theNext
     this.modified=true
+    this.needsGossiped=true
 
     Secretary.Log("distributedvc::FD.MergeNext()", "Successfully merged in patch #"+strconv.Itoa(oldMerged)+" for "+this.filename)
     return nil
@@ -652,6 +659,7 @@ func (this *FD)combineNodeX(nodenumber int) error {
     this.numberZero.TSet(newTS)
     this.numberZero.CheckIn()
     this.modified=true
+    this.needsGossiped=true
 
     return nil
 }
@@ -759,6 +767,7 @@ func (this *FD)Sync() error {
         this.numberZero.MergeWith(filetype.FastMake(CONF_FLAG_PREFIX+NODE_SYNC_TIME_PREFIX+strconv.Itoa(NODE_NUMBER)))
         this.numberZero.MergeWith(thePatch)
         this.modified=true
+        this.needsGossiped=true
     }
     this.lastSyncTime=time.Now().Unix()
 
@@ -784,8 +793,20 @@ func (this *FD)WriteBack() error {
     if err:=this.io.Put(this.GetPatchName(0, -1), this.numberZero, meta4Set); err!=nil {
         return err
     }
+    if this.needsGossiped {
+        var err=gsp.GlobalGossiper.PostGossip(&gspdi.GossipEntry{
+            Filename: this.filename,
+            OutAPI: this.io.GenerateUniqueID(),
+            UpdateTime: this.numberZero.TGet(),
+            NodeNumber: NODE_NUMBER,
+        })
+        if err!=nil {
+            Secretary.Warn("distributedvc::FD.WriteBack", "Fail to post change gossiping to other nodes: "+err.Error())
+        }
+    }
 
     this.modified=false
+    this.needsGossiped=false
     this.latestReadableVersionTS=this.numberZero.TGet()
 
     return nil

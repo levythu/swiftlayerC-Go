@@ -1,10 +1,9 @@
-package gossipd
+package interactive
 
 import (
     . "utils/timestamp"
-    "strcov"
+    "strconv"
     . "definition"
-    "fmt"
     "strings"
     "errors"
 )
@@ -12,14 +11,18 @@ import (
 // implementation for the format to gossip
 
 type GossipEntry struct {
-    FDID string
+    Filename string
+    OutAPI string
     UpdateTime ClxTimestamp
     NodeNumber int
 }
 
 // Just segment them with \n
 func (this *GossipEntry)Stringify() string {
-    return this.FDID+"\n"+this.UpdateTime.String()+"\n"+strconv.Itoa(this.NodeNumber)
+    return  this.Filename+"\n"+
+            this.OutAPI+"\n"+
+            this.UpdateTime.String()+"\n"+
+            strconv.Itoa(this.NodeNumber)
 }
 
 func BatchStringify(src []Tout) (string, error) {
@@ -40,37 +43,39 @@ func BatchStringify(src []Tout) (string, error) {
 
 // For errors returns nil
 func ParseOne(src string) *GossipEntry {
-    var res=strings.SplitN(src, "\n", 3)
-    if len(res)!=3 {
+    var res=strings.SplitN(src, "\n", 4)
+    if len(res)!=4 {
         return nil
     }
-    var pInt, err:=strconv.Atoi(res[2])
+    var pInt, err=strconv.Atoi(res[3])
     if err!=nil {
         return nil
     }
 
     return &GossipEntry {
-        FDID: res[0],
-        UpdateTime: String2ClxTimestamp(res[1]),
+        Filename: res[0],
+        OutAPI: res[1],
+        UpdateTime: String2ClxTimestamp(res[2]),
         NodeNumber: pInt,
     }
 }
 
 // For errors returns nil
 func ParseAll(src string) []*GossipEntry {
-    var res=strings.SplitN(src, "\n")
-    if len(res)%3!=0 {
+    var res=strings.Split(src, "\n")
+    if len(res)%4!=0 {
         return nil
     }
     var result=[]*GossipEntry{}
-    for i:=0; i<len(res); i+=3 {
-        var pInt, err:=strconv.Atoi(res[i+2])
+    for i:=0; i<len(res); i+=4 {
+        var pInt, err=strconv.Atoi(res[i+3])
         if err!=nil {
             return nil
         }
         result=append(result, &GossipEntry {
-            FDID: res[i],
-            UpdateTime: String2ClxTimestamp(res[i+1]),
+            Filename: res[i],
+            OutAPI: res[i+1],
+            UpdateTime: String2ClxTimestamp(res[i+2]),
             NodeNumber: pInt,
         })
     }
