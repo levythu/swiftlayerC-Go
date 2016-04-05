@@ -22,9 +22,6 @@ func Entry(exit chan bool) {
     if r:=gossipd.GetGossipRouter(); r!=nil {
         rootRouter.Use("/gossip", r)
     }
-    if r:=getPingRouter(); r!=nil {
-        rootRouter.Use("/ping", r)
-    }
     if r:=getAdminPageRouter(); r!=nil {
         rootRouter.Use("/admin", r)
     }

@@ -8,12 +8,21 @@ import (
     . "logger"
     gsp "intranet/gossip"
     . "intranet/gossipd/interactive"
+    "intranet/ping"
 )
 
 // @ async
 func checkGossipedData(src []*GossipEntry) {
     // TODO: whether use multi-routine?
     for _, e:=range src {
+        if e.OutAPI==OUTAPI_PLACEHOLDER_PING_FLAG {
+            if ping.Pong(e) {
+                if err:=gsp.GlobalGossiper.PostGossip(e); err!=nil {
+                    Secretary.Warn("gossipd::checkGossipedData", "Fail to post heartbeat gossiping to other nodes: "+err.Error())
+                }
+            }
+            continue
+        }
         if io:=outapi.DeSerializeID(e.OutAPI); io==nil {
             Secretary.Warn("gossipd::checkGossipedData()", "Invalid Outapi DeSerializing: "+e.OutAPI)
             continue
