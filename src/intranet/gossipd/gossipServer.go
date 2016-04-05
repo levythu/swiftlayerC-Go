@@ -20,7 +20,17 @@ func checkGossipedData(src []*GossipEntry) {
                 Secretary.Warn("gossipd::checkGossipedData()", "Fail to get FD for "+e.Filename)
                 continue
             } else {
-                // TODO!
+                fd.GraspReader()
+                if !fd.ASYNCMergeWithNodeX(e) {
+                    // the fd need not gossiped. SO just propagate the original one
+                    if err:=GlobalGossiper.PostGossip(e); err!=nil {
+                        Secretary.Warn("gossipd::checkGossipedData", "Fail to post change gossiping to other nodes: "+err.Error())
+                    }
+                } else {
+                    // the file itself needs gossiping. wait for it to writeback and trigger gossiping
+                    // DO NOTHING now
+                }
+                fd.ReleaseReader()
                 fd.Release()
             }
         }

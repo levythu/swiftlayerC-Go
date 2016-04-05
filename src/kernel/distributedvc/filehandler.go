@@ -606,7 +606,7 @@ func (this *FD)_LoadPointerMap_SyncUseOnly() error {
     return nil
 }
 // @ DEPRECATED
-func (this *FD)combineNodeX(nodenumber int) error {
+func (this *FD)__deprecated__combineNodeX(nodenumber int) error {
     if nodenumber==NODE_NUMBER {
         return nil
     }
@@ -665,7 +665,7 @@ func (this *FD)combineNodeX(nodenumber int) error {
 }
 // Read and combine all the version from other nodes, providing the combined version.
 // @ Get Reader Grasped
-func (this *FD)Sync() error {
+func (this *FD)__deprecated__Sync() error {
     var nowTime=time.Now().Unix()
     if this.lastSyncTime+SINGLE_FILE_SYNC_INTERVAL_MIN>nowTime {
         // interval is too small, abort the sync.
@@ -772,6 +772,93 @@ func (this *FD)Sync() error {
     this.lastSyncTime=time.Now().Unix()
 
     return nil
+}
+// Read the current version. Submit an empty patch if needed
+// @ Get Reader Grasped
+func (this *FD)Sync() error {
+    var nowTime=time.Now().Unix()
+    if this.lastSyncTime+SINGLE_FILE_SYNC_INTERVAL_MIN>nowTime {
+        // interval is too small, abort the sync.
+        return nil
+    }
+    // Submit #0 patch if needed
+    this._LoadPointerMap_SyncUseOnly()
+
+    // read patch 0 from container. If just submit, the function will exit immediately
+    this.ReadInNumberZero()
+
+    this.lastSyncTime=time.Now().Unix()
+
+    return nil
+}
+// @ Grasped Reader
+// bool==needsGossiped
+func (this *FD)ASYNCMergeWithNodeX(context *gspdi.GossipEntry) bool {
+    // Submit #0 patch if needed
+    this._LoadPointerMap_SyncUseOnly()
+
+    // read patch 0 from container. If just submit, the function will exit immediately
+    this.ReadInNumberZero()
+
+
+    this.contentLock.RLock()
+    defer this.contentLock.RUnlock()
+
+    go (func(){
+        this.contentLock.Lock()
+
+        if this.numberZero==nil {
+            Insider.Log("distributedvc::FD.ASYNCMergeWithNodeX", "Looks like a logical isle: this.numberZero==nil")
+            Secretary.Error("distributedvc::FD.ASYNCMergeWithNodeX", "Looks like a logical isle: this.numberZero==nil")
+            this.contentLock.Unlock()
+            return
+        }
+        if this.numberZero.Kvm==nil {
+            this.numberZero.CheckOut()
+        }
+
+        var keyStoreName=CONF_FLAG_PREFIX+NODE_SYNC_TIME_PREFIX+strconv.Itoa(context.NodeNumber)
+        var lastTime ClxTimestamp
+        if elem, ok:=this.numberZero.Kvm[keyStoreName]; ok {
+            lastTime=elem.Timestamp
+        } else {
+            lastTime=0
+        }
+        if lastTime>=context.UpdateTime {
+            this.contentLock.Unlock()
+            return
+        }
+        this.contentLock.Unlock()
+
+        var file, _, err=readInKvMapfile_NoWarning(this.io, this.GetPatchName(0, context.NodeNumber))
+        if file==nil {
+            if err==nil {
+                Secretary.Warn("distributedvc::FD.MergeWithNodeX", "Fail to get gossiped file: nonexist")
+            } else {
+                Secretary.Warn("distributedvc::FD.MergeWithNodeX", "Fail to get gossiped file: "+err.Error())
+            }
+            return
+        }
+
+        this.contentLock.Lock()
+        defer this.contentLock.Unlock()
+        if elem, ok:=this.numberZero.Kvm[keyStoreName]; ok {
+            lastTime=elem.Timestamp
+        } else {
+            lastTime=0
+        }
+        if lastTime>=context.UpdateTime {
+            return
+        }
+        if lastTime>=file.TGet() {
+            return
+        }
+        this.numberZero.MergeWith(file)
+        this.numberZero.MergeWith(filetype.FastMake(CONF_FLAG_PREFIX+NODE_SYNC_TIME_PREFIX+strconv.Itoa(NODE_NUMBER)))
+        this.modified=true
+    })()
+
+    return this.needsGossiped
 }
 
 // can be invoked after MergeWith(), Sync() or the moment that the FD goes dormant.
