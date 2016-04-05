@@ -6,11 +6,13 @@ import (
     "outapi"
     dvc "kernel/distributedvc"
     . "logger"
+    gsp "intranet/gossip"
     . "intranet/gossipd/interactive"
 )
 
 // @ async
 func checkGossipedData(src []*GossipEntry) {
+    // TODO: whether use multi-routine?
     for _, e:=range src {
         if io:=outapi.DeSerializeID(e.OutAPI); io==nil {
             Secretary.Warn("gossipd::checkGossipedData()", "Invalid Outapi DeSerializing: "+e.OutAPI)
@@ -23,7 +25,7 @@ func checkGossipedData(src []*GossipEntry) {
                 fd.GraspReader()
                 if !fd.ASYNCMergeWithNodeX(e) {
                     // the fd need not gossiped. SO just propagate the original one
-                    if err:=GlobalGossiper.PostGossip(e); err!=nil {
+                    if err:=gsp.GlobalGossiper.PostGossip(e); err!=nil {
                         Secretary.Warn("gossipd::checkGossipedData", "Fail to post change gossiping to other nodes: "+err.Error())
                     }
                 } else {

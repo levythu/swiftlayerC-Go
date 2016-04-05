@@ -8,7 +8,7 @@ import (
     "errors"
     . "intranet/gossipd/interactive"
     "strings"
-    "fmt"
+    "net/http"
 )
 
 func convStrToTout(src []string) []Tout {
@@ -28,7 +28,7 @@ var (
 
 var gossipHTTPclient=&http.Client{}
 func GossipViaHTTP(addr Tout, content []Tout) error {
-    var addrStr, ok:=addr.(string)
+    var addrStr, ok=addr.(string)
     if !ok {
         return ADDR_FORMAT_ERROR
     }
@@ -36,7 +36,7 @@ func GossipViaHTTP(addr Tout, content []Tout) error {
         return CONT_FORMAT_ERROR
     } else {
         // DO HTTP REQUEST
-        var res, err=gossipHTTPclient.Post("http://"+addr+"/gossip", "test/plain; charset=utf-8", strings.NewReader(content))
+        var res, err=gossipHTTPclient.Post("http://"+addrStr+"/gossip", "test/plain; charset=utf-8", strings.NewReader(content))
         if err!=nil {
             return CONNECT_ERROR
         }
@@ -50,7 +50,7 @@ func GossipViaHTTP(addr Tout, content []Tout) error {
     }
 }
 
-func Init() {
+func init() {
     var ret=gsp.NewBufferedGossiper(conf.GOSSIP_BUFFER_SIZE)
     ret.PeriodInMillisecond=conf.GOSSIP_PERIOD_IN_MS
     ret.EnsureTellCount=conf.GOSSIP_RETELL_TIMES
