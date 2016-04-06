@@ -13,7 +13,7 @@ const OUTAPI_PLACEHOLDER_PING_FLAG="$SYS.PING"
 // implementation for the format to gossip
 // if OutAPI==OUTAPI_PLACEHOLDER_PING_FLAG, the entry is a sync heartbeat, in which
 // the UpdateTime indicate the sending time, NodeNumber indicates the initial node and,
-// Filename is the senders API address
+// Filename is the senders API address(NOT IMPLEMENTED YET)
 
 type GossipEntry struct {
     Filename string

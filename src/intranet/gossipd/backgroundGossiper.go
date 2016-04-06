@@ -63,10 +63,13 @@ func init() {
 }
 
 func Entry(exit chan bool) {
-    defer (func(){
-        exit<-false
-    })()
 
     Secretary.Log("gossipd::Entry", "Backgroud Gossiper is going to launch.")
-    gsp.GlobalGossiper.Launch()
+    if gsp.GlobalGossiper.Launch()==nil {
+        // exist without notifying
+        return
+    } else {
+        // errors happens, exit the whole program.
+        exit<-false
+    }
 }

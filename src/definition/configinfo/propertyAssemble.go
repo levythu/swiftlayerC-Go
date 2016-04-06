@@ -42,6 +42,8 @@ var ADMIN_USER string
 var ADMIN_PASSWORD string
 var ADMIN_REFRESH_FREQUENCY int64
 
+var HEARTBEAT_PING_INTERVAL int
+
 var GOSSIP_BUFFER_SIZE int
 var GOSSIP_PERIOD_IN_MS int
 var GOSSIP_RETELL_TIMES int
@@ -172,6 +174,8 @@ func InitAll() bool {
     if ADMIN_REFRESH_FREQUENCY<0 {
         ADMIN_REFRESH_FREQUENCY=0
     }
+
+    HEARTBEAT_PING_INTERVAL         =int(extractProperty("heartbeat_ping_interval_in_ms").(float64))
 
     GOSSIP_BUFFER_SIZE              =int(extractProperty("gossip_buffer_size").(float64))
     if GOSSIP_BUFFER_SIZE<100 {
