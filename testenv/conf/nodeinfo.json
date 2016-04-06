@@ -30,7 +30,7 @@
     "inner_service_listener": ":2333",
 
     /*  The order must be consistent to node number assignment.*/
-    "cluster_innerServices_addr": [null, "controller:2333"],
+    "cluster_inner_services_addr_list": [null, "controller:2333"],
 
     /*  Leave the user field empty means no auth for admin. */
     "inner_service_admin_user": "levy",
@@ -50,10 +50,13 @@
         disable log caching and thus inpsection online will be disabled. */
     "cached_log_capacity": 0,
 
+    /*  <=0 for no heart beat. */
+    "heartbeat_ping_interval_in_ms": 10000,
+
     /*  =================== FOR GOSSIP PROTOCOL =================== */
     "gossip_period_in_ms": 500,
     "gossip_buffer_size": 1000,
-    "gossip_retell_times": 10,
+    "gossip_retell_times": 2,
     "gossip_max_delivered_in_one_tick": 1000,
     "gossip_max_telling_in_one_tick": 2
     /*  =================== END GOSSIP PROTOCOL =================== */

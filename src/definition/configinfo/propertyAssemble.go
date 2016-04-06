@@ -42,6 +42,8 @@ var ADMIN_USER string
 var ADMIN_PASSWORD string
 var ADMIN_REFRESH_FREQUENCY int64
 
+var HEARTBEAT_PING_INTERVAL int
+
 var GOSSIP_BUFFER_SIZE int
 var GOSSIP_PERIOD_IN_MS int
 var GOSSIP_RETELL_TIMES int
@@ -173,6 +175,8 @@ func InitAll() bool {
         ADMIN_REFRESH_FREQUENCY=0
     }
 
+    HEARTBEAT_PING_INTERVAL         =int(extractProperty("heartbeat_ping_interval_in_ms").(float64))
+
     GOSSIP_BUFFER_SIZE              =int(extractProperty("gossip_buffer_size").(float64))
     if GOSSIP_BUFFER_SIZE<100 {
         Secretary.WarnD("The configuration variable GOSSIP_BUFFER_SIZE is too small and is set to 100 automatically.")
@@ -195,16 +199,16 @@ func InitAll() bool {
         GOSSIP_MAX_TELLING_IN_ONE_TICK=1
     }
 
-    var tmp=extractProperty("cluster_innerServices_addr").([]interface{})
+    var tmp=extractProperty("cluster_inner_services_addr_list").([]interface{})
     if len(tmp)!=NODE_NUMS_IN_ALL {
-        Secretary.ErrorD("Confuration cluster_innerServices_addr doesn't match NODE_NUMS_IN_ALL. ALL intra-communication utilities will be closed.")
+        Secretary.ErrorD("Confuration cluster_inner_services_addr_list doesn't match NODE_NUMS_IN_ALL. ALL intra-communication utilities will be closed.")
         GOSSIP_PERIOD_IN_MS=-1  //disable gossip
     } else {
         SH2_MAP=make([]string, NODE_NUMS_IN_ALL)
         for i, e:=range tmp {
             if i!=NODE_NUMBER {
                 if str, ok:=e.(string); !ok {
-                    Secretary.ErrorD("Confuration cluster_innerServices_addr has wrong format. ALL intra-communication utilities will be closed.")
+                    Secretary.ErrorD("Confuration cluster_inner_services_addr_list has wrong format. ALL intra-communication utilities will be closed.")
                     GOSSIP_PERIOD_IN_MS=-1
                     break
                 } else {
@@ -215,6 +219,16 @@ func InitAll() bool {
     }
 
     return true
+}
+
+func FilterSelf(src []string) []string {
+    var ret=[]string{}
+    for i, e:=range src {
+        if i!=NODE_NUMBER {
+            ret=append(ret, e)
+        }
+    }
+    return ret
 }
 
 var _=InitAll()

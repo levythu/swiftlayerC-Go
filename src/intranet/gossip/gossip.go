@@ -5,8 +5,8 @@ import (
     "sync"
     "utils/random"
     "errors"
-    "fmt"
-    conf "definition/configinfo"
+    _ "fmt"
+    //conf "definition/configinfo"
 )
 
 type Gossiper interface {
@@ -14,13 +14,16 @@ type Gossiper interface {
 
     // the list passed in will be replicated.
     SetGossiperList(list []Tout) error
+
+    // the do func will get invoked asynchonously
     SetGossipingFunc(do func(addr Tout, content []Tout) error)
 
     // a deamon function
     Launch() error
 }
 
-var GlobalGossiper Gossiper=(func() Gossiper {
+var GlobalGossiper Gossiper=nil
+/*var GlobalGossiper Gossiper=(func() Gossiper {
     var ret=NewBufferedGossiper(conf.GOSSIP_BUFFER_SIZE)
     ret.PeriodInMillisecond=conf.GOSSIP_PERIOD_IN_MS
     ret.EnsureTellCount=conf.GOSSIP_RETELL_TIMES
@@ -33,7 +36,7 @@ var GlobalGossiper Gossiper=(func() Gossiper {
     })
 
     return ret
-})()
+})()*/
 
 type stdGossiperListImplementation struct {
     list []Tout

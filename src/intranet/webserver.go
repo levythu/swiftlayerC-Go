@@ -6,6 +6,7 @@ import (
     . "github.com/levythu/gurgling"
     conf "definition/configinfo"
     . "logger"
+    "intranet/gossipd"
 )
 
 func Entry(exit chan bool) {
@@ -18,11 +19,8 @@ func Entry(exit chan bool) {
     rootRouter.Get("/", func(res Response) {
         res.Redirect("/admin")
     })
-    if r:=getGossipRouter(); r!=nil {
+    if r:=gossipd.GetGossipRouter(); r!=nil {
         rootRouter.Use("/gossip", r)
-    }
-    if r:=getPingRouter(); r!=nil {
-        rootRouter.Use("/ping", r)
     }
     if r:=getAdminPageRouter(); r!=nil {
         rootRouter.Use("/admin", r)
