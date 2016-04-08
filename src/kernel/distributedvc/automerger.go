@@ -29,21 +29,15 @@ type MergingScheduler struct {
     // if map[key]==false, an identical task has been checked-in, so when commiting,
     // another inspection is needed.
     existMap map[string]bool
-    taskQueueHead taskNode
-    taskQueueTail taskNode
-
-    taskInTotal int
+    taskQueue chan string
 }
 
 func NewScheduler() *MergingScheduler {
     var ret=&MergingScheduler {
         lock: &sync.RWMutex{},
         existMap: make(map[string]bool),
+        taskQueue: make(chan string, conf.AUTO_MERGER_TASK_QUEUE_CAPACITY),
     }
-    ret.taskQueueHead.prev=nil
-    ret.taskQueueHead.next=&ret.taskQueueTail
-    ret.taskQueueTail.next=nil
-    ret.taskQueueTail.prev=&ret.taskQueueHead
 
     return ret
 }
@@ -63,38 +57,20 @@ func (this *MergingScheduler)CheckInATask(filename string, io Outapi) error {
     }
 
 
-    if this.taskInTotal>=conf.AUTO_MERGER_TASK_QUEUE_CAPACITY {
+    if len(this.taskQueue)>=conf.AUTO_MERGER_TASK_QUEUE_CAPACITY {
         return QUEUE_CAPACITY_REACHED
     }
-    this.taskInTotal++
+    this.taskQueue<-id
 
-    var newNode=&taskNode {
-        next: &this.taskQueueTail,
-        prev: this.taskQueueTail.prev,
-        taskID: id,
-    }
-    newNode.next.prev=newNode
-    newNode.prev.next=newNode
     this.existMap[id]=true
 
     return nil
 }
 
 var NO_TASK_AVAILABLE=errors.New("No task is available in the queue.")
-// if error!=nil, some error was encountered or simply there's no task available
-func (this *MergingScheduler)ChechOutATask() (string, error) {
-    this.lock.Lock()
-    defer this.lock.Unlock()
-
-    if this.taskInTotal==0 {
-        return "", NO_TASK_AVAILABLE
-    }
-    this.taskInTotal--
-    var toDel=this.taskQueueHead.next
-    toDel.prev.next=toDel.next
-    toDel.next.prev=toDel.prev
-
-    return toDel.taskID, nil
+// if no available task, it blocks
+func (this *MergingScheduler)ChechOutATask() string {
+    return <-this.taskQueue
 }
 
 // if returns==false, it is needed to inspect the task again.
@@ -132,7 +108,6 @@ var MergeManager=&MergingSupervisor {
     lock: &sync.RWMutex{},
     workersAlive: 0,
     scheduler: NewScheduler(),
-    deamoned: false,
 }
 
 func (this *MergingSupervisor)Reveal_workersAlive() int {
@@ -143,7 +118,6 @@ func (this *MergingSupervisor)Reveal_workersAlive() int {
 }
 const (
     REVEALED_TASK_IN_WORK=1
-    REVEALED_TASK_PENDING=0
 )
 func (this *MergingSupervisor)Reveal_taskInfo() map[string]int {
     this.scheduler.lock.RLock()
@@ -152,9 +126,6 @@ func (this *MergingSupervisor)Reveal_taskInfo() map[string]int {
     var ret=make(map[string]int)
     for k, _:=range this.scheduler.existMap {
         ret[k]=REVEALED_TASK_IN_WORK
-    }
-    for p:=this.scheduler.taskQueueHead.next; p!=&this.scheduler.taskQueueTail; p=p.next {
-        ret[p.taskID]=REVEALED_TASK_PENDING
     }
 
     return ret
@@ -166,21 +137,17 @@ func (this *MergingSupervisor)SubmitTask(filename string, io Outapi) error {
         Secretary.Warn("distributedvc::MergingSupervisor.SubmitTask", "Failed to checkin task <"+filename+", "+io.GenerateUniqueID()+">: "+err.Error())
         return err
     }
-    //Secretary.Log("distributedvc::MergingSupervisor.SubmitTask", "Checked in task <"+filename+", "+io.GenerateUniqueID()+">")
-    //Insider.Log("MergingSupervisor.SubmitTask()", "Checked In")
 
-    this.spawnWorker()
-    //Insider.Log("MergingSupervisor.SubmitTask()", "Spawned and END")
     return nil
 }
 
-func (this *MergingSupervisor)reportDeath() {
+func (this *MergingSupervisor)__deprecated__reportDeath() {
     this.lock.Lock()
     defer this.lock.Unlock()
     this.workersAlive--
 }
 
-func (this *MergingSupervisor)spawnWorker() {
+func (this *MergingSupervisor)__deprecated__spawnWorker() {
     this.lock.RLock()
     if this.workersAlive>=conf.MAX_MERGING_WORKER {
         this.lock.RUnlock()
@@ -198,34 +165,14 @@ func (this *MergingSupervisor)spawnWorker() {
 }
 
 // periodically spawn a worker to finish unadopted tasks
-func (this *MergingSupervisor)Deamon() {
-    if conf.AUTO_MERGER_DEAMON_PERIOD<=0 {
-        return
-    }
-    Secretary.Log("kernel.distributedvc::Deamon", "Auto merger deamon is running at period "+strconv.Itoa(conf.AUTO_MERGER_DEAMON_PERIOD)+" second(s)")
-    var period=time.Second*time.Duration(conf.AUTO_MERGER_DEAMON_PERIOD)
-    for {
-        // RUN FOREVER
-        this.lock.RLock()
-        var t=this.workersAlive
-        this.lock.RUnlock()
-        if t==0 {
-            this.spawnWorker()
-        }
-
-        time.Sleep(period)
-    }
-}
-
-func (this *MergingSupervisor)LaunchDeamon() {
+func (this *MergingSupervisor)Launch() {
     this.lock.Lock()
     defer this.lock.Unlock()
-
-    if this.deamoned {
-        return
+    for i:=0; i<conf.MAX_MERGING_WORKER; i++ {
+        go workerProcess(this, i)
     }
-    this.deamoned=true
-    go this.Deamon()
+    Secretary.Log("distributedvc::MergingSupervisor.Launch()", "Workers #1 to #"+strconv.Itoa(conf.MAX_MERGING_WORKER)+" have all been launched.")
+    this.workersAlive+=conf.MAX_MERGING_WORKER
 }
 
 // =============================================================================
@@ -233,22 +180,10 @@ func (this *MergingSupervisor)LaunchDeamon() {
 var worker_Sleep_Duration=time.Millisecond*time.Duration(conf.REST_INTERVAL_OF_WORKER_IN_MS)
 func workerProcess(supervisor *MergingSupervisor, numbered int) {
     var myName="Merger worker #"+strconv.Itoa(numbered)
-    Secretary.Log(myName, "Worker is launched.")
+    // Secretary.Log(myName, "Worker is launched.")
     for {
         // loop until there is no task available
-        var task, err=supervisor.scheduler.ChechOutATask()
-        if err!=nil {
-            if err==NO_TASK_AVAILABLE {
-                // no task available. Suicide.
-                Secretary.Log(myName, "No available task is available. Worker is commiting suicide.")
-                supervisor.reportDeath()
-                return
-            }
-            // other bizzare error. Sleep for a while to get it
-            Secretary.Log(myName, "Encountered error when fetching new task. Sleep.")
-            time.Sleep(worker_Sleep_Duration)
-            continue
-        }
+        var task=supervisor.scheduler.ChechOutATask()
 
         Secretary.Log(myName, "Got task:   "+task)
         var writeBackCount=0
@@ -279,7 +214,7 @@ func workerProcess(supervisor *MergingSupervisor, numbered int) {
                 }
                 thisFD.WriteBack()
                 Secretary.Log(myName, "FD "+task+" has been written back once.")
-                
+
                 thisFD.ReleaseReader()
                 thisFD.Release()
             } else {
