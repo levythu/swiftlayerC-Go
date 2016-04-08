@@ -38,6 +38,7 @@
 - [ ] Implement faster merging worker by co-routine
 - [ ] Implement gossip
 - [ ] Introduce live node adding
+- [ ] Push gossiped merging task to queue
 
 ## Known Bugs
 - [ ] InApi: use constant rootNode instead of filesystem one
