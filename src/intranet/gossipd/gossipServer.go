@@ -33,15 +33,16 @@ func checkGossipedData(src []*GossipEntry) {
             } else {
                 Secretary.Log("gossipd::checkGossipedData", "Gossip received: "+e.Filename+" @ "+e.OutAPI)
                 fd.GraspReader()
-                if !fd.ASYNCMergeWithNodeX(e) {
-                    // the fd need not gossiped. SO just propagate the original one
-                    if err:=gsp.GlobalGossiper.PostGossip(e); err!=nil {
-                        Secretary.Warn("gossipd::checkGossipedData", "Fail to post change gossiping to other nodes: "+err.Error())
+                fd.ASYNCMergeWithNodeX(e, func(rse int) {
+                    if rse==1 {
+                        if err:=gsp.GlobalGossiper.PostGossip(e); err!=nil {
+                            Secretary.Warn("gossipd::checkGossipedData", "Fail to post change gossiping to other nodes: "+err.Error())
+                        }
+                    } else if rse==2 {
+                        // the file itself needs gossiping. wait for it to writeback and trigger gossiping
+                        // DO NOTHING now
                     }
-                } else {
-                    // the file itself needs gossiping. wait for it to writeback and trigger gossiping
-                    // DO NOTHING now
-                }
+                })
                 fd.ReleaseReader()
                 fd.Release()
             }
