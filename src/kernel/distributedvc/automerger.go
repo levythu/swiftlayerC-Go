@@ -277,6 +277,9 @@ func workerProcess(supervisor *MergingSupervisor, numbered int) {
                     }
                     time.Sleep(worker_Sleep_Duration)
                 }
+                thisFD.WriteBack()
+                Secretary.Log(myName, "FD "+task+" has been written back once.")
+                
                 thisFD.ReleaseReader()
                 thisFD.Release()
             } else {

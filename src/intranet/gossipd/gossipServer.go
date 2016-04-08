@@ -31,7 +31,7 @@ func checkGossipedData(src []*GossipEntry) {
                 Secretary.Warn("gossipd::checkGossipedData()", "Fail to get FD for "+e.Filename)
                 continue
             } else {
-                Secretary.Warn("gossipd::checkGossipedData", "Gossip received: "+e.Filename+" @ "+e.OutAPI)
+                Secretary.Log("gossipd::checkGossipedData", "Gossip received: "+e.Filename+" @ "+e.OutAPI)
                 fd.GraspReader()
                 if !fd.ASYNCMergeWithNodeX(e) {
                     // the fd need not gossiped. SO just propagate the original one
