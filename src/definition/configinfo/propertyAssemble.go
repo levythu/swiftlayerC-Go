@@ -34,7 +34,6 @@ var SINGLE_FILE_SYNC_INTERVAL_MIN int64
 var AUTO_MERGER_TASK_QUEUE_CAPACITY int
 var MAX_MERGING_WORKER int
 var REST_INTERVAL_OF_WORKER_IN_MS int
-var AUTO_MERGER_DEAMON_PERIOD int
 
 var TRIAL_INTERVAL_IN_UNREVOCABLE_IOERROR int
 
@@ -159,7 +158,6 @@ func InitAll() bool {
         Secretary.WarnD("The configuration variable REST_INTERVAL_OF_WORKER_IN_MS cannot be negative. It is set to 0.")
         REST_INTERVAL_OF_WORKER_IN_MS=0
     }
-    AUTO_MERGER_DEAMON_PERIOD       =int(extractProperty("auto_merger_deamon_period_in_seconds").(float64))
 
 
     TRIAL_INTERVAL_IN_UNREVOCABLE_IOERROR   =int(extractProperty("trial_interval_in_unrevocable_io_error_in_ms").(float64))
