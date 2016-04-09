@@ -798,6 +798,7 @@ func (this *FD)Sync() error {
 //      1: post original gossip;
 //      2: post temporarily nothing. A gossip will be posted when writing back
 // }
+// It will not writeback any change
 func (this *FD)ASYNCMergeWithNodeX(context *gspdi.GossipEntry, callback func(int)) {
 
     this.contentLock.RLock()

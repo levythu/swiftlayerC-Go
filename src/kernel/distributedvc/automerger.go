@@ -7,9 +7,13 @@ import (
     "sync"
     "errors"
     conf "definition/configinfo"
+    gspdi "intranet/gossipd/interactive"
+    gsp "intranet/gossip"
+    "outapi"
     . "outapi"
     . "logger"
     "strconv"
+    "strings"
     "time"
 )
 
@@ -32,7 +36,7 @@ type MergingScheduler struct {
     taskQueue chan string
 }
 
-func NewScheduler() *MergingScheduler {
+func NewMergingScheduler() *MergingScheduler {
     var ret=&MergingScheduler {
         lock: &sync.RWMutex{},
         existMap: make(map[string]bool),
@@ -49,6 +53,26 @@ func (this *MergingScheduler)CheckInATask(filename string, io Outapi) error {
     defer this.lock.Unlock()
 
     var id=genID_static(filename, io)
+
+    if _, ok:=this.existMap[id]; ok {
+        // the task has existed in the queue. DO NOT NEED to check in it again.
+        this.existMap[id]=false
+        return nil
+    }
+
+
+    if len(this.taskQueue)>=conf.AUTO_MERGER_TASK_QUEUE_CAPACITY {
+        return QUEUE_CAPACITY_REACHED
+    }
+    this.taskQueue<-id
+
+    this.existMap[id]=true
+
+    return nil
+}
+func (this *MergingScheduler)CheckInATaskX(id string) error {
+    this.lock.Lock()
+    defer this.lock.Unlock()
 
     if _, ok:=this.existMap[id]; ok {
         // the task has existed in the queue. DO NOT NEED to check in it again.
@@ -102,12 +126,20 @@ type MergingSupervisor struct {
     workersAlive int
     scheduler *MergingScheduler
     deamoned bool
+
+    mpLock *sync.RWMutex
+    gossipedMap map[string]*gspdi.GossipEntry
+    mapIDCount int
 }
 
 var MergeManager=&MergingSupervisor {
     lock: &sync.RWMutex{},
     workersAlive: 0,
-    scheduler: NewScheduler(),
+    scheduler: NewMergingScheduler(),
+
+    mpLock: &sync.RWMutex{},
+    gossipedMap: make(map[string]*gspdi.GossipEntry),
+    mapIDCount: 0,
 }
 
 func (this *MergingSupervisor)Reveal_workersAlive() int {
@@ -131,6 +163,20 @@ func (this *MergingSupervisor)Reveal_taskInfo() map[string]int {
     return ret
 }
 
+const GOSSIP_TASK_PREFIX="$GOSSIPED_TASK$-#"
+func (this *MergingSupervisor)SubmitGossipingTask(taskInfo *gspdi.GossipEntry) error {
+    this.mpLock.Lock()
+    this.mapIDCount++
+    var cname=GOSSIP_TASK_PREFIX+strconv.Itoa(this.mapIDCount)
+    this.gossipedMap[cname]=taskInfo
+    this.mpLock.Unlock()
+    if err:=this.scheduler.CheckInATaskX(cname); err!=nil {
+        Secretary.Warn("distributedvc::MergingSupervisor.SubmitTask", "Failed to checkin task <"+cname+">: "+err.Error())
+        return err
+    }
+
+    return nil
+}
 func (this *MergingSupervisor)SubmitTask(filename string, io Outapi) error {
     //Insider.Log("MergingSupervisor.SubmitTask()", "Start")
     if err:=this.scheduler.CheckInATask(filename, io); err!=nil {
@@ -186,43 +232,90 @@ func workerProcess(supervisor *MergingSupervisor, numbered int) {
         var task=supervisor.scheduler.ChechOutATask()
 
         Secretary.Log(myName, "Got task:   "+task)
-        var writeBackCount=0
-        for {
-            // loop until the task is removed from tasklist
-            var thisFD=PeepFDX(task)
-            if thisFD!=nil {
-                thisFD.GraspReader()
-                for {
-                    // loop until there's nothing to merge for the fd
-                    var merr=thisFD.MergeNext()
-                    if merr!=nil {
-                        if merr==NOTHING_TO_MERGE {
-                            break
-                        }
-                        // ERROR when merge: Attentez: in such circumenstance,
-                        // the patch may be on the way of submission
-                        break
-                    }
-                    Secretary.Log(myName, "FD "+task+" has been merged once.")
-                    writeBackCount++
-                    if writeBackCount>=conf.AUTO_COMMIT_PER_INTRAMERGE {
-                        writeBackCount=0
-                        thisFD.WriteBack()
-                        Secretary.Log(myName, "FD "+task+" has been written back once.")
-                    }
-                    time.Sleep(worker_Sleep_Duration)
-                }
-                thisFD.WriteBack()
-                Secretary.Log(myName, "FD "+task+" has been written back once.")
+        if strings.HasPrefix(task, GOSSIP_TASK_PREFIX) {
 
-                thisFD.ReleaseReader()
-                thisFD.Release()
+            // a gossiped task
+            supervisor.mpLock.RLock()
+            var e=supervisor.gossipedMap[task]
+            supervisor.mpLock.RUnlock()
+            if e==nil {
+                Secretary.Error(myName, "Logical error: fail to get a supposed-to-be gossiping task.")
+                continue
+            }
+
+            if io:=outapi.DeSerializeID(e.OutAPI); io==nil {
+                Secretary.Warn(myName, "Invalid Outapi DeSerializing: "+e.OutAPI)
+                continue
             } else {
-                Secretary.Log(myName, "FD "+task+" is not in the fdPool. Abort.")
+                if fd:=GetFD(e.Filename, io); fd==nil {
+                    Secretary.Warn(myName, "Fail to get FD for "+e.Filename)
+                    continue
+                } else {
+                    Secretary.Log(myName, "Gossip processed: "+e.Filename+" @ "+e.OutAPI)
+                    fd.GraspReader()
+                    fd.ASYNCMergeWithNodeX(e, func(rse int) {
+                        if rse==1 {
+                            if err:=gsp.GlobalGossiper.PostGossip(e); err!=nil {
+                                Secretary.Warn(myName, "Fail to post change gossiping to other nodes: "+err.Error())
+                            }
+                        } else if rse==2 {
+                            // the file itself needs gossiping. wait for it to writeback and trigger gossiping
+                            // DO NOTHING now
+                        }
+                    })
+                    fd.ReleaseReader()
+                    fd.Release()
+                }
             }
             if supervisor.scheduler.FinishTask(task) {
+                supervisor.mpLock.Lock()
+                delete(supervisor.gossipedMap, task)
+                supervisor.mpLock.Unlock()
                 Secretary.Log(myName, "Successfully accomplished task:    "+task)
                 break
+            }
+
+        } else {
+
+            // a merging task
+            var writeBackCount=0
+            for {
+                // loop until the task is removed from tasklist
+                var thisFD=PeepFDX(task)
+                if thisFD!=nil {
+                    thisFD.GraspReader()
+                    for {
+                        // loop until there's nothing to merge for the fd
+                        var merr=thisFD.MergeNext()
+                        if merr!=nil {
+                            if merr==NOTHING_TO_MERGE {
+                                break
+                            }
+                            // ERROR when merge: Attentez: in such circumenstance,
+                            // the patch may be on the way of submission
+                            break
+                        }
+                        Secretary.Log(myName, "FD "+task+" has been merged once.")
+                        writeBackCount++
+                        if writeBackCount>=conf.AUTO_COMMIT_PER_INTRAMERGE {
+                            writeBackCount=0
+                            thisFD.WriteBack()
+                            Secretary.Log(myName, "FD "+task+" has been written back once.")
+                        }
+                        time.Sleep(worker_Sleep_Duration)
+                    }
+                    thisFD.WriteBack()
+                    Secretary.Log(myName, "FD "+task+" has been written back once.")
+
+                    thisFD.ReleaseReader()
+                    thisFD.Release()
+                } else {
+                    Secretary.Log(myName, "FD "+task+" is not in the fdPool. Abort.")
+                }
+                if supervisor.scheduler.FinishTask(task) {
+                    Secretary.Log(myName, "Successfully accomplished task:    "+task)
+                    break
+                }
             }
         }
     }

@@ -3,7 +3,6 @@ package gossipd
 import (
     . "github.com/levythu/gurgling"
     "io/ioutil"
-    "outapi"
     dvc "kernel/distributedvc"
     . "logger"
     gsp "intranet/gossip"
@@ -23,30 +22,8 @@ func checkGossipedData(src []*GossipEntry) {
             }
             continue
         }
-        if io:=outapi.DeSerializeID(e.OutAPI); io==nil {
-            Secretary.Warn("gossipd::checkGossipedData()", "Invalid Outapi DeSerializing: "+e.OutAPI)
-            continue
-        } else {
-            if fd:=dvc.GetFD(e.Filename, io); fd==nil {
-                Secretary.Warn("gossipd::checkGossipedData()", "Fail to get FD for "+e.Filename)
-                continue
-            } else {
-                Secretary.Log("gossipd::checkGossipedData", "Gossip received: "+e.Filename+" @ "+e.OutAPI)
-                fd.GraspReader()
-                fd.ASYNCMergeWithNodeX(e, func(rse int) {
-                    if rse==1 {
-                        if err:=gsp.GlobalGossiper.PostGossip(e); err!=nil {
-                            Secretary.Warn("gossipd::checkGossipedData", "Fail to post change gossiping to other nodes: "+err.Error())
-                        }
-                    } else if rse==2 {
-                        // the file itself needs gossiping. wait for it to writeback and trigger gossiping
-                        // DO NOTHING now
-                    }
-                })
-                fd.ReleaseReader()
-                fd.Release()
-            }
-        }
+        Secretary.Log("gossipd::checkGossipedData", "Gossip received: "+e.Filename+" @ "+e.OutAPI)
+        dvc.MergeManager.SubmitGossipingTask(e)
     }
 }
 /*
