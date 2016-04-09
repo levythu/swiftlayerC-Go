@@ -136,3 +136,34 @@ func (this *BufferedGossiper)Launch() error {
         time.Sleep(dur)
     }
 }
+
+// ONLY for monitoring. IT WILL CAST GREAT NEGATIVE IMPACT on working efficiency
+func (this *BufferedGossiper)DumpGossip() ([]Tout, []int) {
+    this.lenLock.Lock()
+    defer this.lenLock.Unlock()
+
+    var x1=make([]Tout, this.len)
+    var x2=make([]int, this.len)
+
+    var c=this.len
+    var p=this.head
+
+    for i:=0; i<c; i++ {
+        x1[i]=this.buffer[p]
+        x2[i]=this.gCount[p]
+        p++
+        if p>=this.BufferSize {
+            p-=this.BufferSize
+        }
+    }
+
+    return x1, x2
+}
+
+func (this *BufferedGossiper)GenerateProfile() map[string]Tout {
+    var bf, gc=this.DumpGossip()
+    return map[string]Tout {
+        "content_buffer": bf,
+        "count_rest": gc,
+    }
+}

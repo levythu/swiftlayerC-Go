@@ -5,6 +5,7 @@ import (
     "github.com/levythu/gurgling/midwares/auth"
     "github.com/levythu/gurgling/midwares/staticfs"
     conf "definition/configinfo"
+    gsp "intranet/gossip"
     . "logger"
     "sync"
     . "definition"
@@ -30,6 +31,7 @@ func getAdminPageRouter() Router {
     r.Get("/taskinfo", getMergingTaskInfo)
     r.Get("/loginfo", getLoggingInfo)
     r.Get("/fdinfo", getFDInfo)
+    r.Get("/gossipinfo", getGossipInfo)
 
     return r
 }
@@ -187,5 +189,43 @@ func getFDInfo(req Request, res Response) {
     res.JSON(map[string]interface{}{
         "recordsTime":  gFDI_recordTime,
         "val":          gFDI_Cache,
+    })
+}
+
+
+
+var gGI_recordTime int64=0
+var gGI_Cache map[string]Tout
+var gGI_lock=sync.RWMutex{}
+func getGossipInfo(req Request, res Response) {
+    var nTime=time.Now().Unix()
+    gGI_lock.RLock()
+    if nTime<conf.ADMIN_REFRESH_FREQUENCY+gGI_recordTime {
+        res.JSON(map[string]interface{}{
+            "recordsTime":  gGI_recordTime,
+            "val":          gGI_Cache,
+        })
+        gGI_lock.RUnlock()
+        return
+    }
+    gGI_lock.RUnlock()
+    gGI_lock.Lock()
+    defer gGI_lock.Unlock()
+
+    if nTime<conf.ADMIN_REFRESH_FREQUENCY+gGI_recordTime {
+        res.JSON(map[string]interface{}{
+            "recordsTime":  gGI_recordTime,
+            "val":          gGI_Cache,
+        })
+        return
+    }
+
+    gGI_Cache=gsp.GlobalGossiper.GenerateProfile()
+    gGI_recordTime=time.Now().Unix()
+
+
+    res.JSON(map[string]interface{}{
+        "recordsTime":  gGI_recordTime,
+        "val":          gGI_Cache,
     })
 }
