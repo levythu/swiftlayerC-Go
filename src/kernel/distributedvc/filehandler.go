@@ -340,6 +340,7 @@ func (this *FD)MergeNext() error {
         Secretary.Warn("distributedvc::FD.MergeNext()", "Fail to merge patches for file "+this.filename)
         return err
     }
+    this.numberZero.MergeWith(filetype.FastMake(CONF_FLAG_PREFIX+NODE_SYNC_TIME_PREFIX+strconv.Itoa(NODE_NUMBER)))
 
     this.numberZero=tNew
     this.nextToBeMerge=theNext

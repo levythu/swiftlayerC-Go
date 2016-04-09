@@ -272,7 +272,7 @@ func workerProcess(supervisor *MergingSupervisor, numbered int) {
                 delete(supervisor.gossipedMap, task)
                 supervisor.mpLock.Unlock()
                 Secretary.Log(myName, "Successfully accomplished task:    "+task)
-                break
+                continue
             }
 
         } else {
