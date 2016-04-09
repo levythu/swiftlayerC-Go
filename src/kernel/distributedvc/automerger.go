@@ -263,6 +263,7 @@ func workerProcess(supervisor *MergingSupervisor, numbered int) {
                             // DO NOTHING now
                         }
                     })
+                    fd.WriteBack()
                     fd.ReleaseReader()
                     fd.Release()
                 }
