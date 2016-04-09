@@ -5,6 +5,7 @@ import (
     . "mainpkg/public"
     "intranet"
     "intranet/gossipd"
+    dvc "kernel/distributedvc"
     "intranet/ping"
     . "logger"
 )
@@ -15,6 +16,8 @@ func _no_use_() {
 
 func main() {
     StartUp()
+
+    dvc.MergeManager.Launch()
 
     var exitCh=make(chan bool)
 

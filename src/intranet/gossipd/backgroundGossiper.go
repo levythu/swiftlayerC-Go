@@ -8,6 +8,7 @@ import (
     "errors"
     . "intranet/gossipd/interactive"
     "strings"
+    //"fmt"
     "net/http"
 )
 
@@ -42,7 +43,7 @@ func GossipViaHTTP(addr Tout, content []Tout) error {
         }
         // TODO: check result.
         res.Body.Close()
-        if res.StatusCode%100!=2 {
+        if res.StatusCode/100!=2 {
             return HTTP_ERROR
         }
 

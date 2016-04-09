@@ -60,12 +60,7 @@
 
     /*  After encountering an error or finishing a merging work, a working will
         rest in rest_interval_of_worker_in_ms milliseconds. */
-    "rest_interval_of_worker_in_ms": 0,
-
-    /*  To avoid un checked tasks, a deamon will launch in the background to spawn
-        worker periodically.
-        <=0 for no deamon */
-    "auto_merger_deamon_period_in_seconds": 10
+    "rest_interval_of_worker_in_ms": 0
 
     /*  =================== END AUTOMERGER =================== */
 }
