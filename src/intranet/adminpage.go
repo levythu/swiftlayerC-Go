@@ -9,10 +9,15 @@ import (
     . "logger"
     "sync"
     . "definition"
+    "intranet/ping"
     "time"
+    "fmt"
     dvc "kernel/distributedvc"
 )
 
+func __adminpage_go_nouse__() {
+    fmt.Println("NOUSE")
+}
 func getAdminPageRouter() Router {
     var r=ARouter()
 
@@ -32,6 +37,7 @@ func getAdminPageRouter() Router {
     r.Get("/loginfo", getLoggingInfo)
     r.Get("/fdinfo", getFDInfo)
     r.Get("/gossipinfo", getGossipInfo)
+    r.Get("/clusterinfo", getClusterInfo)
 
     return r
 }
@@ -227,5 +233,49 @@ func getGossipInfo(req Request, res Response) {
     res.JSON(map[string]interface{}{
         "recordsTime":  gGI_recordTime,
         "val":          gGI_Cache,
+    })
+}
+
+
+
+
+var gCI_recordTime int64=0
+var gCI_Cache map[string]Tout
+var gCI_lock=sync.RWMutex{}
+func getClusterInfo(req Request, res Response) {
+    var nTime=time.Now().Unix()
+    gCI_lock.RLock()
+    if nTime<conf.ADMIN_REFRESH_FREQUENCY+gCI_recordTime {
+        res.JSON(map[string]interface{}{
+            "recordsTime":  gCI_recordTime,
+            "val":          gCI_Cache,
+        })
+        gCI_lock.RUnlock()
+        return
+    }
+    gCI_lock.RUnlock()
+    gCI_lock.Lock()
+    defer gCI_lock.Unlock()
+
+    if nTime<conf.ADMIN_REFRESH_FREQUENCY+gCI_recordTime {
+        res.JSON(map[string]interface{}{
+            "recordsTime":  gCI_recordTime,
+            "val":          gCI_Cache,
+        })
+        return
+    }
+
+    gCI_Cache=map[string]Tout {
+        "total_nodes":  conf.NODE_NUMS_IN_ALL,
+        "intranet_map": conf.SH2_MAP,
+        "self_number":  conf.NODE_NUMBER,
+        "last_response":ping.DumpConn(),
+    }
+    gCI_recordTime=time.Now().Unix()
+
+
+    res.JSON(map[string]interface{}{
+        "recordsTime":  gCI_recordTime,
+        "val":          gCI_Cache,
     })
 }

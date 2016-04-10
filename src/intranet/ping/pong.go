@@ -4,6 +4,7 @@ import (
     . "utils/timestamp"
     "sync"
     . "intranet/gossipd/interactive"
+    "strconv"
 )
 
 var activeList=map[int]ClxTimestamp{}
@@ -17,13 +18,13 @@ func QueryConn(nodenum int) ClxTimestamp {
     return activeList[nodenum]
 }
 
-func DumpConn(nodenum int) map[int]ClxTimestamp {
+func DumpConn() map[string]uint64 {
     aLLock.RLock()
     defer aLLock.RUnlock()
 
-    var ret=map[int]ClxTimestamp{}
+    var ret=map[string]uint64{}
     for k, v:=range activeList {
-        ret[k]=v
+        ret[strconv.Itoa(k)]=v.Val()
     }
 
     return ret
