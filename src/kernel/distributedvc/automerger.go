@@ -263,6 +263,7 @@ func workerProcess(supervisor *MergingSupervisor, numbered int) {
                             // DO NOTHING now
                         }
                     })
+                    fd.WriteBack()
                     fd.ReleaseReader()
                     fd.Release()
                 }
@@ -272,7 +273,7 @@ func workerProcess(supervisor *MergingSupervisor, numbered int) {
                 delete(supervisor.gossipedMap, task)
                 supervisor.mpLock.Unlock()
                 Secretary.Log(myName, "Successfully accomplished task:    "+task)
-                break
+                continue
             }
 
         } else {

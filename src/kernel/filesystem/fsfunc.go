@@ -300,6 +300,32 @@ func (this *Fs)ListX(frominode string) ([]*filetype.KvmapEntry, error) {
     }
 }
 
+// list all including non-file ones
+func (this *Fs)ListXPP(frominode string) ([]*filetype.KvmapEntry, error) {
+    var fd=dvc.GetFD(GenFileName(frominode, FOLDER_MAP), this.io)
+    if fd==nil {
+        Secretary.Error("kernel.filesystem::List", "Fail to get FD for "+frominode)
+        return nil, exception.EX_IO_ERROR
+    }
+    defer fd.Release()
+    fd.GraspReader()
+    defer fd.ReleaseReader()
+
+    if err:=fd.Sync(); err!=nil {
+        Secretary.Error("kernel.filesystem::List", "SYNC error for "+frominode+": "+err.Error())
+    }
+    if content, err:=fd.Read(); err!=nil {
+        Secretary.Error("kernel.filesystem::List", "Read error for "+frominode+": "+err.Error())
+        return nil, err
+    } else {
+        var ret=[]*filetype.KvmapEntry{}
+        for _, v:=range content {
+            ret=append(ret, v)
+        }
+        return ret, nil
+    }
+}
+
 // All the folder will be removed. No matter if it is empty or not.
 // Move it to the trash
 func (this *Fs)Rm(foldername string, frominode string) error {

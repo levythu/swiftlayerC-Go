@@ -63,6 +63,7 @@ func handlingShortcut(req Request, res Response) bool {
 // Parameters:
 //      - contianer(in URL): the container name
 //      - followingpath(in URL): the path to be listed
+//      - Show-All(in Header): TRUE to show all in the kvfile
 // Returns:
 //      - HTTP 200: No error and the result will be returned in JSON in the body.
 //              When success, 'Parent-Node' will indicate the listed directory.
@@ -88,7 +89,11 @@ func lsDirectory(req Request, res Response) {
         return
     }
     var resultList []*filetype.KvmapEntry
-    resultList, err=fs.ListX(nodeName)
+    if req.Get("Show-All")=="TRUE" {
+        resultList, err=fs.ListXPP(nodeName)
+    } else {
+        resultList, err=fs.ListX(nodeName)
+    }
     if err!=nil {
         res.Status("Reading error: "+err.Error(), 404)
         return

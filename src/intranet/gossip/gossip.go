@@ -20,6 +20,8 @@ type Gossiper interface {
 
     // a deamon function
     Launch() error
+
+    GenerateProfile() map[string]Tout
 }
 
 var GlobalGossiper Gossiper=nil

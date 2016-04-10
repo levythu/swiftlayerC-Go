@@ -11,6 +11,7 @@ import (
     ex "definition/exception"
     . "definition/configinfo"
     . "utils/timestamp"
+    "fmt"
     "time"
     gsp "intranet/gossip"
     gspdi "intranet/gossipd/interactive"
@@ -36,6 +37,10 @@ import (
 ** So always GetFD()->[GraspReader()->ReleaseReader()]->Release() in use
 **
 */
+
+func __fh_go_nouse_() {
+    fmt.Println("no use")
+}
 
 type FD struct {
     /*====BEGIN: for fdPool====*/
@@ -340,6 +345,7 @@ func (this *FD)MergeNext() error {
         Secretary.Warn("distributedvc::FD.MergeNext()", "Fail to merge patches for file "+this.filename)
         return err
     }
+    this.numberZero.MergeWith(filetype.FastMake(CONF_FLAG_PREFIX+NODE_SYNC_TIME_PREFIX+strconv.Itoa(NODE_NUMBER)))
 
     this.numberZero=tNew
     this.nextToBeMerge=theNext
@@ -453,9 +459,9 @@ func (this *FD)Submit(object *filetype.Kvmap) error {
 
     var selfName=CONF_FLAG_PREFIX+NODE_SYNC_TIME_PREFIX+strconv.Itoa(NODE_NUMBER)
     var nowTime=GetTimestamp()
-    if object.Kvm==nil {
-        object.CheckOut()
-    }
+
+    object.CheckOut()
+
     object.Kvm[selfName]=&filetype.KvmapEntry {
         Key: selfName,
         Val: "",
@@ -614,9 +620,9 @@ func (this *FD)__deprecated__combineNodeX(nodenumber int) error {
     // First, check whether the corresponding version exists or newer than currently
     // merged version.
     var keyStoreName=CONF_FLAG_PREFIX+NODE_SYNC_TIME_PREFIX+strconv.Itoa(nodenumber)
-    if this.numberZero.Kvm==nil {
-        this.numberZero.CheckOut()
-    }
+
+    this.numberZero.CheckOut()
+
     var lastTime ClxTimestamp
     if elem, ok:=this.numberZero.Kvm[keyStoreName]; ok {
         lastTime=elem.Timestamp
@@ -695,9 +701,9 @@ func (this *FD)__deprecated__Sync() error {
 
     // phase1: glean information from different nodes
     // Attentez: the go routines will read numberZero.Kvm but will not write it. So not lock is required.
-    if this.numberZero.Kvm==nil {
-        this.numberZero.CheckOut()
-    }
+
+    this.numberZero.CheckOut()
+
     var updateChannel=make(chan int, NODE_NUMS_IN_ALL)
     go (func() {
         var wg=sync.WaitGroup{}
@@ -822,9 +828,9 @@ func (this *FD)ASYNCMergeWithNodeX(context *gspdi.GossipEntry, callback func(int
         go callback(1)
         return
     }
-    if this.numberZero.Kvm==nil {
-        this.numberZero.CheckOut()
-    }
+
+    this.numberZero.CheckOut()
+
 
     var keyStoreName=CONF_FLAG_PREFIX+NODE_SYNC_TIME_PREFIX+strconv.Itoa(context.NodeNumber)
     var lastTime ClxTimestamp

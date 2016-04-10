@@ -35,6 +35,9 @@ func ClxTimestamp2String(val ClxTimestamp) string {
 func (this ClxTimestamp)String() string {
     return ClxTimestamp2String(this)
 }
+func (this ClxTimestamp)Val() uint64 {
+    return uint64(this)
+}
 
 func MergeTimestamp(ts1, ts2 ClxTimestamp) ClxTimestamp {
     if ts1>ts2 {
