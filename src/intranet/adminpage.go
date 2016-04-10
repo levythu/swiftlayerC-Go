@@ -33,11 +33,11 @@ func getAdminPageRouter() Router {
         return nil
     }
     r.Use("/", staticfs.AStaticfs(p))
-    r.Get("/taskinfo", getMergingTaskInfo)
-    r.Get("/loginfo", getLoggingInfo)
+    r.Get("/tasks", getMergingTaskInfo)
+    r.Get("/logs", getLoggingInfo)
     r.Get("/fdinfo", getFDInfo)
-    r.Get("/gossipinfo", getGossipInfo)
-    r.Get("/clusterinfo", getClusterInfo)
+    r.Get("/gossiper", getGossipInfo)
+    r.Get("/cluster", getClusterInfo)
 
     return r
 }
