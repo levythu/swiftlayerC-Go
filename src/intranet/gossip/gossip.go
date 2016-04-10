@@ -11,6 +11,7 @@ import (
 
 type Gossiper interface {
     PostGossip(content Tout) error
+    PostGossipSilent(content Tout) error
 
     // the list passed in will be replicated.
     SetGossiperList(list []Tout) error
