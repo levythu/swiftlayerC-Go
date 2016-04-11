@@ -103,13 +103,13 @@ func (this *BufferedGossiper)gossip(content []Tout, notify bool) {
         return
     }
     var taskList, err=this.stdGossiperListImplementation.RandList(this.ParallelTell)
-    if err!=nil {
+    if err!=nil && notify {
         Secretary.Error("gossip::BufferedGossiper.gossip()", "Unable to gossip due to "+err.Error())
         return
     }
     for _, e:=range taskList {
         go (func(x Tout) {
-            if err:=this.do(x, content); err!=nil {
+            if err:=this.do(x, content); err!=nil && notify {
                 Secretary.Warn("gossip::BufferedGossiper.gossip()", "Failed to gossip to "+fmt.Sprint(x)+": "+err.Error())
                 // TODO: retry others?
             }
