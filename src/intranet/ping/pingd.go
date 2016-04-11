@@ -24,7 +24,7 @@ func Entry(exit chan bool) {
     var sleepInterval=time.Millisecond*time.Duration(conf.HEARTBEAT_PING_INTERVAL)
     Secretary.Log("ping::Entry()", "Start to ping every "+strconv.Itoa(conf.HEARTBEAT_PING_INTERVAL)+" ms")
     for {
-        var err=gsp.GlobalGossiper.PostGossip(&GossipEntry {
+        var err=gsp.GlobalGossiper.PostGossipSilent(&GossipEntry {
             Filename: "",
             OutAPI: OUTAPI_PLACEHOLDER_PING_FLAG,
             UpdateTime: GetTimestamp(),

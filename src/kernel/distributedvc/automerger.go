@@ -251,7 +251,6 @@ func workerProcess(supervisor *MergingSupervisor, numbered int) {
                     Secretary.Warn(myName, "Fail to get FD for "+e.Filename)
                     continue
                 } else {
-                    Secretary.Log(myName, "Gossip processed: "+e.Filename+" @ "+e.OutAPI)
                     fd.GraspReader()
                     fd.ASYNCMergeWithNodeX(e, func(rse int) {
                         if rse==1 {
@@ -266,6 +265,7 @@ func workerProcess(supervisor *MergingSupervisor, numbered int) {
                     fd.WriteBack()
                     fd.ReleaseReader()
                     fd.Release()
+                    Secretary.Log(myName, "Gossip processed: "+e.Filename+" @ "+e.OutAPI)
                 }
             }
             if supervisor.scheduler.FinishTask(task) {

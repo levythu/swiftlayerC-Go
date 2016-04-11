@@ -39,6 +39,7 @@ type BufferedGossiper struct {
 
     buffer []Tout
     gCount []int
+    notifyFail []bool
 }
 func (this *BufferedGossiper)SetGossipingFunc(do func(addr Tout, content []Tout) error) {
     this.do=do
@@ -52,6 +53,7 @@ func NewBufferedGossiper(bufferSize int) *BufferedGossiper {
         len: 0,
         buffer: make([]Tout, bufferSize),
         gCount: make([]int, bufferSize),
+        notifyFail: make([]bool, bufferSize),
         stdGossiperListImplementation: &stdGossiperListImplementation{},
     }
 }
@@ -68,6 +70,26 @@ func (this *BufferedGossiper)PostGossip(content Tout) error {
 
     this.buffer[this.tail]=content
     this.gCount[this.tail]=this.EnsureTellCount
+    this.notifyFail[this.tail]=true
+    this.tail++
+    if this.tail>=this.BufferSize {
+        this.tail-=this.BufferSize
+    }
+
+    return nil
+}
+func (this *BufferedGossiper)PostGossipSilent(content Tout) error {
+    this.lenLock.Lock()
+    defer this.lenLock.Unlock()
+
+    if this.len==this.BufferSize {
+        return BUFFER_IS_FULL
+    }
+    this.len++
+
+    this.buffer[this.tail]=content
+    this.gCount[this.tail]=this.EnsureTellCount
+    this.notifyFail[this.tail]=false
     this.tail++
     if this.tail>=this.BufferSize {
         this.tail-=this.BufferSize
@@ -76,7 +98,7 @@ func (this *BufferedGossiper)PostGossip(content Tout) error {
     return nil
 }
 
-func (this *BufferedGossiper)gossip(content []Tout) {
+func (this *BufferedGossiper)gossip(content []Tout, notify bool) {
     if len(content)==0 {
         return
     }
@@ -105,9 +127,11 @@ func (this *BufferedGossiper)onTick() {
     var res=make([]Tout, c)
 
     var p=this.head
+    var notify=false
     for i:=0; i<c; i++ {
         res[i]=this.buffer[p]
         this.gCount[p]-=this.ParallelTell
+        notify=notify || this.notifyFail[p]
         p++
         if p>=this.BufferSize {
             p-=this.BufferSize
@@ -122,7 +146,7 @@ func (this *BufferedGossiper)onTick() {
     }
     this.lenLock.Unlock()
 
-    this.gossip(res)
+    this.gossip(res, notify)
 }
 
 func (this *BufferedGossiper)Launch() error {
