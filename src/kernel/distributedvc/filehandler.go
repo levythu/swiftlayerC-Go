@@ -467,6 +467,7 @@ func (this *FD)Submit(object *filetype.Kvmap) error {
         Val: "",
         Timestamp: nowTime,
     }
+    object.TSet(nowTime)
     object.CheckIn()
 
     //Insider.Log(this.filename+".Submit()", "Start to put")
@@ -498,6 +499,17 @@ func (this *FD)Submit(object *filetype.Kvmap) error {
 
     if nAP>0 {
         MergeManager.SubmitTask(this.filename, this.io)
+    } else {
+        // auto post 'cause it will not trigger WriteBack()
+        var err=gsp.GlobalGossiper.PostGossip(&gspdi.GossipEntry{
+            Filename: this.filename,
+            OutAPI: this.io.GenerateUniqueID(),
+            UpdateTime: nowTime,
+            NodeNumber: NODE_NUMBER,
+        })
+        if err!=nil {
+            Secretary.Warn("distributedvc::FD.WriteBack", "Fail to post change gossiping to other nodes: "+err.Error())
+        }
     }
 
 
