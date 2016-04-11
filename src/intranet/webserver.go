@@ -6,14 +6,22 @@ import (
     . "github.com/levythu/gurgling"
     conf "definition/configinfo"
     . "logger"
+    "intranet/gossipd"
 )
 
-func Entry() {
+func Entry(exit chan bool) {
+    defer (func(){
+        exit<-false
+    })()
+
     var rootRouter=ARouter()
 
     rootRouter.Get("/", func(res Response) {
         res.Redirect("/admin")
     })
+    if r:=gossipd.GetGossipRouter(); r!=nil {
+        rootRouter.Use("/gossip", r)
+    }
     if r:=getAdminPageRouter(); r!=nil {
         rootRouter.Use("/admin", r)
     }

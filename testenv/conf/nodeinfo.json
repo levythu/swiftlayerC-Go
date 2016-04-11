@@ -15,7 +15,7 @@
     "node_number": 0,
 
     /*  The total number of proxy nodes in the cluster.  */
-    "node_nums_in_all": 1,
+    "node_nums_in_all": 2,
 
     /*  Openstack Keystone authencation server url. Only API v2.0 is supported here.  */
     "swift_auth_url": "http://58.205.208.81:5000/v2.0",
@@ -27,7 +27,10 @@
     "outer_service_listener": ":9144",
 
     /*  To which([hostname]:port) the intra-communication server listens */
-    "inner_service_listener": "localhost:2333",
+    "inner_service_listener": ":2333",
+
+    /*  The order must be consistent to node number assignment.*/
+    "cluster_inner_services_addr_list": [null, "controller:2333"],
 
     /*  Leave the user field empty means no auth for admin. */
     "inner_service_admin_user": "levy",
@@ -45,5 +48,16 @@
 
     /*  the number of logs in each level that can be cached. Zero or negative value
         disable log caching and thus inpsection online will be disabled. */
-    "cached_log_capacity": 0
+    "cached_log_capacity": 0,
+
+    /*  <=0 for no heart beat. */
+    "heartbeat_ping_interval_in_ms": 10000,
+
+    /*  =================== FOR GOSSIP PROTOCOL =================== */
+    "gossip_period_in_ms": 500,
+    "gossip_buffer_size": 1000,
+    "gossip_retell_times": 2,
+    "gossip_max_delivered_in_one_tick": 1000,
+    "gossip_max_telling_in_one_tick": 2
+    /*  =================== END GOSSIP PROTOCOL =================== */
 }

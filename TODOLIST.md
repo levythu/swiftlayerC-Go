@@ -34,6 +34,12 @@
 - [x] Return meta in GET
 - [x] Maintain live inspection console
 - [ ] global lock for auto trashbox maintainance
+- [-] Writeback in force exit
+- [ ] Implement faster merging worker by co-routine
+- [x] Implement gossip
+- [ ] Introduce live node adding
+- [x] Push gossiped merging task to queue
+- [-] Check all the go-ed funcs to avoid fdPool mis-release
 
 ## Known Bugs
 - [ ] InApi: use constant rootNode instead of filesystem one

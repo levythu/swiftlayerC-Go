@@ -11,7 +11,10 @@ import (
     ex "definition/exception"
     . "definition/configinfo"
     . "utils/timestamp"
+    "fmt"
     "time"
+    gsp "intranet/gossip"
+    gspdi "intranet/gossipd/interactive"
     "errors"
 )
 
@@ -34,6 +37,10 @@ import (
 ** So always GetFD()->[GraspReader()->ReleaseReader()]->Release() in use
 **
 */
+
+func __fh_go_nouse_() {
+    fmt.Println("no use")
+}
 
 type FD struct {
     /*====BEGIN: for fdPool====*/
@@ -64,6 +71,8 @@ type FD struct {
     lastSyncTime int64
     latestReadableVersionTS ClxTimestamp
     modified bool
+    // only if merged with other nodes' patches more than once
+    needsGossiped bool
 }
 
 // Lock priority: lock > updateChainLock > contentLock
@@ -92,6 +101,7 @@ func newFD(filename string, io Outapi) *FD {
         lastSyncTime: 0,
         latestReadableVersionTS: 0,     // This version is for written version
         modified: false,
+        needsGossiped: false,
     }
     ret.trashNode=&fdDLinkedListNode {
         carrier: ret,
@@ -118,6 +128,9 @@ func (this *FD)__clearContentSansLock() {
     this.contentLock.Lock()
     this.numberZero=nil
     this.nextToBeMerge=-1
+    this.lastSyncTime=0
+    this.modified=false
+    this.needsGossiped=false
     // consider write-back for unpersisted data
     this.contentLock.Unlock()
 
@@ -225,6 +238,7 @@ func (this *FD)ReadInNumberZero() error {
     }
     this.status=1
     this.modified=false
+    this.needsGossiped=false
     return nil
 }
 
@@ -331,10 +345,12 @@ func (this *FD)MergeNext() error {
         Secretary.Warn("distributedvc::FD.MergeNext()", "Fail to merge patches for file "+this.filename)
         return err
     }
+    this.numberZero.MergeWith(filetype.FastMake(CONF_FLAG_PREFIX+NODE_SYNC_TIME_PREFIX+strconv.Itoa(NODE_NUMBER)))
 
     this.numberZero=tNew
     this.nextToBeMerge=theNext
     this.modified=true
+    this.needsGossiped=true
 
     Secretary.Log("distributedvc::FD.MergeNext()", "Successfully merged in patch #"+strconv.Itoa(oldMerged)+" for "+this.filename)
     return nil
@@ -443,9 +459,9 @@ func (this *FD)Submit(object *filetype.Kvmap) error {
 
     var selfName=CONF_FLAG_PREFIX+NODE_SYNC_TIME_PREFIX+strconv.Itoa(NODE_NUMBER)
     var nowTime=GetTimestamp()
-    if object.Kvm==nil {
-        object.CheckOut()
-    }
+
+    object.CheckOut()
+
     object.Kvm[selfName]=&filetype.KvmapEntry {
         Key: selfName,
         Val: "",
@@ -462,21 +478,19 @@ func (this *FD)Submit(object *filetype.Kvmap) error {
                 }))
     if err!=nil {
         Secretary.Warn("distributedvc::FD.Submit()", "Fail in putting file "+this.GetPatchName(nAP, -1))
-        go (func() {
-            // failure rollback
-            this.updateChainLock.Lock()
-            if nAP+1==this.nextAvailablePosition {
-                // up to now, no new patch has been submitted. Just rollback the number.
-                this.nextAvailablePosition--
-                this.updateChainLock.Unlock()
-                return
-            } else {
-                Secretary.Error("distributedvc::FD.Submit()", "Submission gap occurs! Trying to fix it: "+this.GetPatchName(nAP, -1)+" TRIAL ")
-
-                //TODO: write in auto fix local log.
-            }
+        // failure rollback
+        this.updateChainLock.Lock()
+        if nAP+1==this.nextAvailablePosition {
+            // up to now, no new patch has been submitted. Just rollback the number.
+            this.nextAvailablePosition--
             this.updateChainLock.Unlock()
-        })()
+            return err
+        } else {
+            Secretary.Error("distributedvc::FD.Submit()", "Submission gap occurs! Trying to fix it: "+this.GetPatchName(nAP, -1)+" TRIAL ")
+
+            //TODO: write in auto fix local log.
+        }
+        this.updateChainLock.Unlock()
         return err
     }
 
@@ -599,16 +613,16 @@ func (this *FD)_LoadPointerMap_SyncUseOnly() error {
     return nil
 }
 // @ DEPRECATED
-func (this *FD)combineNodeX(nodenumber int) error {
+func (this *FD)__deprecated__combineNodeX(nodenumber int) error {
     if nodenumber==NODE_NUMBER {
         return nil
     }
     // First, check whether the corresponding version exists or newer than currently
     // merged version.
     var keyStoreName=CONF_FLAG_PREFIX+NODE_SYNC_TIME_PREFIX+strconv.Itoa(nodenumber)
-    if this.numberZero.Kvm==nil {
-        this.numberZero.CheckOut()
-    }
+
+    this.numberZero.CheckOut()
+
     var lastTime ClxTimestamp
     if elem, ok:=this.numberZero.Kvm[keyStoreName]; ok {
         lastTime=elem.Timestamp
@@ -652,12 +666,13 @@ func (this *FD)combineNodeX(nodenumber int) error {
     this.numberZero.TSet(newTS)
     this.numberZero.CheckIn()
     this.modified=true
+    this.needsGossiped=true
 
     return nil
 }
 // Read and combine all the version from other nodes, providing the combined version.
 // @ Get Reader Grasped
-func (this *FD)Sync() error {
+func (this *FD)__deprecated__Sync() error {
     var nowTime=time.Now().Unix()
     if this.lastSyncTime+SINGLE_FILE_SYNC_INTERVAL_MIN>nowTime {
         // interval is too small, abort the sync.
@@ -686,9 +701,9 @@ func (this *FD)Sync() error {
 
     // phase1: glean information from different nodes
     // Attentez: the go routines will read numberZero.Kvm but will not write it. So not lock is required.
-    if this.numberZero.Kvm==nil {
-        this.numberZero.CheckOut()
-    }
+
+    this.numberZero.CheckOut()
+
     var updateChannel=make(chan int, NODE_NUMS_IN_ALL)
     go (func() {
         var wg=sync.WaitGroup{}
@@ -759,10 +774,105 @@ func (this *FD)Sync() error {
         this.numberZero.MergeWith(filetype.FastMake(CONF_FLAG_PREFIX+NODE_SYNC_TIME_PREFIX+strconv.Itoa(NODE_NUMBER)))
         this.numberZero.MergeWith(thePatch)
         this.modified=true
+        this.needsGossiped=true
     }
     this.lastSyncTime=time.Now().Unix()
 
     return nil
+}
+// Read the current version. Submit an empty patch if needed
+// @ Get Reader Grasped
+func (this *FD)Sync() error {
+    var nowTime=time.Now().Unix()
+    if this.lastSyncTime+SINGLE_FILE_SYNC_INTERVAL_MIN>nowTime {
+        // interval is too small, abort the sync.
+        return nil
+    }
+    // Submit #0 patch if needed
+    this._LoadPointerMap_SyncUseOnly()
+
+    // read patch 0 from container. If just submit, the function will exit immediately
+    this.ReadInNumberZero()
+
+    this.lastSyncTime=time.Now().Unix()
+
+    return nil
+}
+// @ Grasped Reader
+// callback will get async invoked, int={
+//      0: nothing posed;
+//      1: post original gossip;
+//      2: post temporarily nothing. A gossip will be posted when writing back
+// }
+// It will not writeback any change
+func (this *FD)ASYNCMergeWithNodeX(context *gspdi.GossipEntry, callback func(int)) {
+
+    this.contentLock.RLock()
+    if this.needsGossiped {
+        go callback(2)
+    }
+    this.contentLock.RUnlock()
+
+    // Submit #0 patch if needed
+    this._LoadPointerMap_SyncUseOnly()
+
+    // read patch 0 from container. If just submit, the function will exit immediately
+    this.ReadInNumberZero()
+
+    this.contentLock.Lock()
+
+    if this.numberZero==nil {
+        Insider.Log("distributedvc::FD.ASYNCMergeWithNodeX", "Looks like a logical isle: this.numberZero==nil")
+        Secretary.Error("distributedvc::FD.ASYNCMergeWithNodeX", "Looks like a logical isle: this.numberZero==nil")
+        this.contentLock.Unlock()
+        go callback(1)
+        return
+    }
+
+    this.numberZero.CheckOut()
+
+
+    var keyStoreName=CONF_FLAG_PREFIX+NODE_SYNC_TIME_PREFIX+strconv.Itoa(context.NodeNumber)
+    var lastTime ClxTimestamp
+    if elem, ok:=this.numberZero.Kvm[keyStoreName]; ok {
+        lastTime=elem.Timestamp
+    } else {
+        lastTime=0
+    }
+    if lastTime>=context.UpdateTime {
+        this.contentLock.Unlock()
+        go callback(0)
+        return
+    }
+    go callback(1)
+    this.contentLock.Unlock()
+
+    var file, _, err=readInKvMapfile_NoWarning(this.io, this.GetPatchName(0, context.NodeNumber))
+    if file==nil {
+        if err==nil {
+            Secretary.Warn("distributedvc::FD.MergeWithNodeX", "Fail to get gossiped file: nonexist")
+        } else {
+            Secretary.Warn("distributedvc::FD.MergeWithNodeX", "Fail to get gossiped file: "+err.Error())
+        }
+        return
+    }
+
+    this.contentLock.Lock()
+    defer this.contentLock.Unlock()
+    if elem, ok:=this.numberZero.Kvm[keyStoreName]; ok {
+        lastTime=elem.Timestamp
+    } else {
+        lastTime=0
+    }
+    if lastTime>=context.UpdateTime {
+        return
+    }
+    if lastTime>=file.TGet() {
+        return
+    }
+    this.numberZero.MergeWith(file)
+    this.numberZero.MergeWith(filetype.FastMake(CONF_FLAG_PREFIX+NODE_SYNC_TIME_PREFIX+strconv.Itoa(NODE_NUMBER)))
+    this.modified=true
 }
 
 // can be invoked after MergeWith(), Sync() or the moment that the FD goes dormant.
@@ -784,8 +894,20 @@ func (this *FD)WriteBack() error {
     if err:=this.io.Put(this.GetPatchName(0, -1), this.numberZero, meta4Set); err!=nil {
         return err
     }
+    if this.needsGossiped {
+        var err=gsp.GlobalGossiper.PostGossip(&gspdi.GossipEntry{
+            Filename: this.filename,
+            OutAPI: this.io.GenerateUniqueID(),
+            UpdateTime: this.numberZero.TGet(),
+            NodeNumber: NODE_NUMBER,
+        })
+        if err!=nil {
+            Secretary.Warn("distributedvc::FD.WriteBack", "Fail to post change gossiping to other nodes: "+err.Error())
+        }
+    }
 
     this.modified=false
+    this.needsGossiped=false
     this.latestReadableVersionTS=this.numberZero.TGet()
 
     return nil
