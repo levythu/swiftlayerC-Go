@@ -549,7 +549,8 @@ func (this *FD)_checkAndSubmitNumberZero_SansLock() {
                         METAKEY_TIMESTAMP: "0",
                     }))
         if err!=nil {
-            Secretary.Error("distributedvc::FD._checkAndSubmitNumberZero_SansLock", "Error trying to write an empty zero patch: "+
+            Secretary.Error("distributedvc::FD._checkAndSubmitNumberZero_SansLock", "Error trying to write an empty zero patch for "+this.ID()+
+                ": "+
                 err.Error()+
                 ". Subsequent patches may lost. TRYING to resubmit...")
             time.Sleep(unrevocable_io_sleep_time_dur)
