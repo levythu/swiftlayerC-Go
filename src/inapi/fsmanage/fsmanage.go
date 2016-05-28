@@ -13,6 +13,8 @@ import (
     "fmt"
     "utils/pathman"
     egg "definition/errorgroup"
+    "time"
+    "strconv"
     "kernel/filetype"
     "sync"
     //"logger"
@@ -71,6 +73,14 @@ func handlingShortcut(req Request, res Response) bool {
 //      - HTTP 500: Error. The body is supposed to return error info.
 // ==========================API DOCS END===================================
 func lsDirectory(req Request, res Response) {
+
+    //===============measurement========================
+    var startTime int64=0
+    if req.Get("Enable-Measure")=="True" {
+        startTime=time.Now().UnixNano()
+    }
+    //==================================================
+
     var pathDetail, _=req.F()["HandledRR"].([]string)
     if pathDetail==nil {
         pathDetail=req.F()["RR"].([]string)
@@ -100,6 +110,11 @@ func lsDirectory(req Request, res Response) {
     }
 
     res.Set(LAST_PARENT_NODE, nodeName)
+    //=============================================
+    if startTime>0 {
+        res.Set("Time-Consumed", strconv.FormatInt(time.Now().UnixNano()-startTime, 10))
+    }
+    //=============================================
     res.JSON(resultList)
 }
 
@@ -142,6 +157,14 @@ const HEADER_DISTABLE_PARALLEL="Disable-Parallel"
 //      - HTTP 500: Error. The body is supposed to return error info.
 // ==========================API DOCS END===================================
 func mkDirectoryX(req Request, res Response, byforce bool) {
+
+    //===============measurement========================
+    var startTime int64=0
+    if req.Get("Enable-Measure")=="True" {
+        startTime=time.Now().UnixNano()
+    }
+    //==================================================
+
     var pathDetail, _=req.F()["HandledRR"].([]string)
     if pathDetail==nil {
         pathDetail=req.F()["RR"].([]string)
@@ -205,6 +228,11 @@ func mkDirectoryX(req Request, res Response, byforce bool) {
         return
     }
 
+    //=============================================
+    if startTime>0 {
+        res.Set("Time-Consumed", strconv.FormatInt(time.Now().UnixNano()-startTime, 10))
+    }
+    //=============================================
     res.SendCode(201)
 }
 func mkDirectoryByForce(req Request, res Response) {
@@ -233,6 +261,13 @@ func mkDirectory(req Request, res Response) {
 //      - HTTP 500: Error. The body is supposed to return error info.
 // ==========================API DOCS END===================================
 func rmDirectory(req Request, res Response) {
+    //===============measurement========================
+    var startTime int64=0
+    if req.Get("Enable-Measure")=="True" {
+        startTime=time.Now().UnixNano()
+    }
+    //==================================================
+
     var pathDetail, _=req.F()["HandledRR"].([]string)
     if pathDetail==nil {
         pathDetail=req.F()["RR"].([]string)
@@ -294,6 +329,11 @@ func rmDirectory(req Request, res Response) {
         return
     }
 
+    //=============================================
+    if startTime>0 {
+        res.Set("Time-Consumed", strconv.FormatInt(time.Now().UnixNano()-startTime, 10))
+    }
+    //=============================================
     res.SendCode(204)
 }
 
@@ -322,6 +362,13 @@ func rmDirectory(req Request, res Response) {
 const HEADER_DESTINATION="C-Destination"
 const HEADER_MOVE_BY_FORCE="C-By-Force"
 func mvDirectory(req Request, res Response) {
+    //===============measurement========================
+    var startTime int64=0
+    if req.Get("Enable-Measure")=="True" {
+        startTime=time.Now().UnixNano()
+    }
+    //==================================================
+
     var pathDetail, _=req.F()["HandledRR"].([]string)
     if pathDetail==nil {
         pathDetail=req.F()["RR"].([]string)
@@ -420,5 +467,10 @@ func mvDirectory(req Request, res Response) {
         return
     }
 
+    //=============================================
+    if startTime>0 {
+        res.Set("Time-Consumed", strconv.FormatInt(time.Now().UnixNano()-startTime, 10))
+    }
+    //=============================================
     res.SendCode(201)
 }
