@@ -9,8 +9,10 @@ import (
     "kernel/filetype"
     "utils/uniqueid"
     "strings"
+    "strconv"
     . "kernel/distributedvc/filemeta"
     . "kernel/distributedvc/constdef"
+    . "utils/timestamp"
     . "logger"
     fc "kernel/filesystem/fmapcomposition"
     "io"
@@ -588,5 +590,48 @@ func (this *Fs)Get(filename string, frominode string, beforePipe func(string, st
     if err2:=rc.Close(); err2!=nil {
         return err2
     }
+    return nil
+}
+
+func (this *Fs)BatchPutDir(filenameprefix string, frominode string, fromn int, ton int, content string) error {
+    var kvmp=filetype.NewKvMap()
+    var nowTime=GetTimestamp()
+    kvmp.CheckOut()
+
+    for i:=fromn; i<ton; i++ {
+        var filename=filenameprefix+strconv.Itoa(i)
+        var nnodeName=GenFileName(frominode, filename)
+        var newNnode=filetype.NewNnode(content)
+        var initMeta=FileMeta(map[string]string {
+            META_INODE_TYPE:    META_INODE_TYPE_FOLDER,
+            META_PARENT_INODE:  frominode,
+        })
+        if err:=this.io.Put(nnodeName, newNnode, initMeta); err!=nil {
+            Secretary.Error("kernel/filesystem::Fs::BatchPutDir", "Error when putting "+filename+": "+err.Error())
+            return err
+        }
+        kvmp.Kvm[filename]=&filetype.KvmapEntry {
+            Key: filename,
+            Val: "",
+            Timestamp: nowTime,
+        }
+    }
+    kvmp.CheckIn()
+    kvmp.TSet(nowTime)
+
+    {
+        var parentFolderMapFD=dvc.GetFD(GenFileName(frominode, FOLDER_MAP), this.io)
+        if parentFolderMapFD==nil {
+            Secretary.Error("kernel.filesystem::BatchPutDir", "Fail to create foldermap")
+            return exception.EX_IO_ERROR
+        }
+        if err:=parentFolderMapFD.Submit(kvmp); err!=nil {
+            Secretary.Error("kernel.filesystem::BatchPutDir", "Fail to submit patch to foldermap")
+            parentFolderMapFD.Release()
+            return err
+        }
+        parentFolderMapFD.Release()
+    }
+
     return nil
 }
