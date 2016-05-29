@@ -388,6 +388,10 @@ func mvDirectory(req Request, res Response) {
     var destinationSC, destinationPath=pathman.ShortcutResolver(destinationALL)
     if destinationSC=="" {
         destinationSC=filesystem.ROOT_INODE_NAME
+    } else {
+        if len(destinationPath)>0 {
+            destinationPath=destinationPath[1:]
+        }
     }
     var desBase, desFilename=pathman.SplitPath(destinationPath)
     if desFilename=="" {
