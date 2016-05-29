@@ -40,7 +40,7 @@ func main() {
     var io=outapi.NewSwiftio(outapi.DefaultConnector, *pContainer)
     var wg sync.WaitGroup
     var rollingList=func(begg int, endd int) {
-        if endd<0 {
+        if endd<0 || endd>len(objList) {
             endd=len(objList)
         }
         for i:=begg; i<endd; i++ {
