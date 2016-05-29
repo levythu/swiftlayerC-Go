@@ -17,6 +17,10 @@ type SwiftConnector struct {
     c *swift.Connection
 }
 
+func (this *SwiftConnector)DumpConn() *swift.Connection {
+    return this.c
+}
+
 func _no__use_1_() {
     fmt.Println("nosue")
 
