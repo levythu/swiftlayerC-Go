@@ -6,6 +6,7 @@ import (
     "flag"
     "fmt"
     "time"
+    "sync"
     "os"
 )
 
@@ -15,6 +16,7 @@ func main() {
     var pContainer=flag.String("container", "", "The container to manipulate.")
     var pFromPath=flag.String("from", "", "The from path.")
     var pToPath=flag.String("to", "", "The to path")
+    var pThread=flag.Int("thread", 1, "The thread to issue concurrently")
     flag.Parse()
 
     if *pContainer=="" {
@@ -36,20 +38,41 @@ func main() {
     }
 
     var io=outapi.NewSwiftio(outapi.DefaultConnector, *pContainer)
-    for _, e:=range objList {
-        var fromName=e.Name
-        var toName=*pToPath+e.Name[len(*pFromPath):]
-        fmt.Println("Moving", fromName, "->", toName)
+    var wg sync.WaitGroup
+    var rollingList=func(begg int, endd int) {
+        if endd<0 {
+            endd=len(objList)
+        }
+        for i:=begg; i<endd; i++ {
+            var e=objList[i]
+            var fromName=e.Name
+            var toName=*pToPath+e.Name[len(*pFromPath):]
+            fmt.Println("Moving", fromName, "->", toName)
 
-        if err:=io.Copy(fromName, toName, nil); err!=nil {
-            fmt.Println("Error:", err, "when trying to copy", fromName)
-            os.Exit(1)
+            if err:=io.Copy(fromName, toName, nil); err!=nil {
+                fmt.Println("Error:", err, "when trying to copy", fromName)
+                os.Exit(1)
+            }
+            if err:=io.Delete(fromName); err!=nil {
+                fmt.Println("Error:", err, "when trying to delete", fromName)
+                os.Exit(1)
+            }
         }
-        if err:=io.Delete(fromName); err!=nil {
-            fmt.Println("Error:", err, "when trying to delete", fromName)
-            os.Exit(1)
-        }
+        wg.Done()
     }
+
+    var slice=len(objList)/(*pThread)
+    if slice<1 {
+        slice=1
+    }
+    var now=0
+    for now<len(objList) {
+        go rollingList(now, now+slice)
+        now=now+slice
+        wg.Add(1)
+    }
+    wg.Wait()
+
     fmt.Println("Time consumed:", time.Now().UnixNano()-nowTime, "ns")
     return
 }
