@@ -17,6 +17,8 @@ func main() {
     var pFromPath=flag.String("from", "", "The from path.")
     var pToPath=flag.String("to", "", "The to path")
     var pThread=flag.Int("thread", 1, "The thread to issue concurrently")
+    var pDelete=flag.Bool("delete", true, "Perform delete")
+    var pCopy=flag.Bool("copy", true, "Perform copy")
     flag.Parse()
 
     if *pContainer=="" {
@@ -49,13 +51,17 @@ func main() {
             var toName=*pToPath+e.Name[len(*pFromPath):]
             fmt.Println("Moving", fromName, "->", toName)
 
-            if err:=io.Copy(fromName, toName, nil); err!=nil {
-                fmt.Println("Error:", err, "when trying to copy", fromName)
-                os.Exit(1)
+            if *pCopy {
+                if err:=io.Copy(fromName, toName, nil); err!=nil {
+                    fmt.Println("Error:", err, "when trying to copy", fromName)
+                    os.Exit(1)
+                }
             }
-            if err:=io.Delete(fromName); err!=nil {
-                fmt.Println("Error:", err, "when trying to delete", fromName)
-                os.Exit(1)
+            if *pDelete {
+                if err:=io.Delete(fromName); err!=nil {
+                    fmt.Println("Error:", err, "when trying to delete", fromName)
+                    os.Exit(1)
+                }
             }
         }
         wg.Done()
