@@ -15,10 +15,11 @@ import (
 const STREAM_TYPE="stream type file"
 func main() {
     var pcontainer=flag.String("container", "", "The container to put objects in.")
-    var ppath=flag.String("path", "/", "The path to put objects in.")
+    var ppath=flag.String("path", "", "The path to put objects in.")
     var pfromnumber=flag.Int("from", 0, "From number")
     var ptonumber=flag.Int("to", 1, "To number(excluded)")
     var pprefix=flag.String("prefix", "BatchPut", "Prefix name")
+    var psuffix=flag.String("suffix", "", "Suffix name")
     flag.Parse()
 
     var container=*pcontainer
@@ -36,7 +37,7 @@ func main() {
 
     var io=outapi.NewSwiftio(outapi.DefaultConnector, container)
     for i:=fromnumber; i<tonumber; i++ {
-        var filename=path+prefix+strconv.Itoa(i)
+        var filename=path+prefix+strconv.Itoa(i)+*psuffix
         fmt.Println("Putting file "+filename);
 
         var meta=NewMeta()
