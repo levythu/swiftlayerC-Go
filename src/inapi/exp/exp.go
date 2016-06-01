@@ -6,6 +6,7 @@ import (
     "kernel/filesystem"
     "fmt"
     "outapi"
+    sysio "io"
     "strconv"
     //"logger"
 )
@@ -19,8 +20,29 @@ func ExpRouter() Router {
     var rootRouter=ARegexpRouter()
 
     rootRouter.Put(`/batchput`, batchPutHandler)
+    rootRouter.Get(`/rawget/([^/]+)/(.*)`, rawGetHandler)
 
     return rootRouter
+}
+
+func rawGetHandler(req Request, res Response) {
+    var rr=req.F()["RR"].([]string)
+    var io=outapi.NewSwiftio(outapi.DefaultConnector, rr[1])
+    var _, rc, err=io.GetStreamX(rr[2])
+    if err!=nil {
+        res.SendCode(500)
+    } else if rc==nil {
+        res.SendCode(404)
+    } else {
+        var w=res.R()
+        if _, copyErr:=sysio.Copy(w, rc); copyErr!=nil {
+            rc.Close()
+            return
+        }
+        if err2:=rc.Close(); err2!=nil {
+            return
+        }
+    }
 }
 
 func batchPutHandler(req Request, res Response) {
