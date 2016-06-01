@@ -17,5 +17,6 @@
 "/layer2/layer3/layer4/layer5/1.txt",
 "/layer2/layer3/layer4/1.txt",
 "/layer2/layer3/1.txt",
-"/layer2/1.txt"
+"/layer2/1.txt",
+"/1.txt"
 ]
