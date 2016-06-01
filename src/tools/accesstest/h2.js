@@ -1,6 +1,36 @@
 var http=require("http");
 var fs=require("fs");
 
+function getFile(container, path, callback, isRaw) {
+    var options = {
+        hostname: 'controller',
+        port: 9144,
+        path: escape((isRaw?'/exp/rawget/':'/io/')+container+path),
+        method: 'GET',
+    };
+
+    var startTime=Date.now();
+    var req = http.request(options, function(res) {
+        var timeForHeader=Date.now()-startTime;
+        if (res.statusCode>=300) {
+            console.log("None 2xx code:", res.statusCode);
+            return;
+        }
+        res.setEncoding('utf8');
+        res.on('data', function (chunk) {
+            // empty
+        });
+        res.on('end', function() {
+            callback(timeForHeader);
+        });
+    });
+    req.on('error', function(e) {
+        console.log('problem with request: ' + e.message);
+        return;
+    });
+    req.end();
+}
+
 function makeDir(container, dir, callback) {
     var options = {
         hostname: 'controller',
@@ -77,3 +107,4 @@ function escape(str) {
 
 exports.makeDir=makeDir;
 exports.uploadFile=uploadFile;
+exports.getFile=getFile;
