@@ -21,7 +21,7 @@ function getFile(container, path, callback, isRaw) {
             // empty
         });
         res.on('end', function() {
-            callback(timeForHeader);
+            callback(timeForHeader, res.headers);
         });
     });
     req.on('error', function(e) {
